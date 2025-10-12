@@ -1,25 +1,9 @@
-import { AAGUID_CATALOG, type AaguidCatalogEntry } from "./aaguid-data.ts";
+import { AAGUID_CATALOG } from "./aaguid-data.ts";
 
 const normaliseAaguid = (value: string) => value.trim().toLowerCase();
 
-const catalogEntries: readonly AaguidCatalogEntry[] = Array.isArray(AAGUID_CATALOG)
-  ? AAGUID_CATALOG
-  : [];
-
-const aaguidMap = new Map<string, AaguidCatalogEntry>();
-for (const entry of catalogEntries) {
-  if (!entry || typeof entry !== "object") {
-    continue;
-  }
-  const { aaguid } = entry;
-  if (typeof aaguid !== "string" || !aaguid.trim()) {
-    continue;
-  }
-  const key = normaliseAaguid(aaguid);
-  if (!aaguidMap.has(key)) {
-    aaguidMap.set(key, entry);
-  }
-}
+// AAGUID_CATALOG is expected to be a Record<string, AaguidCatalogEntry>.
+const aaguidMap = new Map(Object.entries(AAGUID_CATALOG));
 
 export const findAaguidEntry = (aaguid: string | undefined | null) => {
   if (!aaguid || typeof aaguid !== "string") {

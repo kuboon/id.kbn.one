@@ -186,7 +186,10 @@ const describeAuthenticator = (
   if (usesRoamingTransport(transports)) {
     return "セキュリティキー";
   }
-  if (Array.isArray(transports) && transports.some((value) => value === "internal")) {
+  if (
+    Array.isArray(transports) &&
+    transports.some((value) => value === "internal")
+  ) {
     if (deviceType === "multiDevice") {
       return backedUp ? "同期済みパスキー" : "マルチデバイスパスキー";
     }
@@ -395,11 +398,10 @@ export const createPasskeyMiddleware = (
       }
       let user = await ensureUser(storage, username);
       if (!user) {
-        const displayName = body.displayName?.trim() || username;
+        // Do not collect or store a separate displayName; use username instead
         user = {
           id: crypto.randomUUID(),
           username,
-          displayName,
         } satisfies PasskeyUser;
         try {
           await storage.createUser(user);
@@ -425,7 +427,8 @@ export const createPasskeyMiddleware = (
         rpName,
         rpID: requestUrl.hostname,
         userName: user.username,
-        userDisplayName: user.displayName,
+        // userDisplayName intentionally set to username to avoid storing extra data
+        userDisplayName: user.username,
         excludeCredentials: existingCredentials.map((credential) => ({
           id: credential.id,
           transports: credential.transports,
@@ -520,6 +523,19 @@ export const createPasskeyMiddleware = (
 
       await storage.saveCredential(storedCredential);
       clearSignedChallengeCookie(c);
+
+      // Mark the user as authenticated in the session so they are logged in
+      // immediately after registering a passkey.
+      const secure = c.req.url.startsWith("https://");
+      setCookie(c, SESSION_COOKIE_NAME, user.id, {
+        ...cookieBaseOptions,
+        secure,
+      });
+      const sessionState: PasskeySessionState = {
+        isAuthenticated: true,
+        user,
+      };
+      updateSessionState(c, sessionState);
 
       return c.json({
         verified: verification.verified,

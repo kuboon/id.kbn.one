@@ -102,12 +102,13 @@ main.page {
   position: fixed;
   inset-block-end: clamp(1.5rem, 3vw, 2.5rem);
   inset-inline-end: clamp(1rem, 3vw, 2.5rem);
-  pointer-events: none;
+  pointer-events: none; /* keep region non-interactive so underlying layout isn't affected */
   display: grid;
   gap: 0.75rem;
   z-index: 1000;
 }
 .toast {
+  pointer-events: auto; /* allow clicks/taps on the toast itself */
   min-width: min(360px, calc(100vw - 2rem));
   padding: 1rem 1.25rem;
   border-radius: var(--radius-lg);

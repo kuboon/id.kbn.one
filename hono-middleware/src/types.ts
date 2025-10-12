@@ -16,7 +16,6 @@ import type {
 export interface PasskeyUser {
   id: string;
   username: string;
-  displayName: string;
 }
 
 export interface PasskeyCredential {
@@ -54,7 +53,6 @@ export interface PasskeyStoredChallenge {
 
 export interface RegistrationOptionsRequestBody {
   username: string;
-  displayName?: string;
 }
 
 export interface RegistrationVerifyRequestBody {

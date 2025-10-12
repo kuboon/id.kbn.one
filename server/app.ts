@@ -98,7 +98,6 @@ app.patch("/account", async (c) => {
 
   const payload = body as {
     username?: unknown;
-    displayName?: unknown;
   };
 
   const updatedUser: PasskeyUser = { ...currentUser };
@@ -123,20 +122,7 @@ app.patch("/account", async (c) => {
     }
   }
 
-  if ("displayName" in payload) {
-    if (typeof payload.displayName === "string") {
-      const displayName = payload.displayName.trim() || updatedUser.username;
-      if (displayName !== currentUser.displayName) {
-        updatedUser.displayName = displayName;
-        changed = true;
-      }
-    } else if (payload.displayName === null) {
-      if (currentUser.displayName !== updatedUser.username) {
-        updatedUser.displayName = updatedUser.username;
-        changed = true;
-      }
-    }
-  }
+  // displayName is not accepted or stored by the server
 
   if (!changed) {
     return c.json({ user: currentUser });

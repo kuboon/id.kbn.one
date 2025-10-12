@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ID Central</title>
+    <title>kbn.one ID central</title>
     <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -11,13 +11,12 @@
     <main class="page">
       <header class="page-header">
         <div class="brand">
-          <h1 id="brand"></h1>
+          <h1 id="brand">kbn.one ID central</h1>
         </div>
       </header>
 
       <section id="guest-view" class="panel">
         <div class="card">
-          <h2>パスキーでサインイン</h2>
           <form id="guest-form" class="stack" autocomplete="off">
             <label class="field" for="guest-username">
               <span>ユーザー名</span>
@@ -31,7 +30,7 @@
               />
             </label>
             <div class="button-row align-start">
-              <button type="submit" class="primary">サインイン</button>
+              <button type="submit" class="primary">パスキーでサインイン</button>
               <button
                 type="button"
                 id="open-create-account"
@@ -76,15 +75,7 @@
                 required
               />
             </label>
-            <label class="field" for="account-display-name">
-              <span>表示名</span>
-              <input
-                id="account-display-name"
-                type="text"
-                name="displayName"
-                autocomplete="name"
-              />
-            </label>
+            <!-- displayName removed: not collected or stored -->
             <div class="button-row align-start">
               <button type="submit" class="primary">変更を保存</button>
             </div>
@@ -119,17 +110,8 @@
         <form id="passkey-form" class="dialog-form">
           <h2 id="passkey-dialog-title">パスキーを追加</h2>
           <p id="passkey-dialog-description" class="hint">
-            このユーザー名に最初のパスキーを登録します。表示名は後からでも変更できます。
+            このユーザー名に最初のパスキーを登録します。
           </p>
-          <label class="field" id="passkey-display-name-field">
-            <span>表示名</span>
-            <input
-              id="passkey-display-name"
-              type="text"
-              name="displayName"
-              autocomplete="name"
-            />
-          </label>
           <div class="button-row align-end">
             <button type="button" id="cancel-passkey-dialog" class="secondary">
               キャンセル
@@ -183,9 +165,7 @@
       const accountUsernameInput = document.getElementById(
         "account-username",
       );
-      const accountDisplayNameInput = document.getElementById(
-        "account-display-name",
-      );
+      // displayName inputs removed
       const profileSubmitButton = profileForm.querySelector(
         'button[type="submit"]',
       );
@@ -201,12 +181,8 @@
       const passkeyDialogDescription = document.getElementById(
         "passkey-dialog-description",
       );
-      const passkeyDisplayNameField = document.getElementById(
-        "passkey-display-name-field",
-      );
-      const passkeyDisplayNameInput = document.getElementById(
-        "passkey-display-name",
-      );
+      const passkeyDisplayNameField = null;
+      const passkeyDisplayNameInput = null;
       const passkeyDialogCancel = document.getElementById(
         "cancel-passkey-dialog",
       );
@@ -221,16 +197,48 @@
       };
 
       let statusAnimationFrame = 0;
-      const setStatus = (message, type = "info") => {
+      let statusHideTimeout = 0;
+
+      const hideStatus = () => {
+        // hide using dataset so CSS transitions handle the visual
+        statusEl.dataset.visible = "false";
+        if (statusAnimationFrame) {
+          cancelAnimationFrame(statusAnimationFrame);
+          statusAnimationFrame = 0;
+        }
+        if (statusHideTimeout) {
+          clearTimeout(statusHideTimeout);
+          statusHideTimeout = 0;
+        }
+      };
+
+      const setStatus = (
+        message,
+        type = "info",
+        { autoHide = true, timeout = 5000 } = {},
+      ) => {
         statusEl.textContent = message;
         statusEl.dataset.status = type;
+        // ensure hidden first so transition can play when shown
         statusEl.dataset.visible = "false";
         if (statusAnimationFrame) {
           cancelAnimationFrame(statusAnimationFrame);
         }
+        // clear any previous hide timer
+        if (statusHideTimeout) {
+          clearTimeout(statusHideTimeout);
+          statusHideTimeout = 0;
+        }
         statusAnimationFrame = requestAnimationFrame(() => {
           statusAnimationFrame = 0;
           statusEl.dataset.visible = "true";
+          // schedule auto-hide if requested
+          if (autoHide) {
+            statusHideTimeout = setTimeout(() => {
+              statusHideTimeout = 0;
+              statusEl.dataset.visible = "false";
+            }, timeout);
+          }
         });
       };
 
@@ -344,17 +352,14 @@
           accountSummary.textContent =
             "サインインしてアカウントを管理しましょう。";
           accountUsernameInput.value = "";
-          accountDisplayNameInput.value = "";
           renderCredentials([]);
           updateViews();
           return;
         }
         const { user, credentials } = account;
-        accountSummary.textContent = user.displayName
-          ? `${user.displayName} · ${user.username}`
-          : user.username;
+        // displayName intentionally not shown or stored on client
+        accountSummary.textContent = user.username;
         accountUsernameInput.value = user.username;
-        accountDisplayNameInput.value = user.displayName ?? "";
         renderCredentials(credentials);
         updateViews();
       };
@@ -541,28 +546,20 @@
         if (mode === "create") {
           passkeyDialogTitle.textContent = "アカウントを作成";
           passkeyDialogDescription.textContent =
-            "このユーザー名に最初のパスキーを登録します。表示名は後からでも変更できます。";
-          passkeyDisplayNameField.hidden = false;
+            "このユーザー名に最初のパスキーを登録します。";
           passkeyDialogSubmit.textContent = "アカウントを作成";
-          passkeyDisplayNameInput.value = guestUsernameInput.value
-            .trim();
         } else {
           passkeyDialogTitle.textContent = "別のパスキーを追加";
           passkeyDialogDescription.textContent =
             "このデバイスの情報から自動的に名前を付けて保存します。";
-          passkeyDisplayNameField.hidden = true;
+          passkeyDialogDescription.textContent =
+            "このデバイスの情報から自動的に名前を付けて保存します。";
           passkeyDialogSubmit.textContent = "パスキーを追加";
-          if (state.account?.user?.displayName) {
-            passkeyDisplayNameInput.value =
-              state.account.user.displayName;
-          } else {
-            passkeyDisplayNameInput.value = "";
-          }
         }
         try {
           passkeyDialog.showModal();
           if (mode === "create") {
-            passkeyDisplayNameInput.focus();
+            passkeyDialogSubmit.focus();
           } else {
             passkeyDialogSubmit.focus();
           }
@@ -571,7 +568,7 @@
         }
       };
 
-      createAccountButton.addEventListener("click", () => {
+      createAccountButton.addEventListener("click", async () => {
         if (!guestUsernameInput.value.trim()) {
           setStatus(
             "アカウントを作成するにはユーザー名を入力してください。",
@@ -580,7 +577,56 @@
           guestUsernameInput.focus();
           return;
         }
-        openPasskeyDialog("create");
+        if (createAccountButton.dataset.loading === "true") {
+          return;
+        }
+        const username = guestUsernameInput.value.trim();
+        createAccountButton.dataset.loading = "true";
+        createAccountButton.disabled = true;
+        try {
+          setStatus("セキュリティキーの操作を待機しています…");
+          const result = await client.register({ username });
+          const nickname = result?.credential?.nickname?.trim();
+          setStatus(
+            nickname
+              ? `パスキー「${nickname}」を登録しました。`
+              : "パスキーを登録しました。",
+            "success",
+          );
+          // Authenticate and load the account after successful registration
+          await authenticateWithPasskey(username);
+        } catch (error) {
+          let message = "パスキーの設定に失敗しました。";
+          let statusType = "error";
+          if (error instanceof DOMException) {
+            switch (error.name) {
+              case "NotAllowedError":
+                message =
+                  "このデバイスには既にこのアカウントのパスキーがあります。別の認証器を使用するか既存の鍵を削除してください。";
+                break;
+              case "InvalidStateError":
+                message =
+                  "この認証器は既にこのアカウントに登録されているため要求を拒否しました。";
+                break;
+              case "AbortError":
+                message = "パスキーの設定がキャンセルされました。";
+                statusType = "info";
+                break;
+              default:
+                if (error.message?.trim()) {
+                  message =
+                    `パスキーの設定に失敗しました: ${error.message}`;
+                }
+                break;
+            }
+          } else if (error instanceof Error && error.message.trim()) {
+            message = `パスキーの設定に失敗しました: ${error.message}`;
+          }
+          setStatus(message, statusType);
+        } finally {
+          createAccountButton.dataset.loading = "false";
+          createAccountButton.disabled = false;
+        }
       });
 
       addPasskeyButton.addEventListener("click", () => {
@@ -616,12 +662,8 @@
             if (!username) {
               throw new Error("ユーザー名は必須です。");
             }
-            const displayName = passkeyDisplayNameInput.value.trim();
             setStatus("セキュリティキーの操作を待機しています…");
-            const result = await client.register({
-              username,
-              displayName: displayName || undefined,
-            });
+            const result = await client.register({ username });
             const nickname = result?.credential?.nickname?.trim();
             setStatus(
               nickname
@@ -637,10 +679,7 @@
             }
             const username = state.account.user.username;
             setStatus("セキュリティキーの操作を待機しています…");
-            const result = await client.register({
-              username,
-              displayName: state.account.user.displayName || undefined,
-            });
+            const result = await client.register({ username });
             const nickname = result?.credential?.nickname?.trim();
             setStatus(
               nickname
@@ -744,13 +783,9 @@
           return;
         }
         const username = accountUsernameInput.value.trim();
-        const displayName = accountDisplayNameInput.value.trim();
         const payload = {};
         if (username && username !== state.account.user.username) {
           payload.username = username;
-        }
-        if (displayName !== state.account.user.displayName) {
-          payload.displayName = displayName;
         }
         if (Object.keys(payload).length === 0) {
           setStatus("保存する変更がありません。", "info");
@@ -890,6 +925,21 @@
       };
 
       await initialise();
+
+      // click-to-dismiss for the toast region: hide immediately when clicked
+      statusEl.addEventListener("click", () => {
+        // hide immediately and clear any timers
+        if (statusHideTimeout) {
+          clearTimeout(statusHideTimeout);
+          statusHideTimeout = 0;
+        }
+        // use requestAnimationFrame to ensure dataset changes don't clash
+        if (statusAnimationFrame) {
+          cancelAnimationFrame(statusAnimationFrame);
+          statusAnimationFrame = 0;
+        }
+        statusEl.dataset.visible = "false";
+      });
     </script>
   </body>
 </html>
