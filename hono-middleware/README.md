@@ -68,9 +68,9 @@ inspect the authenticated user.
 
 The middleware derives the relying-party origin for each request from the
 incoming `Origin` header (falling back to the request URL) and packages it with
-the generated challenge inside an HMAC-signed cookie. The cookie is verified
-and cleared during the `/verify` steps to ensure the challenge cannot be
-tampered with while still avoiding server-side storage.
+the generated challenge inside an HMAC-signed cookie. The cookie is verified and
+cleared during the `/verify` steps to ensure the challenge cannot be tampered
+with while still avoiding server-side storage.
 
 ### Storage
 
