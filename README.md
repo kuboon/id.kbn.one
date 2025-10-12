@@ -1,57 +1,81 @@
-# Passkeys Middleware Monorepo
+# Passkeys and DPoP utilities monorepo
 
-This repository hosts two packages that demonstrate how to integrate passkey
-(WebAuthn) authentication with [Hono](https://hono.dev/):
+This repository contains three cooperating modules demonstrating Deno-first
+implementations for passkeys (WebAuthn) and DPoP utilities:
 
-- [`@passkeys-middleware/hono`](./hono-middleware) – a reusable router that
-  exposes WebAuthn endpoints powered by
-  [`@simplewebauthn/server`](https://github.com/MasterKale/SimpleWebAuthn) and
-  serves the
-  [`@simplewebauthn/client`](https://github.com/MasterKale/SimpleWebAuthn/tree/master/packages/client)
-  browser bundle.
-- [`@passkeys-middleware/demo-server`](./server) – a Hono application that
-  mounts the router at `/webauthn` and provides a small UI for registering and
-  authenticating multiple passkeys per account with nicknames.
+- `hono-middleware/` — a reusable Hono middleware that exposes WebAuthn
+  registration and authentication endpoints and serves a bundled `client.js`.
+- `server/` — a small demo Hono server that mounts the middleware (defaults to
+  `/webauthn`) and provides a minimal UI under `server/static/` for trying
+  registration and authentication flows locally.
+- `dpop/` — utilities for generating and verifying DPoP proofs (create/verify
+  DPoP JWTs). Useful when building OAuth flows that require DPoP-bound access
+  tokens.
 
-## Project structure
+## Project layout
 
 ```
 /
-├─ hono-middleware/    # Source for the reusable middleware (Deno + JSR ready)
-└─ server/             # Demo server that consumes the router via app.route('/webauthn', ...)
+├─ dpop/               # DPoP key + proof helpers
+├─ hono-middleware/    # Passkeys / WebAuthn middleware for Hono
+└─ server/             # Demo server that uses the middleware and static UI
 ```
 
-## Development
+## Quick start — run the demo server
 
-Start the demo server with Deno:
+This workspace is configured for Deno. The project includes a `mise` helper in
+`AGENTS.md` for consistent tool versions, but Deno can be invoked directly if
+you have a compatible version installed.
+
+Recommended (uses mise if available):
+
+```bash
+# from repository root
+mise exec -- deno task -C server dev
+```
+
+Or, without mise:
 
 ```bash
 cd server
 deno task dev
 ```
 
-By default it listens on <http://localhost:8787> and uses `localhost` as the
-relying party ID. You can override the relying party values using environment
-variables:
+The demo server listens on http://localhost:8000. You can override relying-party
+values with environment variables when needed:
 
-- `RP_ID`
-- `RP_NAME`
-- `RP_ORIGIN`
-- `PORT`
+- `RP_ID` (relying party id)
+- `RP_NAME` (relying party display name)
+- `RP_ORIGIN` (origin used when running behind a proxy)
 
-## Middleware tasks
+Open the browser at http://localhost:8000 to try registering and authenticating
+passkeys using the UI in `server/static/index.html`.
 
-Run middleware checks and formatting through Deno:
+## Development & checks
+
+Run formatting, linting and tests as recommended in `AGENTS.md`:
 
 ```bash
-cd hono-middleware
-mise exec -- deno task check
-mise exec -- deno fmt
-mise exec -- deno lint
+mise exec -- deno fmt && mise exec -- deno lint && mise exec -- deno test -C . -P
 ```
 
-To publish an update to [JSR](https://jsr.io/), run `npx jsr publish` from the
-`hono-middleware/` directory. npm publishing is no longer supported now that the
-package is configured exclusively for Deno.
+You can also run module-local tasks. Examples:
 
-The demo server is intended for local development and should not be published.
+```bash
+cd server
+mise exec -- deno task dev
+
+cd hono-middleware
+mise exec -- deno task check
+```
+
+Notes:
+
+- The `hono-middleware` package includes an `InMemoryPasskeyStore` intended for
+  local development only. Replace it with a persistent storage implementation
+  for production.
+- `dpop/` exports `createDpopProof` and `verifyDpopProof` helpers for working
+  with DPoP-bound access tokens.
+
+If you'd like, I can also add a short example showing how to call
+`dpop/createDpopProof` from the demo UI.

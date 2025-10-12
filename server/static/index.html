@@ -18,19 +18,10 @@
       <section id="guest-view" class="panel">
         <div class="card">
           <form id="guest-form" class="stack" autocomplete="off">
-            <label class="field" for="guest-username">
-              <span>ユーザー名</span>
-              <input
-                id="guest-username"
-                type="text"
-                name="username"
-                autocomplete="username webauthn"
-                placeholder="例: your-name"
-                required
-              />
-            </label>
             <div class="button-row align-start">
-              <button type="submit" class="primary">パスキーでサインイン</button>
+              <button type="submit" class="primary">
+                パスキーでサインイン
+              </button>
               <button
                 type="button"
                 id="open-create-account"
@@ -122,6 +113,32 @@
           </div>
         </form>
       </dialog>
+
+      <!-- Sign-in modal for browsers without conditional mediation -->
+      <dialog id="signin-dialog">
+        <form id="signin-form" class="dialog-form">
+          <h2>サインイン</h2>
+          <p class="hint">ユーザー名を入力してパスキーでサインインします。</p>
+          <label class="field" for="signin-username">
+            <span>ユーザー名</span>
+            <input
+              id="signin-username"
+              name="username"
+              autocomplete="username"
+              type="text"
+              required
+            />
+          </label>
+          <div class="button-row align-end">
+            <button type="button" id="cancel-signin" class="secondary">
+              キャンセル
+            </button>
+            <button type="submit" id="submit-signin" class="primary">
+              サインイン
+            </button>
+          </div>
+        </form>
+      </dialog>
     </main>
 
     <div class="toast-region" aria-live="polite" aria-atomic="true">
@@ -137,19 +154,22 @@
     </div>
 
     <script type="module">
-      import { createClient } from "/webauthn/client.js";
+      import {
+        createClient,
+        startAuthentication,
+      } from "/webauthn/client.js";
 
       const client = createClient();
 
-      const storageKey = "passkeys.currentUsername";
+      // localStorage-based username persistence removed intentionally
 
       const statusEl = document.getElementById("status");
       const guestView = document.getElementById("guest-view");
       const accountView = document.getElementById("account-view");
       const guestForm = document.getElementById("guest-form");
-      const guestUsernameInput = document.getElementById(
-        "guest-username",
-      );
+      // guest username input removed from DOM; we keep storage key
+      // and will generate usernames when needed
+      const guestUsernameInput = null;
       const conditionalStatus = document.getElementById(
         "conditional-status",
       );
@@ -188,6 +208,14 @@
       );
       const passkeyDialogSubmit = document.getElementById(
         "submit-passkey-dialog",
+      );
+      const signinDialog = document.getElementById("signin-dialog");
+      const signinForm = document.getElementById("signin-form");
+      const signinUsernameInput = document.getElementById(
+        "signin-username",
+      );
+      const signinDialogCancel = document.getElementById(
+        "cancel-signin",
       );
 
       const state = {
@@ -254,23 +282,7 @@
         }
       };
 
-      const storeUsername = (value) => {
-        try {
-          if (value) {
-            localStorage.setItem(storageKey, value);
-          }
-        } catch {
-          // ignore storage failures
-        }
-      };
-
-      const getStoredUsername = () => {
-        try {
-          return localStorage.getItem(storageKey) ?? "";
-        } catch {
-          return "";
-        }
-      };
+      // username persistence functions removed — no localStorage reads/writes
 
       const updateViews = () => {
         const hasAccount = Boolean(state.account);
@@ -447,7 +459,6 @@
       const loadAccount = async (username) => {
         const account = await fetchAccount(username);
         setAccount(account);
-        storeUsername(account.user.username);
         return account;
       };
 
@@ -472,9 +483,66 @@
 
       const authenticateWithPasskey = async (username) => {
         setStatus("パスキーの操作を待機しています…");
-        await client.authenticate({ username });
-        await loadAccount(username);
-        setStatus("サインインに成功しました。", "success");
+        if (username) {
+          // standard flow that requires a username
+          await client.authenticate({ username });
+          await loadAccount(username);
+          setStatus("サインインに成功しました。", "success");
+          return;
+        }
+
+        // If conditional mediation is available, use server endpoints
+        // that allow discoverable credentials without providing username.
+        if (state.conditionalAvailable) {
+          // fetch options from unified endpoint without username
+          const optsResp = await fetch(
+            "/webauthn/authenticate/options",
+            {
+              method: "POST",
+              credentials: "include",
+              body: JSON.stringify({}),
+            },
+          );
+          if (!optsResp.ok) {
+            throw new Error("認証オプションの取得に失敗しました");
+          }
+          const optionsJSON = await optsResp.json();
+          // start authentication ceremony using simplewebauthn browser helper
+          const assertionResponse = await startAuthentication({
+            optionsJSON,
+          });
+
+          // send verification to unified verify endpoint (no username)
+          const verifyResp = await fetch(
+            "/webauthn/authenticate/verify",
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                credential: assertionResponse,
+                challenge: optionsJSON.challenge,
+                origin: window.location.origin,
+              }),
+            },
+          );
+          if (!verifyResp.ok) {
+            throw new Error("認証の検証に失敗しました");
+          }
+          const data = await verifyResp.json();
+          if (!data || typeof data !== "object" || !data.credential) {
+            throw new Error("サーバーから予期しない応答がありました。");
+          }
+          // load account for the user now authenticated via session cookie
+          const session = await getSession();
+          if (session?.isAuthenticated && session.user) {
+            await loadAccount(session.user.username);
+          }
+          setStatus("サインインに成功しました。", "success");
+          return;
+        }
+
+        throw new Error("ユーザー名が必要です。");
       };
 
       const checkConditionalMediation = async () => {
@@ -516,15 +584,27 @@
         if (guestForm.dataset.loading === "true") {
           return;
         }
-        const username = guestUsernameInput.value.trim();
-        if (!username) {
-          setStatus("先にユーザー名を入力してください。", "error");
-          guestUsernameInput.focus();
+        // If conditional mediation is available, start discoverable credential flow.
+        // Otherwise prompt user to create an account via the UI.
+        if (!state.conditionalAvailable) {
+          // open a lightweight modal to let the user enter username
+          try {
+            signinDialog.showModal();
+            signinUsernameInput.focus();
+          } catch (error) {
+            // fallback to status message if dialog cannot be shown
+            setStatus(
+              "このブラウザーではパスキーの自動入力が利用できません。アカウントを作成してください。",
+              "info",
+            );
+          }
           return;
         }
+
         guestForm.dataset.loading = "true";
         try {
-          await authenticateWithPasskey(username);
+          // calling without username triggers conditional flow in authenticateWithPasskey
+          await authenticateWithPasskey("");
         } catch (error) {
           setStatus(
             error?.message
@@ -537,9 +617,7 @@
         }
       });
 
-      guestUsernameInput.addEventListener("input", () => {
-        storeUsername(guestUsernameInput.value.trim());
-      });
+      // guestUsernameInput removed — username stored when created
 
       const openPasskeyDialog = (mode) => {
         passkeyDialog.dataset.mode = mode;
@@ -568,19 +646,24 @@
         }
       };
 
+      const generateRandomUsername = () => {
+        // simple random username: kbn-<timestamp>-<4 hex>
+        const hex = () =>
+          Math.floor(Math.random() * 0xffff)
+            .toString(16)
+            .padStart(4, "0");
+        return `kbn-${Date.now().toString(36)}-${hex()}`;
+      };
+
       createAccountButton.addEventListener("click", async () => {
-        if (!guestUsernameInput.value.trim()) {
-          setStatus(
-            "アカウントを作成するにはユーザー名を入力してください。",
-            "error",
-          );
-          guestUsernameInput.focus();
-          return;
-        }
         if (createAccountButton.dataset.loading === "true") {
           return;
         }
-        const username = guestUsernameInput.value.trim();
+        // generate a username for the new account
+        const username = generateRandomUsername();
+        if (createAccountButton.dataset.loading === "true") {
+          return;
+        }
         createAccountButton.dataset.loading = "true";
         createAccountButton.disabled = true;
         try {
@@ -593,8 +676,11 @@
               : "パスキーを登録しました。",
             "success",
           );
-          // Authenticate and load the account after successful registration
-          await authenticateWithPasskey(username);
+          // The server marks the session as authenticated on successful
+          // registration. Load the account state from the server instead of
+          // starting another authentication ceremony.
+          await loadAccount(username);
+          setStatus("サインインに成功しました。", "success");
         } catch (error) {
           let message = "パスキーの設定に失敗しました。";
           let statusType = "error";
@@ -644,6 +730,40 @@
         passkeyDialog.close();
       });
 
+      signinDialogCancel.addEventListener("click", () => {
+        try {
+          signinDialog.close();
+        } catch {
+          // ignore
+        }
+      });
+
+      signinForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (signinForm.dataset.loading === "true") return;
+        const username = (signinUsernameInput.value || "").trim();
+        if (!username) {
+          setStatus("ユーザー名を入力してください。", "error");
+          return;
+        }
+        signinForm.dataset.loading = "true";
+        try {
+          signinDialog.close();
+        } catch {}
+        try {
+          await authenticateWithPasskey(username);
+        } catch (err) {
+          setStatus(
+            err?.message
+              ? `サインインに失敗しました: ${err.message}`
+              : "サインインに失敗しました。",
+            "error",
+          );
+        } finally {
+          signinForm.dataset.loading = "false";
+        }
+      });
+
       passkeyDialog.addEventListener("close", () => {
         passkeyForm.dataset.loading = "false";
       });
@@ -658,10 +778,8 @@
         passkeyDialogSubmit.disabled = true;
         try {
           if (mode === "create") {
-            const username = guestUsernameInput.value.trim();
-            if (!username) {
-              throw new Error("ユーザー名は必須です。");
-            }
+            // generate username for the newly created account
+            const username = generateRandomUsername();
             setStatus("セキュリティキーの操作を待機しています…");
             const result = await client.register({ username });
             const nickname = result?.credential?.nickname?.trim();
@@ -672,7 +790,11 @@
               "success",
             );
             passkeyDialog.close();
-            await authenticateWithPasskey(username);
+            // The server marks the session as authenticated on successful
+            // registration. Load the account state from the server instead of
+            // starting another authentication ceremony.
+            await loadAccount(username);
+            setStatus("サインインに成功しました。", "success");
           } else {
             if (!state.account) {
               throw new Error("サインイン中のアカウントがありません。");
@@ -811,7 +933,6 @@
             user: data.user,
             credentials: state.credentials,
           };
-          storeUsername(data.user.username);
           renderAccount();
           setStatus("プロフィールを更新しました。", "success");
         } catch (error) {
@@ -899,10 +1020,8 @@
       });
 
       const initialise = async () => {
-        const stored = getStoredUsername();
-        if (stored) {
-          guestUsernameInput.value = stored;
-        }
+        // Nothing to prefill on the guest view; stored username remains
+        // for sign-in if previously created.
         await checkConditionalMediation();
         const session = await getSession();
         if (session?.isAuthenticated && session.user) {

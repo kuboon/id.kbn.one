@@ -548,63 +548,117 @@ export const createPasskeyMiddleware = (
       setNoStore(c);
       const body = await ensureJsonBody<AuthenticationOptionsRequestBody>(c);
       const username = body.username?.trim();
-      if (!username) {
-        throw jsonError(400, "username is required");
-      }
-      const user = await ensureUserOrThrow(username);
-      const credentials = await storage.getCredentialsByUserId(user.id);
-      if (credentials.length === 0) {
-        throw jsonError(404, "No registered credentials for user");
-      }
-
       const requestUrl = getRequestUrl(c);
-      const optionsInput: GenerateAuthenticationOptionsOpts = {
-        rpID: requestUrl.hostname,
-        allowCredentials: credentials.map((credential) => ({
-          id: credential.id,
-          transports: credential.transports,
-        })),
-        userVerification: "preferred",
-        ...authenticationOptions,
-      };
+
+      let optionsInput: GenerateAuthenticationOptionsOpts;
+      if (username) {
+        // username-based flow: restrict to credentials for that user
+        const user = await ensureUserOrThrow(username);
+        const credentials = await storage.getCredentialsByUserId(user.id);
+        if (credentials.length === 0) {
+          throw jsonError(404, "No registered credentials for user");
+        }
+        optionsInput = {
+          rpID: requestUrl.hostname,
+          allowCredentials: credentials.map((credential) => ({
+            id: credential.id,
+            transports: credential.transports,
+          })),
+          userVerification: "preferred",
+          ...authenticationOptions,
+        };
+      } else {
+        // conditional / discoverable credentials flow: do not set allowCredentials
+        optionsInput = {
+          rpID: requestUrl.hostname,
+          userVerification: "preferred",
+          ...authenticationOptions,
+        };
+      }
 
       const optionsResult = await webauthn.generateAuthenticationOptions(
         optionsInput,
       );
+
       await setSignedChallengeCookie(c, {
-        userId: user.id,
+        userId: username ? (await ensureUserOrThrow(username)).id : "",
         type: "authentication",
         value: {
           challenge: optionsResult.challenge,
           origin: requestUrl.origin,
         },
       });
+
       return c.json(optionsResult);
     }));
 
   routes.post("/authenticate/verify", (c) =>
     respond(async () => {
       setNoStore(c);
-      const body = await ensureJsonBody<AuthenticationVerifyRequestBody>(c);
+      const rawBody = (await ensureJsonBody<unknown>(c)) as Record<
+        string,
+        unknown
+      >;
+      const body = (rawBody as unknown) as AuthenticationVerifyRequestBody & {
+        challenge?: string;
+        origin?: string;
+      };
       const username = body.username?.trim();
-      if (!username) {
-        throw jsonError(400, "username is required");
-      }
-      const user = await ensureUserOrThrow(username);
-      const storedChallenge = await readSignedChallenge(c, {
-        userId: user.id,
-        type: "authentication",
-      });
-      if (!storedChallenge) {
-        throw jsonError(400, "No authentication challenge for user");
-      }
-      const expectedChallenge = storedChallenge.challenge;
-      const expectedOrigin = storedChallenge.origin;
 
-      const credentialId = body.credential.id;
-      const storedCredential = await storage.getCredentialById(credentialId);
-      if (!storedCredential || storedCredential.userId !== user.id) {
-        throw jsonError(404, "Credential not found");
+      let expectedChallenge: string;
+      let expectedOrigin: string;
+      let storedCredential: PasskeyCredential | null = null;
+      let user: PasskeyUser | null = null;
+
+      if (username) {
+        // username-based verification
+        user = await ensureUserOrThrow(username);
+        const storedChallenge = await readSignedChallenge(c, {
+          userId: user.id,
+          type: "authentication",
+        });
+        if (!storedChallenge) {
+          throw jsonError(400, "No authentication challenge for user");
+        }
+        expectedChallenge = storedChallenge.challenge;
+        expectedOrigin = storedChallenge.origin;
+
+        const credentialId = body.credential.id;
+        storedCredential = await storage.getCredentialById(credentialId);
+        if (!storedCredential || storedCredential.userId !== user.id) {
+          throw jsonError(404, "Credential not found");
+        }
+      } else {
+        // conditional (discoverable) verification: user not supplied
+        const storedChallenge = await readSignedChallenge(c, {
+          userId: "",
+          type: "authentication",
+        });
+        if (storedChallenge) {
+          expectedChallenge = storedChallenge.challenge;
+          expectedOrigin = storedChallenge.origin;
+        } else {
+          // fallback: client may include challenge/origin in body
+          expectedChallenge = body.challenge ?? "";
+          expectedOrigin = body.origin ?? "";
+          if (!expectedChallenge || !expectedOrigin) {
+            throw jsonError(400, "No authentication challenge");
+          }
+        }
+
+        const credentialId = body.credential?.id;
+        if (!credentialId) {
+          throw jsonError(400, "Credential missing");
+        }
+        storedCredential = await storage.getCredentialById(credentialId);
+        if (!storedCredential) {
+          throw jsonError(404, "Credential not found");
+        }
+        // determine user from credential
+        user = await storage.getUserById(storedCredential.userId);
+        if (!user) {
+          throw jsonError(404, "User not found");
+        }
       }
 
       const verification = await webauthn.verifyAuthenticationResponse({
@@ -626,15 +680,15 @@ export const createPasskeyMiddleware = (
         throw jsonError(400, "Authentication could not be verified");
       }
 
-      storedCredential.counter = authenticationInfo.newCounter;
-      storedCredential.updatedAt = Date.now();
-      storedCredential.backedUp = authenticationInfo.credentialBackedUp;
-      storedCredential.deviceType = authenticationInfo.credentialDeviceType;
-      await storage.updateCredential(storedCredential);
+      storedCredential!.counter = authenticationInfo.newCounter;
+      storedCredential!.updatedAt = Date.now();
+      storedCredential!.backedUp = authenticationInfo.credentialBackedUp;
+      storedCredential!.deviceType = authenticationInfo.credentialDeviceType;
+      await storage.updateCredential(storedCredential!);
       clearSignedChallengeCookie(c);
 
       const secure = c.req.url.startsWith("https://");
-      setCookie(c, SESSION_COOKIE_NAME, user.id, {
+      setCookie(c, SESSION_COOKIE_NAME, user!.id, {
         ...cookieBaseOptions,
         secure,
       });

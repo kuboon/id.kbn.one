@@ -45,3 +45,7 @@ If returns error, fix them.
 - do not import from `npm:` or `jsr:`, `https://` directly.
   - run `deno add jsr:@std/foo` first, then you can write
     `import { foo } from "@std/foo;`
+
+# General instructions
+
+- Do not add comments what you did like "// displayName inputs removed"
