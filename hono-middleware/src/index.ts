@@ -32,6 +32,7 @@ import {
   createSignedChallengeValue,
   verifySignedChallengeValue,
 } from "./challenge-signature.ts";
+import { findAaguidName } from "./aaguid-catalog.ts";
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -100,9 +101,6 @@ const normalizeMountPath = (path: string) => {
     : withLeadingSlash;
 };
 
-const normalizeNickname = (nickname: string | undefined) =>
-  nickname?.trim() ?? "";
-
 const jsonError = (status: ContentfulStatusCode, message: string) =>
   new HTTPException(status, { message });
 
@@ -168,6 +166,106 @@ const getRequestUrl = (c: Context): URL => {
   } catch {
     throw jsonError(400, "Unable to determine request origin");
   }
+};
+
+const usesRoamingTransport = (transports?: readonly string[]) => {
+  if (!Array.isArray(transports)) {
+    return false;
+  }
+  return transports.some((transport) => {
+    const value = typeof transport === "string" ? transport.toLowerCase() : "";
+    return value === "usb" || value === "nfc" || value === "ble";
+  });
+};
+
+const describeAuthenticator = (
+  deviceType: string | undefined,
+  backedUp: boolean | undefined,
+  transports?: readonly string[],
+) => {
+  if (usesRoamingTransport(transports)) {
+    return "セキュリティキー";
+  }
+  if (Array.isArray(transports) && transports.some((value) => value === "internal")) {
+    if (deviceType === "multiDevice") {
+      return backedUp ? "同期済みパスキー" : "マルチデバイスパスキー";
+    }
+    return "このデバイスのパスキー";
+  }
+  if (deviceType === "multiDevice") {
+    return backedUp ? "同期済みパスキー" : "マルチデバイスパスキー";
+  }
+  if (deviceType === "singleDevice") {
+    return "このデバイスのパスキー";
+  }
+  return backedUp ? "同期済みパスキー" : "パスキー";
+};
+
+const guessNicknameFromUserAgent = (userAgent: string | undefined | null) => {
+  if (!userAgent) {
+    return null;
+  }
+  const ua = userAgent.toLowerCase();
+  if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) {
+    return "このiOSデバイスのパスキー";
+  }
+  if (ua.includes("mac os x") || ua.includes("macintosh")) {
+    return "このMacのパスキー";
+  }
+  if (ua.includes("android")) {
+    if (ua.includes("pixel")) {
+      return "このPixelのパスキー";
+    }
+    return "Android デバイスのパスキー";
+  }
+  if (ua.includes("windows")) {
+    return "Windows デバイスのパスキー";
+  }
+  if (ua.includes("linux")) {
+    return "Linux デバイスのパスキー";
+  }
+  return null;
+};
+
+const ensureUniqueNickname = (
+  base: string,
+  existingCredentials: PasskeyCredential[],
+) => {
+  const trimmed = base.trim() || "パスキー";
+  const used = new Set(
+    existingCredentials
+      .map((credential) => credential.nickname?.trim().toLowerCase())
+      .filter((value): value is string => Boolean(value)),
+  );
+  if (!used.has(trimmed.toLowerCase())) {
+    return trimmed;
+  }
+  let index = 2;
+  while (used.has(`${trimmed} (${index})`.toLowerCase())) {
+    index += 1;
+  }
+  return `${trimmed} (${index})`;
+};
+
+const generateCredentialNickname = (
+  options: {
+    aaguid?: string | null;
+    deviceType?: string;
+    backedUp?: boolean;
+    transports?: readonly string[];
+    existingCredentials: PasskeyCredential[];
+    userAgent?: string | null;
+  },
+) => {
+  const datasetName = findAaguidName(options.aaguid);
+  const userAgentName = guessNicknameFromUserAgent(options.userAgent);
+  const fallback = describeAuthenticator(
+    options.deviceType,
+    options.backedUp,
+    options.transports,
+  );
+  const base = datasetName ?? userAgentName ?? fallback ?? "パスキー";
+  return ensureUniqueNickname(base, options.existingCredentials);
 };
 
 export const createPasskeyMiddleware = (
@@ -354,14 +452,11 @@ export const createPasskeyMiddleware = (
       setNoStore(c);
       const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
       const username = body.username?.trim();
-      const nickname = normalizeNickname(body.nickname);
       if (!username) {
         throw jsonError(400, "username is required");
       }
-      if (!nickname) {
-        throw jsonError(400, "nickname is required");
-      }
       const user = await ensureUserOrThrow(username);
+      const existingCredentials = await storage.getCredentialsByUserId(user.id);
       const storedChallenge = await readSignedChallenge(c, {
         userId: user.id,
         type: "registration",
@@ -389,6 +484,25 @@ export const createPasskeyMiddleware = (
       const credentialPublicKey = encodeBase64Url(
         registrationCredential.publicKey.buffer,
       );
+      const credentialAaguid = (() => {
+        const fromCredential = (registrationCredential as { aaguid?: unknown })
+          .aaguid;
+        if (typeof fromCredential === "string" && fromCredential.trim()) {
+          return fromCredential;
+        }
+        const fromInfo = (registrationInfo as { aaguid?: unknown }).aaguid;
+        return typeof fromInfo === "string" ? fromInfo : null;
+      })();
+      const transports = registrationCredential.transports ??
+        body.credential.response.transports;
+      const nickname = generateCredentialNickname({
+        aaguid: credentialAaguid,
+        deviceType: registrationInfo.credentialDeviceType,
+        backedUp: registrationInfo.credentialBackedUp,
+        transports,
+        existingCredentials,
+        userAgent: c.req.header("user-agent"),
+      });
 
       const now = Date.now();
       const storedCredential: PasskeyCredential = {
@@ -397,8 +511,7 @@ export const createPasskeyMiddleware = (
         nickname,
         publicKey: credentialPublicKey,
         counter: registrationCredential.counter,
-        transports: registrationCredential.transports ??
-          body.credential.response.transports,
+        transports,
         deviceType: registrationInfo.credentialDeviceType,
         backedUp: registrationInfo.credentialBackedUp,
         createdAt: now,

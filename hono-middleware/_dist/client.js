@@ -517,7 +517,6 @@ var createClient = (options = {}) => {
     async register(params) {
       const username = ensureUsername(params.username);
       const displayName = params.displayName?.trim();
-      const nickname = params.nickname.trim();
       const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/options"), {
         method: "POST",
         body: JSON.stringify({
@@ -532,7 +531,6 @@ var createClient = (options = {}) => {
         method: "POST",
         body: JSON.stringify({
           username,
-          nickname,
           credential: attestationResponse
         })
       });
