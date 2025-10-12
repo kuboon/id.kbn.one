@@ -59,7 +59,6 @@ export interface RegistrationOptionsRequestBody {
 
 export interface RegistrationVerifyRequestBody {
   username: string;
-  nickname: string;
   credential: RegistrationResponseJSON;
 }
 

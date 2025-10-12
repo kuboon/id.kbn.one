@@ -13,9 +13,6 @@
         <div class="brand">
           <h1 id="brand"></h1>
         </div>
-        <div class="status" id="status" data-status="info" role="status">
-          準備が整いました。
-        </div>
       </header>
 
       <section id="guest-view" class="panel">
@@ -122,7 +119,7 @@
         <form id="passkey-form" class="dialog-form">
           <h2 id="passkey-dialog-title">パスキーを追加</h2>
           <p id="passkey-dialog-description" class="hint">
-            後から分かるように鍵に名前を付けてください。
+            このユーザー名に最初のパスキーを登録します。表示名は後からでも変更できます。
           </p>
           <label class="field" id="passkey-display-name-field">
             <span>表示名</span>
@@ -131,16 +128,6 @@
               type="text"
               name="displayName"
               autocomplete="name"
-            />
-          </label>
-          <label class="field" for="passkey-nickname">
-            <span>パスキーのニックネーム</span>
-            <input
-              id="passkey-nickname"
-              type="text"
-              name="nickname"
-              placeholder="仕事用ノートPC"
-              required
             />
           </label>
           <div class="button-row align-end">
@@ -154,6 +141,18 @@
         </form>
       </dialog>
     </main>
+
+    <div class="toast-region" aria-live="polite" aria-atomic="true">
+      <div
+        class="toast"
+        id="status"
+        data-status="info"
+        data-visible="true"
+        role="status"
+      >
+        準備が整いました。
+      </div>
+    </div>
 
     <script type="module">
       import { createClient } from "/webauthn/client.js";
@@ -208,9 +207,6 @@
       const passkeyDisplayNameInput = document.getElementById(
         "passkey-display-name",
       );
-      const passkeyNicknameInput = document.getElementById(
-        "passkey-nickname",
-      );
       const passkeyDialogCancel = document.getElementById(
         "cancel-passkey-dialog",
       );
@@ -224,9 +220,18 @@
         conditionalAvailable: null,
       };
 
+      let statusAnimationFrame = 0;
       const setStatus = (message, type = "info") => {
         statusEl.textContent = message;
         statusEl.dataset.status = type;
+        statusEl.dataset.visible = "false";
+        if (statusAnimationFrame) {
+          cancelAnimationFrame(statusAnimationFrame);
+        }
+        statusAnimationFrame = requestAnimationFrame(() => {
+          statusAnimationFrame = 0;
+          statusEl.dataset.visible = "true";
+        });
       };
 
       const formatDate = (value) => {
@@ -536,7 +541,7 @@
         if (mode === "create") {
           passkeyDialogTitle.textContent = "アカウントを作成";
           passkeyDialogDescription.textContent =
-            "このユーザー名に最初のパスキーを登録します。";
+            "このユーザー名に最初のパスキーを登録します。表示名は後からでも変更できます。";
           passkeyDisplayNameField.hidden = false;
           passkeyDialogSubmit.textContent = "アカウントを作成";
           passkeyDisplayNameInput.value = guestUsernameInput.value
@@ -544,9 +549,9 @@
         } else {
           passkeyDialogTitle.textContent = "別のパスキーを追加";
           passkeyDialogDescription.textContent =
-            "後から分かるように鍵に名前を付けてください。";
+            "このデバイスの情報から自動的に名前を付けて保存します。";
           passkeyDisplayNameField.hidden = true;
-          passkeyDialogSubmit.textContent = "パスキーを保存";
+          passkeyDialogSubmit.textContent = "パスキーを追加";
           if (state.account?.user?.displayName) {
             passkeyDisplayNameInput.value =
               state.account.user.displayName;
@@ -554,10 +559,13 @@
             passkeyDisplayNameInput.value = "";
           }
         }
-        passkeyNicknameInput.value = "";
         try {
           passkeyDialog.showModal();
-          passkeyNicknameInput.focus();
+          if (mode === "create") {
+            passkeyDisplayNameInput.focus();
+          } else {
+            passkeyDialogSubmit.focus();
+          }
         } catch (error) {
           console.error("Unable to open dialog:", error);
         }
@@ -599,15 +607,6 @@
         if (passkeyForm.dataset.loading === "true") {
           return;
         }
-        const nickname = passkeyNicknameInput.value.trim();
-        if (!nickname) {
-          setStatus(
-            "パスキーのニックネームを入力してください。",
-            "error",
-          );
-          passkeyNicknameInput.focus();
-          return;
-        }
         const mode = passkeyDialog.dataset.mode ?? "add";
         passkeyForm.dataset.loading = "true";
         passkeyDialogSubmit.disabled = true;
@@ -619,13 +618,15 @@
             }
             const displayName = passkeyDisplayNameInput.value.trim();
             setStatus("セキュリティキーの操作を待機しています…");
-            await client.register({
+            const result = await client.register({
               username,
               displayName: displayName || undefined,
-              nickname,
             });
+            const nickname = result?.credential?.nickname?.trim();
             setStatus(
-              `パスキー「${nickname}」を登録しました。`,
+              nickname
+                ? `パスキー「${nickname}」を登録しました。`
+                : "パスキーを登録しました。",
               "success",
             );
             passkeyDialog.close();
@@ -636,13 +637,15 @@
             }
             const username = state.account.user.username;
             setStatus("セキュリティキーの操作を待機しています…");
-            await client.register({
+            const result = await client.register({
               username,
               displayName: state.account.user.displayName || undefined,
-              nickname,
             });
+            const nickname = result?.credential?.nickname?.trim();
             setStatus(
-              `パスキー「${nickname}」を追加しました。`,
+              nickname
+                ? `パスキー「${nickname}」を追加しました。`
+                : "パスキーを追加しました。",
               "success",
             );
             passkeyDialog.close();
