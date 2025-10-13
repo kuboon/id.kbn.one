@@ -10,7 +10,7 @@ import {
   type PasskeyUser,
 } from "@passkeys-middleware/hono";
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
-import { rpID, rpName } from "./config.ts";
+import { relatedOrigins, rpID, rpName } from "./config.ts";
 
 const app = new Hono();
 const credentialStore = await DenoKvPasskeyStore.create();
@@ -75,6 +75,13 @@ app.use(
 app.get("/session", (c) => {
   setNoStore(c);
   return c.json(getSessionState(c));
+});
+
+app.get("/.well-known/webauthn", (c) => {
+  if (relatedOrigins.length > 0) {
+    c.header("Cache-Control", "public, max-age=86400");
+  }
+  return c.json({ origins: relatedOrigins });
 });
 
 app.post("/session/logout", (c) => {
