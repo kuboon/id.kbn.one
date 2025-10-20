@@ -157,9 +157,9 @@
       import {
         createClient,
         startAuthentication,
-      } from "/webauthn/client.js";
+      } from "https://id.kbn.one/webauthn/client.js";
 
-      const client = createClient();
+      const client = createClient({ origin: "https://id.kbn.one" });
 
       // localStorage-based username persistence removed intentionally
 
