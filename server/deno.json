@@ -1,7 +1,7 @@
 {
   "imports": {
-    "hono": "npm:hono",
-    "@passkeys-middleware/hono": "../hono-middleware/mod.ts"
+    "hono": "npm:hono@4.10.1",
+    "@kuboon/hono-passkeys-middleware": "../hono-middleware/mod.ts"
   },
   "tasks": {
     "serve": "deno serve -P deno-server.ts",
@@ -9,7 +9,7 @@
   },
   "permissions": {
     "default": {
-      "env": ["RP_ID", "RP_NAME"],
+      "env": ["RP_ID", "RP_NAME", "IDP_ORIGIN", "ORIGINS"],
       "net": true,
       "read": [".."]
     }

@@ -1,5 +1,5 @@
 {
-  "name": "@passkeys-middleware/hono",
+  "name": "@kuboon/hono-passkeys-middleware",
   "version": "0.1.0",
   "exports": "./mod.ts",
   "publish": {

@@ -54,11 +54,3 @@ await fetch(`${PASSKEY_ORIGIN}/session/logout`, {
 If a user deletes their account centrally, subsequent authenticated requests may
 return `401` or `404`. Treat these responses as a signal to prompt the user to
 sign in again.
-
-## Implementation checklist
-
-- Import the hosted client helper; it already targets `https://id.kbn.one`.
-- Validate that your RP origin appears in `/.well-known/webauthn` before running
-  WebAuthn flows.
-- Mirror authentication state by calling `/session` and `/session/logout`.
-- Handle authentication failures gracefully so users can recover their session.

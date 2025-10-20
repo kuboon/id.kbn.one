@@ -2,7 +2,7 @@ import type {
   PasskeyCredential,
   PasskeyStorage,
   PasskeyUser,
-} from "@passkeys-middleware/hono";
+} from "@kuboon/hono-passkeys-middleware";
 
 const USER_KEY_PREFIX = ["passkeys_middleware", "user"] as const;
 const USERNAME_KEY_PREFIX = ["passkeys_middleware", "username"] as const;

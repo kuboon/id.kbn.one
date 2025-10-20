@@ -8,7 +8,7 @@ import {
   createPasskeyMiddleware,
   type PasskeySessionState,
   type PasskeyUser,
-} from "@passkeys-middleware/hono";
+} from "@kuboon/hono-passkeys-middleware";
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
 import { relatedOrigins, rpID, rpName } from "./config.ts";
 
@@ -28,11 +28,14 @@ const setNoStore = (c: Context) => {
   c.header("Cache-Control", "no-store");
 };
 
+const createDefaultSessionState = (): PasskeySessionState => ({
+  isAuthenticated: false,
+  user: null,
+});
+
 const getSessionState = (c: Context): PasskeySessionState =>
-  (c.get("passkey") as PasskeySessionState | undefined) ?? {
-    isAuthenticated: false,
-    user: null,
-  };
+  (c.get("passkey") as PasskeySessionState | undefined) ??
+    createDefaultSessionState();
 
 const setSessionState = (c: Context, state: PasskeySessionState) => {
   c.set("passkey", state);
@@ -44,7 +47,7 @@ const clearSession = (c: Context) => {
     secure: isSecureRequest(c),
     maxAge: 0,
   });
-  setSessionState(c, { isAuthenticated: false, user: null });
+  setSessionState(c, createDefaultSessionState());
 };
 
 const ensureAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
@@ -62,6 +65,40 @@ const ensureAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
 
 const updateSessionUser = (c: Context, user: PasskeyUser) => {
   setSessionState(c, { isAuthenticated: true, user });
+};
+
+type AccountUpdatePayload = {
+  username?: string;
+};
+
+const parseAccountUpdate = async (
+  c: Context,
+): Promise<AccountUpdatePayload> => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    throw new HTTPException(400, { message: "Invalid JSON payload" });
+  }
+
+  if (!body || typeof body !== "object") {
+    throw new HTTPException(400, { message: "Invalid request body" });
+  }
+
+  const { username } = body as { username?: unknown };
+  if (username === undefined) {
+    return {};
+  }
+  if (typeof username !== "string" || !username.trim()) {
+    throw new HTTPException(400, { message: "Username cannot be empty" });
+  }
+
+  return { username: username.trim() };
+};
+
+const readStaticText = async (relativePath: string) => {
+  const url = new URL(`./static/${relativePath}`, import.meta.url);
+  return await Deno.readTextFile(url);
 };
 
 app.use(
@@ -93,48 +130,24 @@ app.post("/session/logout", (c) => {
 app.patch("/account", async (c) => {
   setNoStore(c);
   const currentUser = await ensureAuthenticatedUser(c);
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new HTTPException(400, { message: "Invalid JSON payload" });
-  }
-  if (!body || typeof body !== "object") {
-    throw new HTTPException(400, { message: "Invalid request body" });
-  }
+  const { username } = await parseAccountUpdate(c);
 
-  const payload = body as {
-    username?: unknown;
-  };
-
-  const updatedUser: PasskeyUser = { ...currentUser };
-  let changed = false;
-
-  if ("username" in payload) {
-    const username = typeof payload.username === "string"
-      ? payload.username.trim()
-      : "";
-    if (!username) {
-      throw new HTTPException(400, { message: "Username cannot be empty" });
-    }
-    if (username.toLowerCase() !== currentUser.username.toLowerCase()) {
-      const existing = await credentialStore.getUserByUsername(username);
-      if (existing && existing.id !== currentUser.id) {
-        throw new HTTPException(409, {
-          message: "That username is already taken.",
-        });
-      }
-      updatedUser.username = username;
-      changed = true;
-    }
-  }
-
-  // displayName is not accepted or stored by the server
-
-  if (!changed) {
+  if (username === undefined) {
     return c.json({ user: currentUser });
   }
 
+  if (username.toLowerCase() === currentUser.username.toLowerCase()) {
+    return c.json({ user: currentUser });
+  }
+
+  const existing = await credentialStore.getUserByUsername(username);
+  if (existing && existing.id !== currentUser.id) {
+    throw new HTTPException(409, {
+      message: "That username is already taken.",
+    });
+  }
+
+  const updatedUser: PasskeyUser = { ...currentUser, username };
   await credentialStore.updateUser(updatedUser);
   updateSessionUser(c, updatedUser);
   return c.json({ user: updatedUser });
@@ -160,24 +173,18 @@ app.delete("/account", async (c) => {
 });
 
 app.get("/", async (c) => {
-  const html = await fetch(import.meta.resolve("./static/index.html")).then(
-    (x) => x.text(),
-  );
+  const html = await readStaticText("index.html");
   return c.html(html);
 });
 
 app.get("/styles.css", async (c) => {
-  const css = await fetch(import.meta.resolve("./static/styles.css")).then(
-    (x) => x.text(),
-  );
+  const css = await readStaticText("styles.css");
   c.header("Content-Type", "text/css; charset=utf-8");
   return c.body(css);
 });
 
 app.get("/usage.md", async (c) => {
-  const markdown = await fetch(
-    import.meta.resolve("./static/usage.md"),
-  ).then((x) => x.text());
+  const markdown = await readStaticText("usage.md");
   c.header("Content-Type", "text/markdown; charset=utf-8");
   return c.body(markdown);
 });

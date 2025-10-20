@@ -86,7 +86,7 @@ export interface AuthenticateResult {
 
 const buildUrl = (mountPath: string, endpoint: string) => {
   const path = `${mountPath}${endpoint}`;
-  if(!PASSKEY_ORIGIN) return path
+  if (!PASSKEY_ORIGIN) return path;
   return new URL(path, PASSKEY_ORIGIN).toString();
 };
 
