@@ -54,6 +54,11 @@ type FetchLike = (
 export interface CreateClientOptions {
   mountPath?: string;
   fetch?: FetchLike;
+  /**
+   * Base origin for the passkey server. When provided, relative request paths
+   * are resolved against this origin before being sent through `fetch`.
+   */
+  origin?: string | URL;
 }
 
 export interface RegisterParams {
@@ -83,8 +88,18 @@ export interface AuthenticateResult {
   credential: PasskeyCredential;
 }
 
-const buildUrl = (mountPath: string, endpoint: string) =>
-  `${mountPath}${endpoint}`;
+const buildUrl = (
+  mountPath: string,
+  endpoint: string,
+  origin?: string | URL,
+) => {
+  const path = `${mountPath}${endpoint}`;
+  if (!origin) {
+    return path;
+  }
+  const baseUrl = origin instanceof URL ? origin : new URL(origin);
+  return new URL(path, baseUrl).toString();
+};
 
 const fetchJson = async <T = unknown>(
   fetchImpl: FetchLike,
@@ -134,6 +149,7 @@ const fetchJson = async <T = unknown>(
 export const createClient = (options: CreateClientOptions = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl: FetchLike = options.fetch ?? fetch;
+  const origin = options.origin;
 
   const ensureUsername = (username: string) => username.trim();
 
@@ -142,7 +158,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
       const username = ensureUsername(params.username);
       const optionsJSON = await fetchJson(
         fetchImpl,
-        buildUrl(mountPath, "/register/options"),
+        buildUrl(mountPath, "/register/options", origin),
         {
           method: "POST",
           body: JSON.stringify({ username }),
@@ -154,7 +170,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
 
       const verification = await fetchJson(
         fetchImpl,
-        buildUrl(mountPath, "/register/verify"),
+        buildUrl(mountPath, "/register/verify", origin),
         {
           method: "POST",
           body: JSON.stringify({
@@ -174,7 +190,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
 
       const optionsJSON = await fetchJson(
         fetchImpl,
-        buildUrl(mountPath, "/authenticate/options"),
+        buildUrl(mountPath, "/authenticate/options", origin),
         {
           method: "POST",
           body: JSON.stringify({ username }),
@@ -187,7 +203,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
 
       const verification = await fetchJson(
         fetchImpl,
-        buildUrl(mountPath, "/authenticate/verify"),
+        buildUrl(mountPath, "/authenticate/verify", origin),
         {
           method: "POST",
           body: JSON.stringify({
@@ -202,7 +218,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
 
     async list(params: ListParams): Promise<PasskeyCredential[]> {
       const username = ensureUsername(params.username);
-      const url = `${buildUrl(mountPath, "/credentials")}?username=${
+      const url = `${buildUrl(mountPath, "/credentials", origin)}?username=${
         encodeURIComponent(username)
       }`;
 
@@ -222,6 +238,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
         buildUrl(
           mountPath,
           `/credentials/${encodeURIComponent(credentialId)}`,
+          origin,
         )
       }?username=${encodeURIComponent(username)}`;
 

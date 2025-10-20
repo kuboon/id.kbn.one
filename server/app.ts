@@ -174,6 +174,14 @@ app.get("/styles.css", async (c) => {
   return c.body(css);
 });
 
+app.get("/usage.md", async (c) => {
+  const markdown = await fetch(
+    import.meta.resolve("./static/usage.md"),
+  ).then((x) => x.text());
+  c.header("Content-Type", "text/markdown; charset=utf-8");
+  return c.body(markdown);
+});
+
 app.onError((err, c) => {
   console.error(err);
   if (err instanceof HTTPException) {

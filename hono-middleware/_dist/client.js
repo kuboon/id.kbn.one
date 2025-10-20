@@ -474,7 +474,14 @@ var PasskeyClientError = class extends Error {
     this.details = details;
   }
 };
-var buildUrl = (mountPath, endpoint) => `${mountPath}${endpoint}`;
+var buildUrl = (mountPath, endpoint, origin) => {
+  const path = `${mountPath}${endpoint}`;
+  if (!origin) {
+    return path;
+  }
+  const baseUrl = origin instanceof URL ? origin : new URL(origin);
+  return new URL(path, baseUrl).toString();
+};
 var fetchJson = async (fetchImpl, input, init) => {
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has("Content-Type")) {
@@ -512,11 +519,12 @@ var fetchJson = async (fetchImpl, input, init) => {
 var createClient = (options = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl = options.fetch ?? fetch;
+  const origin = options.origin;
   const ensureUsername = (username) => username.trim();
   return {
     async register(params) {
       const username = ensureUsername(params.username);
-      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/options"), {
+      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/options", origin), {
         method: "POST",
         body: JSON.stringify({
           username
@@ -525,7 +533,7 @@ var createClient = (options = {}) => {
       const attestationResponse = await startRegistration({
         optionsJSON
       });
-      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/verify"), {
+      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/verify", origin), {
         method: "POST",
         body: JSON.stringify({
           username,
@@ -536,7 +544,7 @@ var createClient = (options = {}) => {
     },
     async authenticate(params) {
       const username = ensureUsername(params.username);
-      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/options"), {
+      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/options", origin), {
         method: "POST",
         body: JSON.stringify({
           username
@@ -545,7 +553,7 @@ var createClient = (options = {}) => {
       const assertionResponse = await startAuthentication({
         optionsJSON
       });
-      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/verify"), {
+      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/verify", origin), {
         method: "POST",
         body: JSON.stringify({
           username,
@@ -556,7 +564,7 @@ var createClient = (options = {}) => {
     },
     async list(params) {
       const username = ensureUsername(params.username);
-      const url = `${buildUrl(mountPath, "/credentials")}?username=${encodeURIComponent(username)}`;
+      const url = `${buildUrl(mountPath, "/credentials", origin)}?username=${encodeURIComponent(username)}`;
       const response = await fetchJson(fetchImpl, url);
       const credentials = response && typeof response === "object" && "credentials" in response ? response.credentials ?? [] : [];
       return Array.isArray(credentials) ? credentials : [];
@@ -564,7 +572,7 @@ var createClient = (options = {}) => {
     async delete(params) {
       const username = ensureUsername(params.username);
       const credentialId = params.credentialId;
-      const url = `${buildUrl(mountPath, `/credentials/${encodeURIComponent(credentialId)}`)}?username=${encodeURIComponent(username)}`;
+      const url = `${buildUrl(mountPath, `/credentials/${encodeURIComponent(credentialId)}`, origin)}?username=${encodeURIComponent(username)}`;
       await fetchJson(fetchImpl, url, {
         method: "DELETE"
       });
