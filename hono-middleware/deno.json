@@ -4,6 +4,9 @@
     "lib": ["deno.ns", "deno.unstable", "dom"]
   },
   "imports": {
+    "@deno/esbuild-plugin": "jsr:@deno/esbuild-plugin@^1.2.0",
+    "@std/path": "jsr:@std/path@^1.1.2",
+    "esbuild": "npm:esbuild@^0.25.11",
     "hono": "npm:hono@^4.3.10",
     "hono/cookie": "npm:hono@^4.3.10/cookie",
     "hono/factory": "npm:hono@^4.3.10/factory",
@@ -15,7 +18,7 @@
     "@std/assert": "jsr:@std/assert@^1.0.0"
   },
   "tasks": {
-    "build": "deno bundle src/client.ts > _dist/client.js"
+    "build": "deno run -A scripts/build_client.ts"
   },
   "fmt": {
     "include": ["mod.ts", "src/**/*.ts"]

@@ -1,111 +1,64 @@
-# Cross-origin passkey usage guide
+# Relying party guide for id.kbn.one
 
-This guide explains how to call the passkey endpoints that run on this server
-from applications that are hosted on a different subdomain of the same
-registrable domain (for example, using `id.example.com` as the passkey server
-and `app.example.com` as a relying party UI).
+This document explains how to integrate your application as a relying party with
+the passkey endpoints hosted at `https://id.kbn.one`. The service exposes
+WebAuthn registration and authentication flows together with session management
+APIs so that a single passkey server can serve multiple subdomains.
 
-## Server prerequisites
+## Getting the client helper
 
-The server already exposes WebAuthn and session management endpoints under the
-`/webauthn` mount path. When you deploy to production, make sure the following
-environment variables are set so cross-subdomain requests are accepted:
-
-- `RP_ID`: set this to the registrable domain (e.g. `example.com`). The default
-  is `id.kbn.one`, which is suitable only for local testing.
-- `RP_NAME`: human-friendly name shown in authenticator prompts. This is
-  optional for cross-origin usage but recommended.
-- `ORIGINS`: comma-separated list of HTTPS origins that are allowed to talk to
-  the passkey middleware. Include every subdomain that needs to perform passkey
-  registration or authentication, such as `https://app.example.com`. The server
-  publishes this list at `/.well-known/webauthn` so browsers can confirm the
-  relationship between
-  origins.【F:server/config.ts†L1-L14】【F:server/app.ts†L76-L85】
-
-Deploy the passkey server on its own subdomain (for example,
-`https://id.example.com`). All clients will talk to that origin and the browser
-will store the `passkey_session` cookie there. Because the middleware marks the
-cookie as `SameSite=Lax`, it will be sent when your client performs `fetch`
-calls to that origin with `credentials: "include"`.
-
-## Client integration from another subdomain
-
-The `createClient` helper from `@passkeys-middleware/hono` is published from
-this server. Import it over HTTPS and pass the public origin so requests are
-sent to the correct host when you run on another subdomain.
+Import the prebuilt `createClient` helper from the hosted origin. The bundle
+already knows the passkey server domain through its configuration (`config.rpID`
+is set to `id.kbn.one`), so you can instantiate it without additional options.
 
 ```ts
 import { createClient } from "https://id.kbn.one/webauthn/client.js";
 
-const ID_ORIGIN = "https://id.example.com";
-
-const client = createClient({ origin: ID_ORIGIN });
+const PASSKEY_ORIGIN = "https://id.kbn.one";
+const client = createClient();
 ```
 
-The library always passes relative paths, so the `origin` option is enough for
-browsers and Fetch-capable runtimes. The middleware already sets
-`credentials: "include"`, so cookies travel automatically.
-
-With that client you can register and authenticate users from any approved
-origin:
+Use the client to trigger WebAuthn flows from your RP UI. All requests are
+performed against `https://id.kbn.one`, so make sure your fetch calls use
+`credentials: "include"` when you talk to that origin directly or when you call
+the endpoints yourself.
 
 ```ts
 await client.register({ username: "alice" });
 await client.authenticate({ username: "alice" });
 ```
 
-To keep a local session in sync with the central server, poll the session
-endpoint on the passkey server. This allows your UI to check if a user is
-already signed in or to log them out.
+## Session coordination
+
+Relying parties can stay in sync with the central passkey session by calling the
+provided endpoints. Use them to populate local state, detect logout events, and
+clear credentials.
 
 ```ts
-const response = await fetch(`${ID_ORIGIN}/session`, {
+const response = await fetch(`${PASSKEY_ORIGIN}/session`, {
   credentials: "include",
 });
 const session = await response.json();
 ```
 
-When signing the user out, call the logout endpoint on the server and clear any
-local state.
+Log users out through the shared session endpoint and handle any local cleanup
+in your application.
 
 ```ts
-await fetch(`${ID_ORIGIN}/session/logout`, {
+await fetch(`${PASSKEY_ORIGIN}/session/logout`, {
   method: "POST",
   credentials: "include",
 });
 ```
 
-If the user deletes their account through the central UI, they will lose all
-registered passkeys. Your applications should listen for `404` or `401`
-responses from authenticated endpoints and prompt the user to sign in again.
+If a user deletes their account centrally, subsequent authenticated requests may
+return `401` or `404`. Treat these responses as a signal to prompt the user to
+sign in again.
 
-## Browser coordination
+## Implementation checklist
 
-Modern browsers require a trust relationship between your subdomain and the
-passkey server before they let WebAuthn flows succeed. The
-`/.well-known/webauthn` endpoint advertises the related origins that you listed
-in the `ORIGINS` environment variable. Call it once at startup to fail fast if
-the current origin is missing from the list:
-
-```ts
-const metadata = await fetch(`${ID_ORIGIN}/.well-known/webauthn`).then(
-  (res) => res.json(),
-);
-if (!metadata.origins.includes(window.location.origin)) {
-  throw new Error("Current origin is not registered for passkey usage.");
-}
-```
-
-This check is optional but makes debugging configuration issues easier,
-especially for automated agents.
-
-## Summary
-
-1. Deploy the passkey server on a dedicated subdomain and configure `RP_ID`,
-   `RP_NAME`, and `ORIGINS` to describe your environment.
-2. In each client application, instantiate the `createClient` helper with the
-   `origin` option pointing at the passkey server.
-3. Use the `/session` and `/session/logout` endpoints to mirror authentication
-   state locally.
-4. Validate that your origin appears in `/.well-known/webauthn` so browsers
-   accept the cross-subdomain WebAuthn flow.
+- Import the hosted client helper; it already targets `https://id.kbn.one`.
+- Validate that your RP origin appears in `/.well-known/webauthn` before running
+  WebAuthn flows.
+- Mirror authentication state by calling `/session` and `/session/logout`.
+- Handle authentication failures gracefully so users can recover their session.

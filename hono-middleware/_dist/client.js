@@ -38,10 +38,10 @@ function toPublicKeyCredentialDescriptor(descriptor) {
     ...descriptor,
     id: base64URLStringToBuffer(id),
     /**
-         * `descriptor.transports` is an array of our `AuthenticatorTransportFuture` that includes newer
-         * transports that TypeScript's DOM lib is ignorant of. Convince TS that our list of transports
-         * are fine to pass to WebAuthn since browsers will recognize the new value.
-         */
+     * `descriptor.transports` is an array of our `AuthenticatorTransportFuture` that includes newer
+     * transports that TypeScript's DOM lib is ignorant of. Convince TS that our list of transports
+     * are fine to pass to WebAuthn since browsers will recognize the new value.
+     */
     transports: descriptor.transports
   };
 }
@@ -57,9 +57,7 @@ function isValidDomain(hostname) {
 // ../node_modules/.deno/@simplewebauthn+browser@13.2.0/node_modules/@simplewebauthn/browser/esm/helpers/webAuthnError.js
 var WebAuthnError = class extends Error {
   constructor({ message, code, cause, name }) {
-    super(message, {
-      cause
-    });
+    super(message, { cause });
     Object.defineProperty(this, "code", {
       enumerable: true,
       configurable: true,
@@ -199,10 +197,7 @@ var BaseWebAuthnAbortService = class {
 var WebAuthnAbortService = new BaseWebAuthnAbortService();
 
 // ../node_modules/.deno/@simplewebauthn+browser@13.2.0/node_modules/@simplewebauthn/browser/esm/helpers/toAuthenticatorAttachment.js
-var attachments = [
-  "cross-platform",
-  "platform"
-];
+var attachments = ["cross-platform", "platform"];
 function toAuthenticatorAttachment(attachment) {
   if (!attachment) {
     return;
@@ -217,9 +212,7 @@ function toAuthenticatorAttachment(attachment) {
 async function startRegistration(options) {
   if (!options.optionsJSON && options.challenge) {
     console.warn("startRegistration() was not called correctly. It will try to continue with the provided options, but this call should be refactored to use the expected call structure instead. See https://simplewebauthn.dev/docs/packages/browser#typeerror-cannot-read-properties-of-undefined-reading-challenge for more information.");
-    options = {
-      optionsJSON: options
-    };
+    options = { optionsJSON: options };
   }
   const { optionsJSON, useAutoRegister = false } = options;
   if (!browserSupportsWebAuthn()) {
@@ -244,10 +237,7 @@ async function startRegistration(options) {
   try {
     credential = await navigator.credentials.create(createOptions);
   } catch (err) {
-    throw identifyRegistrationError({
-      error: err,
-      options: createOptions
-    });
+    throw identifyRegistrationError({ error: err, options: createOptions });
   }
   if (!credential) {
     throw new Error("Registration was not completed");
@@ -369,9 +359,7 @@ function identifyAuthenticationError({ error, options }) {
 async function startAuthentication(options) {
   if (!options.optionsJSON && options.challenge) {
     console.warn("startAuthentication() was not called correctly. It will try to continue with the provided options, but this call should be refactored to use the expected call structure instead. See https://simplewebauthn.dev/docs/packages/browser#typeerror-cannot-read-properties-of-undefined-reading-challenge for more information.");
-    options = {
-      optionsJSON: options
-    };
+    options = { optionsJSON: options };
   }
   const { optionsJSON, useBrowserAutofill = false, verifyBrowserAutofillInput = true } = options;
   if (!browserSupportsWebAuthn()) {
@@ -404,10 +392,7 @@ async function startAuthentication(options) {
   try {
     credential = await navigator.credentials.get(getOptions);
   } catch (err) {
-    throw identifyAuthenticationError({
-      error: err,
-      options: getOptions
-    });
+    throw identifyAuthenticationError({ error: err, options: getOptions });
   }
   if (!credential) {
     throw new Error("Authentication was not completed");
@@ -474,13 +459,10 @@ var PasskeyClientError = class extends Error {
     this.details = details;
   }
 };
-var buildUrl = (mountPath, endpoint, origin) => {
+var buildUrl = (mountPath, endpoint) => {
   const path = `${mountPath}${endpoint}`;
-  if (!origin) {
-    return path;
-  }
-  const baseUrl = origin instanceof URL ? origin : new URL(origin);
-  return new URL(path, baseUrl).toString();
+  if (true) return path;
+  return new URL(path, null).toString();
 };
 var fetchJson = async (fetchImpl, input, init) => {
   const headers = new Headers(init?.headers);
@@ -519,12 +501,11 @@ var fetchJson = async (fetchImpl, input, init) => {
 var createClient = (options = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl = options.fetch ?? fetch;
-  const origin = options.origin;
   const ensureUsername = (username) => username.trim();
   return {
     async register(params) {
       const username = ensureUsername(params.username);
-      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/options", origin), {
+      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/options"), {
         method: "POST",
         body: JSON.stringify({
           username
@@ -533,7 +514,7 @@ var createClient = (options = {}) => {
       const attestationResponse = await startRegistration({
         optionsJSON
       });
-      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/verify", origin), {
+      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/verify"), {
         method: "POST",
         body: JSON.stringify({
           username,
@@ -544,7 +525,7 @@ var createClient = (options = {}) => {
     },
     async authenticate(params) {
       const username = ensureUsername(params.username);
-      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/options", origin), {
+      const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/options"), {
         method: "POST",
         body: JSON.stringify({
           username
@@ -553,7 +534,7 @@ var createClient = (options = {}) => {
       const assertionResponse = await startAuthentication({
         optionsJSON
       });
-      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/verify", origin), {
+      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/verify"), {
         method: "POST",
         body: JSON.stringify({
           username,
@@ -564,7 +545,7 @@ var createClient = (options = {}) => {
     },
     async list(params) {
       const username = ensureUsername(params.username);
-      const url = `${buildUrl(mountPath, "/credentials", origin)}?username=${encodeURIComponent(username)}`;
+      const url = `${buildUrl(mountPath, "/credentials")}?username=${encodeURIComponent(username)}`;
       const response = await fetchJson(fetchImpl, url);
       const credentials = response && typeof response === "object" && "credentials" in response ? response.credentials ?? [] : [];
       return Array.isArray(credentials) ? credentials : [];
@@ -572,7 +553,7 @@ var createClient = (options = {}) => {
     async delete(params) {
       const username = ensureUsername(params.username);
       const credentialId = params.credentialId;
-      const url = `${buildUrl(mountPath, `/credentials/${encodeURIComponent(credentialId)}`, origin)}?username=${encodeURIComponent(username)}`;
+      const url = `${buildUrl(mountPath, `/credentials/${encodeURIComponent(credentialId)}`)}?username=${encodeURIComponent(username)}`;
       await fetchJson(fetchImpl, url, {
         method: "DELETE"
       });
