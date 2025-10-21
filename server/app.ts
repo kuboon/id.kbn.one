@@ -190,6 +190,15 @@ app.get("/", async (c) => {
   return c.html(html);
 });
 
+app.get("/me", async (c) => {
+  const session = getSessionState(c);
+  if (!session.isAuthenticated || !session.user) {
+    return c.redirect("/", 302);
+  }
+  const html = await readStaticText("me.html");
+  return c.html(html);
+});
+
 app.get("/styles.css", async (c) => {
   const css = await readStaticText("styles.css");
   c.header("Content-Type", "text/css; charset=utf-8");
