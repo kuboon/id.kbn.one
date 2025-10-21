@@ -1,6 +1,7 @@
 /// <reference lib="deno.ns" />
 
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import type { Context } from "hono";
 import { setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
@@ -10,10 +11,15 @@ import {
   type PasskeyUser,
 } from "@kuboon/hono-passkeys-middleware";
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
-import { relatedOrigins, rpID, rpName } from "./config.ts";
+import { idpOrigin, relatedOrigins, rpID, rpName } from "./config.ts";
 
 const app = new Hono();
 const credentialStore = await DenoKvPasskeyStore.create();
+
+const allowedOrigins = [
+  ...(idpOrigin ? [idpOrigin] : []),
+  ...relatedOrigins,
+];
 
 const SESSION_COOKIE_NAME = "passkey_session";
 const baseCookieOptions = {
@@ -100,6 +106,13 @@ const readStaticText = async (relativePath: string) => {
   const url = new URL(`./static/${relativePath}`, import.meta.url);
   return await Deno.readTextFile(url);
 };
+
+app.use(
+  "*",
+  cors(
+    allowedOrigins.length > 0 ? { origin: allowedOrigins } : {},
+  ),
+);
 
 app.use(
   createPasskeyMiddleware({
