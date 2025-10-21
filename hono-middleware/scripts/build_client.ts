@@ -3,6 +3,13 @@ import { fromFileUrl, join } from "@std/path";
 import * as esbuild from "esbuild";
 import { denoPlugin } from "@deno/esbuild-plugin";
 
+const DENO_DEPLOY_ORG_SLUG = Deno.env.get("DENO_DEPLOY_ORG_SLUG");
+const DENO_DEPLOY_APP_SLUG = Deno.env.get("DENO_DEPLOY_APP_SLUG");
+const DENO_DEPLOY_BUILD_ID = Deno.env.get("DENO_DEPLOY_BUILD_ID");
+const PREVIEW_URL = `https://${DENO_DEPLOY_APP_SLUG}-${DENO_DEPLOY_BUILD_ID}.${DENO_DEPLOY_ORG_SLUG}.deno.net/`
+console.log(Deno.env.toObject());
+console.log({PREVIEW_URL})
+
 const resolvePath = (relativePath: string) =>
   fromFileUrl(new URL(relativePath, import.meta.url));
 
