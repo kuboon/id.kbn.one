@@ -19,15 +19,8 @@
         <div class="card">
           <form id="guest-form" class="stack" autocomplete="off">
             <div class="button-row align-start">
-              <button type="submit" class="primary">
-                パスキーでサインイン
-              </button>
-              <button
-                type="button"
-                id="open-create-account"
-                class="secondary"
-              >
-                アカウントを作成
+              <button type="submit" id="passkey-entry" class="primary">
+                Sign Up / Sign In
               </button>
             </div>
           </form>
@@ -154,10 +147,7 @@
     </div>
 
     <script type="module">
-      import {
-        createClient,
-        startAuthentication,
-      } from "/webauthn/client.js";
+      import { createClient } from "/webauthn/client.js";
 
       const client = createClient();
 
@@ -172,9 +162,6 @@
       const guestUsernameInput = null;
       const conditionalStatus = document.getElementById(
         "conditional-status",
-      );
-      const createAccountButton = document.getElementById(
-        "open-create-account",
       );
       const accountSummary = document.getElementById("account-summary");
       const logoutButton = document.getElementById("logout");
@@ -481,84 +468,62 @@
         setAccount(null);
       };
 
-      const authenticateWithPasskey = async (username) => {
+      const runPasskeyFlow = async (options = {}) => {
+        const providedUsername = typeof options.username === "string"
+          ? options.username.trim()
+          : "";
+        const hasUsername = Boolean(providedUsername);
+
         setStatus("パスキーの操作を待機しています…");
-        if (username) {
-          // standard flow that requires a username
-          await client.authenticate({ username });
-          await loadAccount(username);
-          setStatus("サインインに成功しました。", "success");
-          return;
+
+        const result = await client.authenticateOrRegister({
+          username: hasUsername ? providedUsername : undefined,
+          useAutofill: !hasUsername &&
+            state.conditionalAvailable === true,
+          verifyAutofillInput: false,
+        });
+
+        let resolvedUsername = hasUsername ? providedUsername : null;
+
+        if (result.kind === "registered") {
+          const nickname = result.credential?.nickname?.trim();
+          setStatus(
+            nickname
+              ? `パスキー「${nickname}」を登録しました。`
+              : "パスキーを登録しました。",
+            "success",
+          );
+          resolvedUsername = result.username;
+        } else if (!resolvedUsername) {
+          resolvedUsername = result.username ?? null;
         }
 
-        // If conditional mediation is available, use server endpoints
-        // that allow discoverable credentials without providing username.
-        if (state.conditionalAvailable) {
-          // fetch options from unified endpoint without username
-          const optsResp = await fetch(
-            "/webauthn/authenticate/options",
-            {
-              method: "POST",
-              credentials: "include",
-              body: JSON.stringify({}),
-            },
-          );
-          if (!optsResp.ok) {
-            throw new Error("認証オプションの取得に失敗しました");
-          }
-          const optionsJSON = await optsResp.json();
-          // start authentication ceremony using simplewebauthn browser helper
-          const assertionResponse = await startAuthentication({
-            optionsJSON,
-          });
-
-          // send verification to unified verify endpoint (no username)
-          const verifyResp = await fetch(
-            "/webauthn/authenticate/verify",
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                credential: assertionResponse,
-                challenge: optionsJSON.challenge,
-                origin: window.location.origin,
-              }),
-            },
-          );
-          if (!verifyResp.ok) {
-            throw new Error("認証の検証に失敗しました");
-          }
-          const data = await verifyResp.json();
-          if (!data || typeof data !== "object" || !data.credential) {
-            throw new Error("サーバーから予期しない応答がありました。");
-          }
-          // load account for the user now authenticated via session cookie
+        if (!resolvedUsername) {
           const session = await getSession();
           if (session?.isAuthenticated && session.user) {
-            await loadAccount(session.user.username);
+            resolvedUsername = session.user.username;
           }
-          setStatus("サインインに成功しました。", "success");
-          return;
         }
 
-        throw new Error("ユーザー名が必要です。");
+        if (resolvedUsername) {
+          await loadAccount(resolvedUsername);
+        } else {
+          await refreshAccount();
+        }
+
+        setStatus("サインインに成功しました。", "success");
+        return resolvedUsername;
       };
 
       const checkConditionalMediation = async () => {
-        if (
-          typeof PublicKeyCredential === "undefined" ||
-          typeof PublicKeyCredential.isConditionalMediationAvailable !==
-            "function"
-        ) {
+        if (typeof client.isAutofillAvailable !== "function") {
           conditionalStatus.textContent =
             "ご利用のブラウザーはまだパスキーの自動入力に対応していません。";
           conditionalStatus.dataset.state = "unsupported";
           return false;
         }
         try {
-          const available = await PublicKeyCredential
-            .isConditionalMediationAvailable();
+          const available = await client.isAutofillAvailable();
           state.conditionalAvailable = available;
           conditionalStatus.textContent = available
             ? "このブラウザーではパスキーの自動入力が利用できます。"
@@ -585,7 +550,7 @@
           return;
         }
         // If conditional mediation is available, start discoverable credential flow.
-        // Otherwise prompt user to create an account via the UI.
+        // Otherwise prompt user to provide a username manually.
         if (!state.conditionalAvailable) {
           // open a lightweight modal to let the user enter username
           try {
@@ -603,8 +568,7 @@
 
         guestForm.dataset.loading = "true";
         try {
-          // calling without username triggers conditional flow in authenticateWithPasskey
-          await authenticateWithPasskey("");
+          await runPasskeyFlow();
         } catch (error) {
           setStatus(
             error?.message
@@ -619,101 +583,19 @@
 
       // guestUsernameInput removed — username stored when created
 
-      const openPasskeyDialog = (mode) => {
-        passkeyDialog.dataset.mode = mode;
-        if (mode === "create") {
-          passkeyDialogTitle.textContent = "アカウントを作成";
-          passkeyDialogDescription.textContent =
-            "このユーザー名に最初のパスキーを登録します。";
-          passkeyDialogSubmit.textContent = "アカウントを作成";
-        } else {
-          passkeyDialogTitle.textContent = "別のパスキーを追加";
-          passkeyDialogDescription.textContent =
-            "このデバイスの情報から自動的に名前を付けて保存します。";
-          passkeyDialogDescription.textContent =
-            "このデバイスの情報から自動的に名前を付けて保存します。";
-          passkeyDialogSubmit.textContent = "パスキーを追加";
-        }
+      const openPasskeyDialog = () => {
+        passkeyDialog.dataset.mode = "add";
+        passkeyDialogTitle.textContent = "別のパスキーを追加";
+        passkeyDialogDescription.textContent =
+          "このデバイスの情報から自動的に名前を付けて保存します。";
+        passkeyDialogSubmit.textContent = "パスキーを追加";
         try {
           passkeyDialog.showModal();
-          if (mode === "create") {
-            passkeyDialogSubmit.focus();
-          } else {
-            passkeyDialogSubmit.focus();
-          }
+          passkeyDialogSubmit.focus();
         } catch (error) {
           console.error("Unable to open dialog:", error);
         }
       };
-
-      const generateRandomUsername = () => {
-        // simple random username: kbn-<timestamp>-<4 hex>
-        const hex = () =>
-          Math.floor(Math.random() * 0xffff)
-            .toString(16)
-            .padStart(4, "0");
-        return `kbn-${Date.now().toString(36)}-${hex()}`;
-      };
-
-      createAccountButton.addEventListener("click", async () => {
-        if (createAccountButton.dataset.loading === "true") {
-          return;
-        }
-        // generate a username for the new account
-        const username = generateRandomUsername();
-        if (createAccountButton.dataset.loading === "true") {
-          return;
-        }
-        createAccountButton.dataset.loading = "true";
-        createAccountButton.disabled = true;
-        try {
-          setStatus("セキュリティキーの操作を待機しています…");
-          const result = await client.register({ username });
-          const nickname = result?.credential?.nickname?.trim();
-          setStatus(
-            nickname
-              ? `パスキー「${nickname}」を登録しました。`
-              : "パスキーを登録しました。",
-            "success",
-          );
-          // The server marks the session as authenticated on successful
-          // registration. Load the account state from the server instead of
-          // starting another authentication ceremony.
-          await loadAccount(username);
-          setStatus("サインインに成功しました。", "success");
-        } catch (error) {
-          let message = "パスキーの設定に失敗しました。";
-          let statusType = "error";
-          if (error instanceof DOMException) {
-            switch (error.name) {
-              case "NotAllowedError":
-                message =
-                  "このデバイスには既にこのアカウントのパスキーがあります。別の認証器を使用するか既存の鍵を削除してください。";
-                break;
-              case "InvalidStateError":
-                message =
-                  "この認証器は既にこのアカウントに登録されているため要求を拒否しました。";
-                break;
-              case "AbortError":
-                message = "パスキーの設定がキャンセルされました。";
-                statusType = "info";
-                break;
-              default:
-                if (error.message?.trim()) {
-                  message =
-                    `パスキーの設定に失敗しました: ${error.message}`;
-                }
-                break;
-            }
-          } else if (error instanceof Error && error.message.trim()) {
-            message = `パスキーの設定に失敗しました: ${error.message}`;
-          }
-          setStatus(message, statusType);
-        } finally {
-          createAccountButton.dataset.loading = "false";
-          createAccountButton.disabled = false;
-        }
-      });
 
       addPasskeyButton.addEventListener("click", () => {
         if (!state.account) {
@@ -723,7 +605,7 @@
           );
           return;
         }
-        openPasskeyDialog("add");
+        openPasskeyDialog();
       });
 
       passkeyDialogCancel.addEventListener("click", () => {
@@ -751,7 +633,7 @@
           signinDialog.close();
         } catch {}
         try {
-          await authenticateWithPasskey(username);
+          await runPasskeyFlow({ username });
         } catch (err) {
           setStatus(
             err?.message
@@ -773,45 +655,24 @@
         if (passkeyForm.dataset.loading === "true") {
           return;
         }
-        const mode = passkeyDialog.dataset.mode ?? "add";
         passkeyForm.dataset.loading = "true";
         passkeyDialogSubmit.disabled = true;
         try {
-          if (mode === "create") {
-            // generate username for the newly created account
-            const username = generateRandomUsername();
-            setStatus("セキュリティキーの操作を待機しています…");
-            const result = await client.register({ username });
-            const nickname = result?.credential?.nickname?.trim();
-            setStatus(
-              nickname
-                ? `パスキー「${nickname}」を登録しました。`
-                : "パスキーを登録しました。",
-              "success",
-            );
-            passkeyDialog.close();
-            // The server marks the session as authenticated on successful
-            // registration. Load the account state from the server instead of
-            // starting another authentication ceremony.
-            await loadAccount(username);
-            setStatus("サインインに成功しました。", "success");
-          } else {
-            if (!state.account) {
-              throw new Error("サインイン中のアカウントがありません。");
-            }
-            const username = state.account.user.username;
-            setStatus("セキュリティキーの操作を待機しています…");
-            const result = await client.register({ username });
-            const nickname = result?.credential?.nickname?.trim();
-            setStatus(
-              nickname
-                ? `パスキー「${nickname}」を追加しました。`
-                : "パスキーを追加しました。",
-              "success",
-            );
-            passkeyDialog.close();
-            await refreshAccount();
+          if (!state.account) {
+            throw new Error("サインイン中のアカウントがありません。");
           }
+          const username = state.account.user.username;
+          setStatus("セキュリティキーの操作を待機しています…");
+          const result = await client.register({ username });
+          const nickname = result?.credential?.nickname?.trim();
+          setStatus(
+            nickname
+              ? `パスキー「${nickname}」を追加しました。`
+              : "パスキーを追加しました。",
+            "success",
+          );
+          passkeyDialog.close();
+          await refreshAccount();
         } catch (error) {
           let message = "パスキーの設定に失敗しました。";
           let statusType = "error";

@@ -1,4 +1,5 @@
 import {
+  browserSupportsWebAuthnAutofill,
   startAuthentication,
   startRegistration,
 } from "@simplewebauthn/browser";
@@ -21,6 +22,19 @@ const normalizeMountPath = (path: string | undefined) => {
 const hasJsonContentType = (response: Response) => {
   const contentType = response.headers.get("content-type");
   return Boolean(contentType && contentType.toLowerCase().includes("json"));
+};
+
+const getDomErrorName = (error: unknown): string | null => {
+  if (typeof DOMException !== "undefined" && error instanceof DOMException) {
+    return error.name;
+  }
+  if (error instanceof Error) {
+    const cause = (error as { cause?: unknown }).cause;
+    if (typeof DOMException !== "undefined" && cause instanceof DOMException) {
+      return cause.name;
+    }
+  }
+  return null;
 };
 
 const getErrorMessage = (data: unknown, fallback: string) => {
@@ -59,10 +73,13 @@ export interface CreateClientOptions {
 
 export interface RegisterParams {
   username: string;
+  auto?: boolean;
 }
 
 export interface AuthenticateParams {
-  username: string;
+  username?: string;
+  useAutofill?: boolean;
+  verifyAutofillInput?: boolean;
 }
 
 export interface ListParams {
@@ -84,10 +101,50 @@ export interface AuthenticateResult {
   credential: PasskeyCredential;
 }
 
+export interface AuthenticateOrRegisterParams {
+  username?: string;
+  autoRegister?: boolean;
+  useAutofill?: boolean;
+  verifyAutofillInput?: boolean;
+  createUsername?: () => string;
+}
+
+export type AuthenticateOrRegisterResult =
+  | (AuthenticateResult & {
+    kind: "authenticated";
+    username: string | null;
+  })
+  | (RegisterResult & {
+    kind: "registered";
+    username: string;
+  });
+
 const buildUrl = (mountPath: string, endpoint: string) => {
   const path = `${mountPath}${endpoint}`;
   if (!PASSKEY_ORIGIN) return path;
   return new URL(path, PASSKEY_ORIGIN).toString();
+};
+
+const normalizeOptionalUsername = (username?: string) => username?.trim() ?? "";
+
+const shouldAutoRegister = (
+  error: unknown,
+  hasUsername: boolean,
+) => {
+  if (error instanceof PasskeyClientError) {
+    return error.status === 404;
+  }
+  if (hasUsername) {
+    return false;
+  }
+  const errorName = getDomErrorName(error);
+  return errorName === "NotAllowedError";
+};
+
+const generateRandomUsername = () => {
+  const randomHex = () =>
+    Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0");
+  return `kbn-${Date.now().toString(36)}-${randomHex()}`;
 };
 
 const fetchJson = async <T = unknown>(
@@ -141,67 +198,131 @@ export const createClient = (options: CreateClientOptions = {}) => {
 
   const ensureUsername = (username: string) => username.trim();
 
+  const register = async (
+    params: RegisterParams,
+  ): Promise<RegisterResult> => {
+    const username = ensureUsername(params.username);
+    const optionsJSON = await fetchJson(
+      fetchImpl,
+      buildUrl(mountPath, "/register/options"),
+      {
+        method: "POST",
+        body: JSON.stringify({ username }),
+      },
+    );
+    const attestationResponse = await startRegistration(
+      {
+        optionsJSON,
+        useAutoRegister: Boolean(params.auto),
+      } as Parameters<typeof startRegistration>[0],
+    );
+
+    const verification = await fetchJson(
+      fetchImpl,
+      buildUrl(mountPath, "/register/verify"),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          credential: attestationResponse,
+        }),
+      },
+    );
+
+    return verification as RegisterResult;
+  };
+
+  const authenticate = async (
+    params: AuthenticateParams = {},
+  ): Promise<AuthenticateResult> => {
+    const username = normalizeOptionalUsername(params.username);
+    const useAutofill = Boolean(params.useAutofill);
+    const verifyAutofillInput = params.verifyAutofillInput ?? false;
+
+    const optionsJSON = await fetchJson(
+      fetchImpl,
+      buildUrl(mountPath, "/authenticate/options"),
+      {
+        method: "POST",
+        body: JSON.stringify(
+          username ? { username } : {},
+        ),
+      },
+    );
+
+    const assertionResponse = await startAuthentication(
+      {
+        optionsJSON,
+        useBrowserAutofill: useAutofill,
+        verifyBrowserAutofillInput: verifyAutofillInput,
+      } as Parameters<typeof startAuthentication>[0],
+    );
+
+    const verification = await fetchJson(
+      fetchImpl,
+      buildUrl(mountPath, "/authenticate/verify"),
+      {
+        method: "POST",
+        body: JSON.stringify(
+          username ? { username, credential: assertionResponse } : {
+            credential: assertionResponse,
+            challenge: (optionsJSON as { challenge: string }).challenge,
+            origin: globalThis.location?.origin ?? "",
+          },
+        ),
+      },
+    );
+
+    return verification as AuthenticateResult;
+  };
+
   return {
     async register(params: RegisterParams): Promise<RegisterResult> {
-      const username = ensureUsername(params.username);
-      const optionsJSON = await fetchJson(
-        fetchImpl,
-        buildUrl(mountPath, "/register/options"),
-        {
-          method: "POST",
-          body: JSON.stringify({ username }),
-        },
-      );
-      const attestationResponse = await startRegistration(
-        { optionsJSON } as Parameters<typeof startRegistration>[0],
-      );
-
-      const verification = await fetchJson(
-        fetchImpl,
-        buildUrl(mountPath, "/register/verify"),
-        {
-          method: "POST",
-          body: JSON.stringify({
-            username,
-            credential: attestationResponse,
-          }),
-        },
-      );
-
-      return verification as RegisterResult;
+      return await register(params);
     },
 
     async authenticate(
       params: AuthenticateParams,
     ): Promise<AuthenticateResult> {
-      const username = ensureUsername(params.username);
+      return await authenticate(params);
+    },
 
-      const optionsJSON = await fetchJson(
-        fetchImpl,
-        buildUrl(mountPath, "/authenticate/options"),
-        {
-          method: "POST",
-          body: JSON.stringify({ username }),
-        },
-      );
+    async authenticateOrRegister(
+      params: AuthenticateOrRegisterParams = {},
+    ): Promise<AuthenticateOrRegisterResult> {
+      const username = normalizeOptionalUsername(params.username);
+      const hasUsername = Boolean(username);
+      const autoRegister = params.autoRegister ?? true;
+      const useAutofill = Boolean(params.useAutofill);
+      const verifyAutofillInput = params.verifyAutofillInput ?? false;
 
-      const assertionResponse = await startAuthentication(
-        { optionsJSON } as Parameters<typeof startAuthentication>[0],
-      );
-
-      const verification = await fetchJson(
-        fetchImpl,
-        buildUrl(mountPath, "/authenticate/verify"),
-        {
-          method: "POST",
-          body: JSON.stringify({
-            username,
-            credential: assertionResponse,
-          }),
-        },
-      );
-
-      return verification as AuthenticateResult;
+      try {
+        const result = await authenticate({
+          username,
+          useAutofill,
+          verifyAutofillInput,
+        });
+        return {
+          ...result,
+          kind: "authenticated",
+          username: username || null,
+        };
+      } catch (error) {
+        if (!autoRegister || !shouldAutoRegister(error, hasUsername)) {
+          throw error;
+        }
+        const createUsername = params.createUsername ?? generateRandomUsername;
+        const nextUsername = hasUsername ? username : createUsername();
+        const registration = await register({
+          username: nextUsername,
+          auto: useAutofill && !hasUsername,
+        });
+        return {
+          ...registration,
+          kind: "registered",
+          username: nextUsername,
+        };
+      }
     },
 
     async list(params: ListParams): Promise<PasskeyCredential[]> {
@@ -230,6 +351,14 @@ export const createClient = (options: CreateClientOptions = {}) => {
       }?username=${encodeURIComponent(username)}`;
 
       await fetchJson(fetchImpl, url, { method: "DELETE" });
+    },
+
+    async isAutofillAvailable(): Promise<boolean> {
+      try {
+        return await browserSupportsWebAuthnAutofill();
+      } catch {
+        return false;
+      }
     },
   };
 };
