@@ -107,12 +107,7 @@ const readStaticText = async (relativePath: string) => {
   return await Deno.readTextFile(url);
 };
 
-app.use(
-  "*",
-  cors(
-    allowedOrigins.length > 0 ? { origin: allowedOrigins } : {},
-  ),
-);
+app.use("*", cors({ origin: allowedOrigins }));
 
 app.use(
   createPasskeyMiddleware({

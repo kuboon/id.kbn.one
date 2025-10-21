@@ -13,7 +13,7 @@ export const findAaguidEntry = (aaguid: string | undefined | null) => {
   return aaguidMap.get(key) ?? null;
 };
 
-export const findAaguidName = (aaguid: string | undefined | null) => {
+export const findAaguidName = (aaguid: string | null) => {
   const entry = findAaguidEntry(aaguid);
   if (!entry) {
     return null;

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { Context, ExecutionContext } from "hono";
+import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
@@ -32,7 +32,7 @@ import {
   createSignedChallengeValue,
   verifySignedChallengeValue,
 } from "./challenge-signature.ts";
-import { findAaguidName } from "./aaguid-catalog.ts";
+import { generateCredentialNickname } from "./generate-credential-nickname.ts";
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -148,14 +148,6 @@ const unauthenticatedState = (): PasskeySessionState => ({
 const matchesMountPath = (path: string, mountPath: string) =>
   mountPath === "" || path === mountPath || path.startsWith(`${mountPath}/`);
 
-const getExecutionContext = (c: Context): ExecutionContext | undefined => {
-  try {
-    return c.executionCtx;
-  } catch {
-    return undefined;
-  }
-};
-
 const getRequestUrl = (c: Context): URL => {
   const headerOrigin = c.req.header("origin")?.trim();
   if (headerOrigin) {
@@ -166,109 +158,6 @@ const getRequestUrl = (c: Context): URL => {
   } catch {
     throw jsonError(400, "Unable to determine request origin");
   }
-};
-
-const usesRoamingTransport = (transports?: readonly string[]) => {
-  if (!Array.isArray(transports)) {
-    return false;
-  }
-  return transports.some((transport) => {
-    const value = typeof transport === "string" ? transport.toLowerCase() : "";
-    return value === "usb" || value === "nfc" || value === "ble";
-  });
-};
-
-const describeAuthenticator = (
-  deviceType: string | undefined,
-  backedUp: boolean | undefined,
-  transports?: readonly string[],
-) => {
-  if (usesRoamingTransport(transports)) {
-    return "セキュリティキー";
-  }
-  if (
-    Array.isArray(transports) &&
-    transports.some((value) => value === "internal")
-  ) {
-    if (deviceType === "multiDevice") {
-      return backedUp ? "同期済みパスキー" : "マルチデバイスパスキー";
-    }
-    return "このデバイスのパスキー";
-  }
-  if (deviceType === "multiDevice") {
-    return backedUp ? "同期済みパスキー" : "マルチデバイスパスキー";
-  }
-  if (deviceType === "singleDevice") {
-    return "このデバイスのパスキー";
-  }
-  return backedUp ? "同期済みパスキー" : "パスキー";
-};
-
-const guessNicknameFromUserAgent = (userAgent: string | undefined | null) => {
-  if (!userAgent) {
-    return null;
-  }
-  const ua = userAgent.toLowerCase();
-  if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) {
-    return "このiOSデバイスのパスキー";
-  }
-  if (ua.includes("mac os x") || ua.includes("macintosh")) {
-    return "このMacのパスキー";
-  }
-  if (ua.includes("android")) {
-    if (ua.includes("pixel")) {
-      return "このPixelのパスキー";
-    }
-    return "Android デバイスのパスキー";
-  }
-  if (ua.includes("windows")) {
-    return "Windows デバイスのパスキー";
-  }
-  if (ua.includes("linux")) {
-    return "Linux デバイスのパスキー";
-  }
-  return null;
-};
-
-const ensureUniqueNickname = (
-  base: string,
-  existingCredentials: PasskeyCredential[],
-) => {
-  const trimmed = base.trim() || "パスキー";
-  const used = new Set(
-    existingCredentials
-      .map((credential) => credential.nickname?.trim().toLowerCase())
-      .filter((value): value is string => Boolean(value)),
-  );
-  if (!used.has(trimmed.toLowerCase())) {
-    return trimmed;
-  }
-  let index = 2;
-  while (used.has(`${trimmed} (${index})`.toLowerCase())) {
-    index += 1;
-  }
-  return `${trimmed} (${index})`;
-};
-
-const generateCredentialNickname = (
-  options: {
-    aaguid?: string | null;
-    deviceType?: string;
-    backedUp?: boolean;
-    transports?: readonly string[];
-    existingCredentials: PasskeyCredential[];
-    userAgent?: string | null;
-  },
-) => {
-  const datasetName = findAaguidName(options.aaguid);
-  const userAgentName = guessNicknameFromUserAgent(options.userAgent);
-  const fallback = describeAuthenticator(
-    options.deviceType,
-    options.backedUp,
-    options.transports,
-  );
-  const base = datasetName ?? userAgentName ?? fallback ?? "パスキー";
-  return ensureUniqueNickname(base, options.existingCredentials);
 };
 
 export const createPasskeyMiddleware = (
@@ -713,8 +602,7 @@ export const createPasskeyMiddleware = (
     updateSessionState(c, state);
 
     if (matchesMountPath(c.req.path, mountPath)) {
-      const executionCtx = getExecutionContext(c);
-      return router.fetch(c.req.raw, c.env, executionCtx);
+      return router.fetch(c.req.raw, c.env);
     }
 
     return next();
