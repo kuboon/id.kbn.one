@@ -543,20 +543,32 @@ var createClient = (options = {}) => {
       });
       return verification;
     },
-    async list(params) {
-      const username = ensureUsername(params.username);
-      const url = `${buildUrl(mountPath, "/credentials")}?username=${encodeURIComponent(username)}`;
+    async list() {
+      const url = buildUrl(mountPath, "/credentials");
       const response = await fetchJson(fetchImpl, url);
       const credentials = response && typeof response === "object" && "credentials" in response ? response.credentials ?? [] : [];
       return Array.isArray(credentials) ? credentials : [];
     },
     async delete(params) {
-      const username = ensureUsername(params.username);
       const credentialId = params.credentialId;
-      const url = `${buildUrl(mountPath, `/credentials/${encodeURIComponent(credentialId)}`)}?username=${encodeURIComponent(username)}`;
+      const url = buildUrl(mountPath, `/credentials/${encodeURIComponent(credentialId)}`);
       await fetchJson(fetchImpl, url, {
         method: "DELETE"
       });
+    },
+    async update(params) {
+      const credentialId = params.credentialId;
+      const url = buildUrl(mountPath, `/credentials/${encodeURIComponent(credentialId)}`);
+      const response = await fetchJson(fetchImpl, url, {
+        method: "PATCH",
+        body: JSON.stringify({
+          nickname: params.nickname
+        })
+      });
+      if (response && typeof response === "object" && "credential" in response) {
+        return response.credential;
+      }
+      throw new PasskeyClientError("Unexpected response when updating credential", 500, response);
     }
   };
 };

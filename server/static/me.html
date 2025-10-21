@@ -209,8 +209,10 @@
           const header = document.createElement("div");
           header.className = "credential-header";
           const title = document.createElement("strong");
-          title.textContent = credential.nickname ||
-            "名前のないデバイス";
+          const fallbackName = "名前のないデバイス";
+          const originalNickname = credential.nickname?.trim() ?? "";
+          const displayName = originalNickname || fallbackName;
+          title.textContent = displayName;
           header.append(title);
 
           const deleteButton = document.createElement("button");
@@ -219,6 +221,44 @@
           deleteButton.dataset.credentialId = credential.id;
           deleteButton.textContent = "削除";
           header.append(deleteButton);
+
+          const nicknameForm = document.createElement("form");
+          nicknameForm.className = "credential-editor";
+          nicknameForm.dataset.action = "update-credential";
+          nicknameForm.dataset.credentialId = credential.id;
+          nicknameForm.dataset.originalNickname = originalNickname;
+
+          const nicknameField = document.createElement("label");
+          nicknameField.className = "field";
+          const nicknameLabel = document.createElement("span");
+          nicknameLabel.textContent = "表示名";
+          const nicknameInput = document.createElement("input");
+          nicknameInput.type = "text";
+          nicknameInput.name = "nickname";
+          nicknameInput.value = originalNickname;
+          nicknameInput.placeholder = fallbackName;
+          nicknameInput.autocomplete = "off";
+          nicknameField.append(nicknameLabel, nicknameInput);
+
+          const nicknameActions = document.createElement("div");
+          nicknameActions.className = "credential-editor-actions";
+          const nicknameSubmit = document.createElement("button");
+          nicknameSubmit.type = "submit";
+          nicknameSubmit.className = "secondary";
+          nicknameSubmit.textContent = "名前を保存";
+          nicknameActions.append(nicknameSubmit);
+
+          nicknameForm.append(nicknameField, nicknameActions);
+
+          const normalizeNickname = (value) => value.trim();
+          const updateInputState = () => {
+            const nextValue = normalizeNickname(nicknameInput.value);
+            title.textContent = nextValue || fallbackName;
+            nicknameSubmit.disabled = !nextValue ||
+              nextValue === normalizeNickname(originalNickname);
+          };
+          nicknameInput.addEventListener("input", updateInputState);
+          updateInputState();
 
           const meta = document.createElement("dl");
           meta.className = "credential-meta";
@@ -241,7 +281,7 @@
               : "-",
           );
 
-          li.append(header, meta);
+          li.append(header, nicknameForm, meta);
           credentialsList.append(li);
         }
       };
@@ -320,21 +360,14 @@
         return `リクエストがステータス${response.status}で失敗しました`;
       };
 
-      const fetchAccount = async (username) => {
-        const normalized = username.trim();
-        if (!normalized) {
-          throw new Error("ユーザー名は必須です。");
+      const fetchAccount = async () => {
+        const response = await fetch("/webauthn/credentials", {
+          credentials: "include",
+        });
+        if (response.status === 401) {
+          throw new Error("サインインが必要です。");
         }
-        const response = await fetch(
-          `/webauthn/credentials?username=${
-            encodeURIComponent(normalized)
-          }`,
-          { credentials: "include" },
-        );
         if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("アカウントが見つかりません。");
-          }
           throw new Error(await extractErrorMessage(response));
         }
         const data = await response.json();
@@ -347,8 +380,8 @@
         return { user: data.user, credentials };
       };
 
-      const loadAccount = async (username) => {
-        const account = await fetchAccount(username);
+      const loadAccount = async () => {
+        const account = await fetchAccount();
         setAccount(account);
         return account;
       };
@@ -357,9 +390,8 @@
         if (!state.account) {
           return;
         }
-        const username = state.account.user.username;
         try {
-          await loadAccount(username);
+          await loadAccount();
         } catch (error) {
           setStatus(
             error.message ?? "アカウントを更新できません。",
@@ -526,6 +558,89 @@
         }
       });
 
+      credentialsList.addEventListener("submit", async (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) {
+          return;
+        }
+        if (form.dataset.action !== "update-credential") {
+          return;
+        }
+        event.preventDefault();
+        if (!state.account) {
+          setStatus(
+            "パスキーを管理する前にサインインしてください。",
+            "error",
+          );
+          return;
+        }
+        if (form.dataset.loading === "true") {
+          return;
+        }
+        const credentialId = form.dataset.credentialId;
+        if (!credentialId) {
+          return;
+        }
+        const nicknameInput = form.querySelector(
+          'input[name="nickname"]',
+        );
+        if (!(nicknameInput instanceof HTMLInputElement)) {
+          return;
+        }
+        const submitButton = form.querySelector(
+          'button[type="submit"]',
+        );
+        const normalizedNickname = nicknameInput.value.trim();
+        if (!normalizedNickname) {
+          setStatus("パスキーの名前を入力してください。", "error");
+          nicknameInput.focus();
+          return;
+        }
+        form.dataset.loading = "true";
+        if (submitButton instanceof HTMLButtonElement) {
+          submitButton.disabled = true;
+        }
+        try {
+          const updated = await client.update({
+            credentialId,
+            nickname: normalizedNickname,
+          });
+          const nickname = updated.nickname?.trim() ||
+            normalizedNickname;
+          form.dataset.originalNickname = nickname;
+          nicknameInput.value = nickname;
+          const header = form.previousElementSibling;
+          if (header instanceof HTMLElement) {
+            const titleEl = header.querySelector("strong");
+            if (titleEl) {
+              titleEl.textContent = nickname;
+            }
+          }
+          setStatus(
+            `パスキーの名前を「${nickname}」に更新しました。`,
+            "success",
+            { autoHide: true },
+          );
+          await refreshAccount();
+        } catch (error) {
+          setStatus(
+            error?.message
+              ? `名前の更新に失敗しました: ${error.message}`
+              : "名前の更新に失敗しました。",
+            "error",
+          );
+        } finally {
+          if (submitButton instanceof HTMLButtonElement) {
+            const original = (form.dataset.originalNickname ?? "")
+              .trim();
+            const currentValue = nicknameInput.value.trim();
+            submitButton.disabled = !currentValue ||
+              currentValue === original;
+          }
+          form.dataset.loading = "false";
+        }
+      });
+
       credentialsList.addEventListener("click", async (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
@@ -554,7 +669,6 @@
         try {
           setStatus("パスキーを削除しています…");
           await client.delete({
-            username: state.account.user.username,
             credentialId,
           });
           setStatus("パスキーを削除しました。", "success");
@@ -636,7 +750,7 @@
           return;
         }
         try {
-          await loadAccount(session.user.username);
+          await loadAccount();
           setStatus("おかえりなさい。", "success", { autoHide: true });
         } catch (error) {
           console.error("Failed to restore session:", error);

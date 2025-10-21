@@ -65,13 +65,13 @@ export interface AuthenticateParams {
   username: string;
 }
 
-export interface ListParams {
-  username: string;
+export interface DeleteParams {
+  credentialId: string;
 }
 
-export interface DeleteParams {
-  username: string;
+export interface UpdateCredentialParams {
   credentialId: string;
+  nickname: string;
 }
 
 export interface RegisterResult {
@@ -204,11 +204,8 @@ export const createClient = (options: CreateClientOptions = {}) => {
       return verification as AuthenticateResult;
     },
 
-    async list(params: ListParams): Promise<PasskeyCredential[]> {
-      const username = ensureUsername(params.username);
-      const url = `${buildUrl(mountPath, "/credentials")}?username=${
-        encodeURIComponent(username)
-      }`;
+    async list(): Promise<PasskeyCredential[]> {
+      const url = buildUrl(mountPath, "/credentials");
 
       const response = await fetchJson(fetchImpl, url);
       const credentials =
@@ -220,16 +217,44 @@ export const createClient = (options: CreateClientOptions = {}) => {
     },
 
     async delete(params: DeleteParams): Promise<void> {
-      const username = ensureUsername(params.username);
       const credentialId = params.credentialId;
-      const url = `${
-        buildUrl(
-          mountPath,
-          `/credentials/${encodeURIComponent(credentialId)}`,
-        )
-      }?username=${encodeURIComponent(username)}`;
+      const url = buildUrl(
+        mountPath,
+        `/credentials/${encodeURIComponent(credentialId)}`,
+      );
 
       await fetchJson(fetchImpl, url, { method: "DELETE" });
+    },
+
+    async update(params: UpdateCredentialParams): Promise<PasskeyCredential> {
+      const credentialId = params.credentialId;
+      const url = buildUrl(
+        mountPath,
+        `/credentials/${encodeURIComponent(credentialId)}`,
+      );
+
+      const response = await fetchJson(
+        fetchImpl,
+        url,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ nickname: params.nickname }),
+        },
+      );
+
+      if (
+        response &&
+        typeof response === "object" &&
+        "credential" in response
+      ) {
+        return (response as { credential: PasskeyCredential }).credential;
+      }
+
+      throw new PasskeyClientError(
+        "Unexpected response when updating credential",
+        500,
+        response,
+      );
     },
   };
 };

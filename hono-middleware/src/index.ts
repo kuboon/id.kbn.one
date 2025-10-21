@@ -225,6 +225,19 @@ export const createPasskeyMiddleware = (
     c.header("Cache-Control", "no-store");
   };
 
+  const requireAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
+    const existing = c.get("passkey") as PasskeySessionState | undefined;
+    if (existing?.isAuthenticated && existing.user) {
+      return existing.user;
+    }
+    const state = await loadSessionState(c);
+    updateSessionState(c, state);
+    if (!state.isAuthenticated || !state.user) {
+      throw jsonError(401, "Authentication required");
+    }
+    return state.user;
+  };
+
   const clientJsPromise = Deno.readTextFile(
     new URL(import.meta.resolve("../_dist/client.js")),
   );
@@ -239,14 +252,7 @@ export const createPasskeyMiddleware = (
   routes.get("/credentials", (c) =>
     respond(async () => {
       setNoStore(c);
-      const username = c.req.query("username")?.trim();
-      if (!username) {
-        throw jsonError(400, "Missing username query parameter");
-      }
-      const user = await ensureUser(storage, username);
-      if (!user) {
-        return c.json({ user: null, credentials: [] });
-      }
+      const user = await requireAuthenticatedUser(c);
       const credentials = await storage.getCredentialsByUserId(user.id);
       return c.json({ user, credentials });
     }));
@@ -261,20 +267,44 @@ export const createPasskeyMiddleware = (
       const credentialId = credentialIdParam
         ? decodeURIComponent(credentialIdParam)
         : "";
-      const username = c.req.query("username")?.trim();
       if (!credentialId) {
         throw jsonError(400, "Missing credential identifier");
       }
-      if (!username) {
-        throw jsonError(400, "Missing username query parameter");
-      }
-      const user = await ensureUserOrThrow(username);
+      const user = await requireAuthenticatedUser(c);
       const credential = await storage.getCredentialById(credentialId);
       if (!credential || credential.userId !== user.id) {
         throw jsonError(404, "Credential not found");
       }
       await storage.deleteCredential(credentialId);
       return c.json({ success: true });
+    }));
+
+  routes.patch("/credentials/:credentialId", (c) =>
+    respond(async () => {
+      setNoStore(c);
+      const credentialIdParam = c.req.param("credentialId");
+      const credentialId = credentialIdParam
+        ? decodeURIComponent(credentialIdParam)
+        : "";
+      if (!credentialId) {
+        throw jsonError(400, "Missing credential identifier");
+      }
+      const body = await ensureJsonBody<{ nickname?: string }>(c);
+      const nickname = body.nickname?.trim();
+      if (!nickname) {
+        throw jsonError(400, "nickname is required");
+      }
+      const user = await requireAuthenticatedUser(c);
+      const credential = await storage.getCredentialById(credentialId);
+      if (!credential || credential.userId !== user.id) {
+        throw jsonError(404, "Credential not found");
+      }
+      if (credential.nickname !== nickname) {
+        credential.nickname = nickname;
+        credential.updatedAt = Date.now();
+        await storage.updateCredential(credential);
+      }
+      return c.json({ credential });
     }));
 
   routes.post("/register/options", (c) =>

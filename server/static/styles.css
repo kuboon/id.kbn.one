@@ -296,6 +296,15 @@ button:disabled {
   display: grid;
   gap: 0.8rem;
 }
+.credential-editor {
+  display: grid;
+  gap: 0.6rem;
+}
+.credential-editor-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
 .credentials li.empty {
   color: var(--text-muted);
   font-style: italic;
