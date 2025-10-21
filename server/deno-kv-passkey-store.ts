@@ -4,13 +4,10 @@ import type {
   PasskeyUser,
 } from "@kuboon/hono-passkeys-middleware";
 
-const USER_KEY_PREFIX = ["passkeys_middleware", "user"] as const;
-const USERNAME_KEY_PREFIX = ["passkeys_middleware", "username"] as const;
-const CREDENTIAL_KEY_PREFIX = ["passkeys_middleware", "credential"] as const;
-const USER_CREDENTIAL_KEY_PREFIX = [
-  "passkeys_middleware",
-  "user_credentials",
-] as const;
+const USER_KEY_PREFIX = ["user"] as const;
+const USERNAME_KEY_PREFIX = ["username"] as const;
+const CREDENTIAL_KEY_PREFIX = ["credential"] as const;
+const USER_CREDENTIAL_KEY_PREFIX = ["user_credentials"] as const;
 
 const normalizeUsername = (username: string): string =>
   username.trim().toLowerCase();

@@ -1,10 +1,3 @@
-/// <reference lib="deno.ns" />
-
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import type { Context } from "hono";
-import { setCookie } from "hono/cookie";
-import { HTTPException } from "hono/http-exception";
 import {
   createPasskeyMiddleware,
   type PasskeySessionState,
@@ -12,6 +5,11 @@ import {
 } from "@kuboon/hono-passkeys-middleware";
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
 import { idpOrigin, relatedOrigins, rpID, rpName } from "./config.ts";
+
+import { type Context, Hono } from "hono";
+import { cors } from "hono/cors";
+import { setCookie } from "hono/cookie";
+import { HTTPException } from "hono/http-exception";
 
 const app = new Hono();
 const credentialStore = await DenoKvPasskeyStore.create();

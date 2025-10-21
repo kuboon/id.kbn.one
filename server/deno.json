@@ -13,5 +13,8 @@
       "net": true,
       "read": [".."]
     }
+  },
+  "compilerOptions": {
+    "lib": [ "deno.ns", "deno.unstable" ]
   }
 }
