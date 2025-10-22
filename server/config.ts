@@ -15,4 +15,7 @@ const relatedOrigins = (Deno.env.get("ORIGINS") ?? "")
       : `https://${origin}`
   );
 
-export { idpOrigin, relatedOrigins, rpID, rpName };
+const pushContact = Deno.env.get("PUSH_CONTACT")?.trim() ||
+  "mailto:o@kbn.one";
+
+export { idpOrigin, pushContact, relatedOrigins, rpID, rpName };

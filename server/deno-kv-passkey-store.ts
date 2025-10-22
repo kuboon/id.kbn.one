@@ -43,6 +43,10 @@ export class DenoKvPasskeyStore implements PasskeyStorage {
     return new DenoKvPasskeyStore(kv);
   }
 
+  getKv(): Deno.Kv {
+    return this.kv;
+  }
+
   async getUserByUsername(username: string): Promise<PasskeyUser | null> {
     const normalized = normalizeUsername(username);
     if (!normalized) {

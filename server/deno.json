@@ -1,7 +1,9 @@
 {
   "imports": {
     "hono": "npm:hono@4.10.1",
-    "@kuboon/hono-passkeys-middleware": "../hono-middleware/mod.ts"
+    "@kuboon/hono-passkeys-middleware": "../hono-middleware/mod.ts",
+    "@hexagon/base64": "npm:@hexagon/base64@2.0.4",
+    "@negrel/webpush": "jsr:@negrel/webpush@0.5.0"
   },
   "tasks": {
     "serve": "deno serve -P deno-server.ts",
@@ -9,7 +11,7 @@
   },
   "permissions": {
     "default": {
-      "env": ["RP_ID", "RP_NAME", "IDP_ORIGIN", "ORIGINS"],
+      "env": ["RP_ID", "RP_NAME", "IDP_ORIGIN", "ORIGINS", "PUSH_CONTACT"],
       "net": true,
       "read": [".."]
     }
