@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { PasskeyUser } from "@kuboon/hono-passkeys-middleware";
 import {
-  type PushService,
+  PushService,
   type PushSubscriptionMetadata,
   type PushSubscriptionPayload,
   type StoredPushSubscription,
@@ -169,6 +169,10 @@ export const createPushRouter = ({
   ensureAuthenticatedUser,
   setNoStore,
 }: PushRouterDependencies) => {
+  if (!(pushService instanceof PushService)) {
+    throw new Error("pushService must be an instance of PushService");
+  }
+
   const router = new Hono();
 
   router.get("/vapid-key", async (c) => {

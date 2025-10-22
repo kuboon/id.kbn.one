@@ -1,4 +1,5 @@
 import { fromArrayBuffer } from "@hexagon/base64";
+import { pushContact } from "../config.ts";
 import {
   ApplicationServer,
   exportApplicationServerKey,
@@ -99,11 +100,6 @@ export class PushService {
 
   static async create(
     kv: Deno.Kv,
-    {
-      contactInformation,
-    }: {
-      contactInformation: string;
-    },
   ): Promise<PushService> {
     const storedKeysEntry = await kv.get<StoredVapidKeysRecord>(VAPID_KEYS_KEY);
 
@@ -124,7 +120,7 @@ export class PushService {
     }
 
     const applicationServer = await ApplicationServer.new({
-      contactInformation,
+      contactInformation: pushContact,
       vapidKeys,
     });
     const vapidPublicKey = await exportApplicationServerKey(vapidKeys);
