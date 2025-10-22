@@ -46,6 +46,9 @@ If returns error, fix them.
   - run `deno add jsr:@std/foo` first, then you can write
     `import { foo } from "@std/foo;`
 
+# jsr
+to get jsr sources, for example `jsr:@luca/flag@1.0.0`, run `curl https://jsr.io/@luca/flag/1.0.0/main.ts`
+
 # General instructions
 
 - Do not add comments what you did like "// displayName inputs removed"
