@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>kbn.one ID central</title>
+    <title>kbn.one ID</title>
     <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="page">
+    <main class="sign-in page">
       <header class="page-header">
         <div class="brand">
-          <h1 id="brand">kbn.one ID central</h1>
+          <h1 id="brand">kbn.one ID</h1>
         </div>
       </header>
 
@@ -62,19 +62,6 @@
         </div>
       </form>
     </dialog>
-
-    <div class="toast-region" aria-live="polite" aria-atomic="true">
-      <div
-        class="toast"
-        id="status"
-        data-status="info"
-        data-visible="true"
-        role="status"
-      >
-        準備が整いました。
-      </div>
-    </div>
-
     <script type="module">
       import {
         createClient,
@@ -83,7 +70,6 @@
 
       const client = createClient();
 
-      const statusEl = document.getElementById("status");
       const guestForm = document.getElementById("guest-form");
       const conditionalStatus = document.getElementById(
         "conditional-status",
@@ -104,34 +90,34 @@
         conditionalAvailable: false,
       };
 
-      let statusHideTimeout = 0;
-      let statusAnimationFrame = 0;
+      let defaultStatusText = conditionalStatus.textContent;
+      let defaultStatusState = conditionalStatus.dataset.state ||
+        "pending";
+      let statusResetTimeout = 0;
+
+      const updateDefaultStatus = (message, status) => {
+        defaultStatusText = message;
+        defaultStatusState = status;
+      };
 
       const setStatus = (
         message,
         status = "info",
         { autoHide = false, timeout = 4000 } = {},
       ) => {
-        statusEl.textContent = message;
-        statusEl.dataset.status = status;
-        statusEl.dataset.visible = "false";
-        if (statusAnimationFrame) {
-          cancelAnimationFrame(statusAnimationFrame);
+        if (statusResetTimeout) {
+          clearTimeout(statusResetTimeout);
+          statusResetTimeout = 0;
         }
-        if (statusHideTimeout) {
-          clearTimeout(statusHideTimeout);
-          statusHideTimeout = 0;
+        conditionalStatus.textContent = message;
+        conditionalStatus.dataset.state = status;
+        if (autoHide) {
+          statusResetTimeout = setTimeout(() => {
+            statusResetTimeout = 0;
+            conditionalStatus.textContent = defaultStatusText;
+            conditionalStatus.dataset.state = defaultStatusState;
+          }, timeout);
         }
-        statusAnimationFrame = requestAnimationFrame(() => {
-          statusAnimationFrame = 0;
-          statusEl.dataset.visible = "true";
-          if (autoHide) {
-            statusHideTimeout = setTimeout(() => {
-              statusHideTimeout = 0;
-              statusEl.dataset.visible = "false";
-            }, timeout);
-          }
-        });
       };
 
       const getSession = async () => {
@@ -164,7 +150,9 @@
         if (username) {
           await client.authenticate({ username });
           await redirectToDashboard();
-          setStatus("サインインに成功しました。", "success");
+          setStatus("サインインに成功しました。", "success", {
+            autoHide: true,
+          });
           return;
         }
         if (!state.conditionalAvailable) {
@@ -199,7 +187,9 @@
           throw new Error("認証の検証に失敗しました。");
         }
         await redirectToDashboard();
-        setStatus("サインインに成功しました。", "success");
+        setStatus("サインインに成功しました。", "success", {
+          autoHide: true,
+        });
       };
 
       const checkConditionalMediation = async () => {
@@ -211,6 +201,10 @@
           conditionalStatus.textContent =
             "ご利用のブラウザーはまだパスキーの自動入力に対応していません。";
           conditionalStatus.dataset.state = "unsupported";
+          updateDefaultStatus(
+            conditionalStatus.textContent,
+            conditionalStatus.dataset.state,
+          );
           state.conditionalAvailable = false;
           return false;
         }
@@ -224,6 +218,10 @@
           conditionalStatus.dataset.state = available
             ? "available"
             : "absent";
+          updateDefaultStatus(
+            conditionalStatus.textContent,
+            conditionalStatus.dataset.state,
+          );
           return available;
         } catch (error) {
           console.error(
@@ -233,6 +231,10 @@
           conditionalStatus.textContent =
             "パスキーの自動入力に対応しているか判定できませんでした。";
           conditionalStatus.dataset.state = "error";
+          updateDefaultStatus(
+            conditionalStatus.textContent,
+            conditionalStatus.dataset.state,
+          );
           state.conditionalAvailable = false;
           return false;
         }
@@ -290,7 +292,9 @@
           setStatus("セキュリティキーの操作を待機しています…");
           await client.register({ username });
           await redirectToDashboard();
-          setStatus("アカウントを作成しました。", "success");
+          setStatus("アカウントを作成しました。", "success", {
+            autoHide: true,
+          });
         } catch (error) {
           let message = "パスキーの設定に失敗しました。";
           let statusType = "error";
@@ -368,7 +372,6 @@
           window.location.href = "/me";
           return;
         }
-        setStatus("準備が整いました。", "info", { autoHide: false });
       };
 
       await initialise();

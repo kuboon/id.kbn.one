@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>kbn.one ID central</title>
+    <title>kbn.one ID</title>
     <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -11,10 +11,21 @@
     <main class="page">
       <header class="page-header">
         <div class="brand">
-          <h1 id="brand">kbn.one ID central</h1>
+          <h1 id="brand">kbn.one ID</h1>
         </div>
       </header>
 
+      <div class="toast-region" aria-live="polite" aria-atomic="true">
+        <div
+          class="toast"
+          id="status"
+          data-status="info"
+          data-visible="true"
+          role="status"
+        >
+          準備が整いました。
+        </div>
+      </div>
       <section id="account-view" class="panel" hidden>
         <div class="card">
           <header class="section-header">
@@ -140,18 +151,6 @@
       </form>
     </dialog>
 
-    <div class="toast-region" aria-live="polite" aria-atomic="true">
-      <div
-        class="toast"
-        id="status"
-        data-status="info"
-        data-visible="true"
-        role="status"
-      >
-        準備が整いました。
-      </div>
-    </div>
-
     <script type="module">
       import { createClient } from "/webauthn/client.js";
 
@@ -223,6 +222,30 @@
 
       let statusHideTimeout = 0;
       let statusAnimationFrame = 0;
+
+      const normalizeUsername = (value) =>
+        typeof value === "string" ? value.trim() : "";
+      const getAccountUsername = () =>
+        normalizeUsername(state.account?.user?.username ?? "");
+      const getInputUsername = () =>
+        normalizeUsername(accountUsernameInput.value);
+      const updateProfileSubmitState = () => {
+        if (profileForm.dataset.loading === "true") {
+          profileSubmitButton.disabled = true;
+          return;
+        }
+        if (!state.account) {
+          profileSubmitButton.disabled = true;
+          return;
+        }
+        const inputUsername = getInputUsername();
+        if (!inputUsername) {
+          profileSubmitButton.disabled = true;
+          return;
+        }
+        profileSubmitButton.disabled =
+          inputUsername === getAccountUsername();
+      };
 
       const setStatus = (
         message,
@@ -491,13 +514,16 @@
           title.textContent = displayName;
           header.append(title);
 
+          const actions = document.createElement("div");
+          actions.className = "credential-actions";
+
           const editButton = document.createElement("button");
           editButton.type = "button";
           editButton.className = "link";
           editButton.dataset.credentialId = credential.id;
           editButton.dataset.action = "edit-credential";
           editButton.textContent = "変更";
-          header.append(editButton);
+          actions.append(editButton);
 
           const deleteButton = document.createElement("button");
           deleteButton.type = "button";
@@ -505,7 +531,8 @@
           deleteButton.dataset.credentialId = credential.id;
           deleteButton.dataset.action = "delete-credential";
           deleteButton.textContent = "削除";
-          header.append(deleteButton);
+          actions.append(deleteButton);
+          header.append(actions);
 
           const meta = document.createElement("dl");
           meta.className = "credential-meta";
@@ -544,6 +571,7 @@
           state.push.currentId = null;
           renderPushSubscriptions([]);
           updateView();
+          updateProfileSubmitState();
           return;
         }
         const { user, credentials } = account;
@@ -552,6 +580,7 @@
         renderCredentials(credentials);
         renderPushSubscriptions(state.push.subscriptions);
         updateView();
+        updateProfileSubmitState();
       };
 
       const setAccount = (account) => {
@@ -1260,6 +1289,12 @@
         }
       });
 
+      accountUsernameInput.addEventListener("input", () => {
+        updateProfileSubmitState();
+      });
+
+      updateProfileSubmitState();
+
       profileForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!state.account) {
@@ -1312,7 +1347,7 @@
           );
         } finally {
           profileForm.dataset.loading = "false";
-          profileSubmitButton.disabled = false;
+          updateProfileSubmitState();
         }
       });
 
