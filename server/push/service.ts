@@ -1,4 +1,4 @@
-import { encodeBase64Url } from "./lib/encoding.ts";
+import { fromArrayBuffer } from "@hexagon/base64";
 import {
   ApplicationServer,
   exportApplicationServerKey,
@@ -8,7 +8,7 @@ import {
   PushMessageError,
   type PushSubscription as WebPushSubscription,
   Urgency,
-} from "./lib/webpush/mod.ts";
+} from "@negrel/webpush";
 
 const encoder = new TextEncoder();
 
@@ -30,7 +30,7 @@ const hashSubscriptionEndpoint = async (endpoint: string): Promise<string> => {
     "SHA-256",
     encoder.encode(endpoint),
   );
-  return encodeBase64Url(new Uint8Array(digest));
+  return fromArrayBuffer(digest, true);
 };
 
 interface StoredVapidKeysRecord {

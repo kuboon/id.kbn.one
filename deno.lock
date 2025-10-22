@@ -424,6 +424,7 @@
       },
       "server": {
         "dependencies": [
+          "npm:@hexagon/base64@2.0.4",
           "npm:hono@4.10.1"
         ]
       }
