@@ -1,7 +1,8 @@
 {
   "imports": {
     "hono": "npm:hono@4.10.1",
-    "@kuboon/hono-passkeys-middleware": "../hono-middleware/mod.ts"
+    "@kuboon/hono-passkeys-middleware": "../hono-middleware/mod.ts",
+    "@hexagon/base64": "npm:@hexagon/base64@2.0.4"
   },
   "tasks": {
     "serve": "deno serve -P deno-server.ts",
