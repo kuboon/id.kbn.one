@@ -72,6 +72,25 @@
             <li class="empty">パスキーを読み込んでいます…</li>
           </ul>
         </div>
+
+        <div class="card" id="push-card">
+          <header class="section-header">
+            <div>
+              <h2>通知</h2>
+              <p class="hint" id="push-summary">
+                スマートフォンやブラウザーに web push 通知を送信できます。
+              </p>
+            </div>
+            <div class="section-actions">
+              <button type="button" id="enable-push" class="secondary accent">
+                通知を有効化
+              </button>
+            </div>
+          </header>
+          <ul id="push-subscription-list" class="credentials">
+            <li class="empty">通知設定を読み込んでいます…</li>
+          </ul>
+        </div>
       </section>
     </main>
 
@@ -177,10 +196,29 @@
       const credentialDialogNickname = document.getElementById(
         "credential-nickname",
       );
+      const pushCard = document.getElementById("push-card");
+      const pushSummary = document.getElementById("push-summary");
+      const enablePushButton = document.getElementById("enable-push");
+      const pushSubscriptionList = document.getElementById(
+        "push-subscription-list",
+      );
 
       const state = {
         account: null,
         credentials: [],
+        push: {
+          supported: "serviceWorker" in navigator &&
+            "PushManager" in window &&
+            "Notification" in window,
+          permission: typeof Notification !== "undefined"
+            ? Notification.permission
+            : "default",
+          registration: null,
+          vapidPublicKey: null,
+          subscriptions: [],
+          currentId: null,
+          loading: false,
+        },
       };
 
       let statusHideTimeout = 0;
@@ -222,6 +260,202 @@
           return date.toLocaleString();
         } catch {
           return "-";
+        }
+      };
+
+      const base64UrlToUint8Array = (value) => {
+        const padded = value.padEnd(
+          value.length + ((4 - (value.length % 4)) % 4),
+          "=",
+        );
+        const base64 = padded.replace(/-/g, "+").replace(/_/g, "/");
+        const raw = atob(base64);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+          bytes[i] = raw.charCodeAt(i);
+        }
+        return bytes;
+      };
+
+      const detectDeviceName = () => {
+        const ua = navigator.userAgent.toLowerCase();
+        if (ua.includes("iphone")) return "iPhone";
+        if (ua.includes("ipad")) return "iPad";
+        if (ua.includes("android")) {
+          return ua.includes("mobile")
+            ? "Android スマートフォン"
+            : "Android デバイス";
+        }
+        if (ua.includes("windows")) return "Windows PC";
+        if (ua.includes("mac os")) return "Mac";
+        if (ua.includes("linux")) return "Linux";
+        return "このデバイス";
+      };
+
+      const collectPushMetadata = () => {
+        const platformValue = typeof navigator.platform === "string"
+          ? navigator.platform.trim()
+          : "";
+        let timezone;
+        try {
+          timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        } catch {
+          timezone = undefined;
+        }
+        return {
+          deviceName: detectDeviceName(),
+          platform: platformValue || null,
+          userAgent: navigator.userAgent,
+          language: typeof navigator.language === "string"
+            ? navigator.language
+            : undefined,
+          timezone,
+        };
+      };
+
+      const updatePushSummary = () => {
+        if (!pushSummary) return;
+        if (!state.account) {
+          pushSummary.textContent =
+            "通知を有効化するにはサインインしてください。";
+          enablePushButton.disabled = true;
+          return;
+        }
+        if (!state.push.supported) {
+          pushSummary.textContent =
+            "このブラウザーは Web Push に対応していません。対応ブラウザーでお試しください。";
+          enablePushButton.disabled = true;
+          return;
+        }
+        const permission = typeof Notification !== "undefined"
+          ? Notification.permission
+          : "default";
+        state.push.permission = permission;
+        if (permission === "denied") {
+          pushSummary.textContent =
+            "通知がブロックされています。ブラウザーの設定から通知を許可してください。";
+          enablePushButton.disabled = true;
+          return;
+        }
+        if (permission === "granted") {
+          pushSummary.textContent =
+            "通知が許可されています。テスト通知を送信して動作を確認できます。";
+          enablePushButton.disabled = state.push.loading;
+          enablePushButton.textContent = state.push.currentId
+            ? "このデバイスを更新"
+            : "通知を有効化";
+          return;
+        }
+        pushSummary.textContent =
+          "通知を許可するとサインイン時にスマートフォンへプッシュ通知を送れます。";
+        enablePushButton.disabled = state.push.loading;
+        enablePushButton.textContent = "通知を有効化";
+      };
+
+      const renderPushSubscriptions = (subscriptions) => {
+        pushSubscriptionList.innerHTML = "";
+        updatePushSummary();
+        if (!state.account) {
+          const li = document.createElement("li");
+          li.className = "empty";
+          li.textContent = "サインインして通知設定を管理してください。";
+          pushSubscriptionList.append(li);
+          return;
+        }
+        if (!state.push.supported) {
+          const li = document.createElement("li");
+          li.className = "empty";
+          li.textContent =
+            "このブラウザーは Web Push に対応していません。";
+          pushSubscriptionList.append(li);
+          return;
+        }
+        if (!subscriptions.length) {
+          const li = document.createElement("li");
+          li.className = "empty";
+          li.textContent =
+            "まだ通知を受け取るデバイスが登録されていません。";
+          pushSubscriptionList.append(li);
+          return;
+        }
+        for (const subscription of subscriptions) {
+          const li = document.createElement("li");
+
+          const header = document.createElement("div");
+          header.className = "credential-header";
+          const title = document.createElement("strong");
+          const deviceName =
+            subscription.metadata?.deviceName?.trim() ||
+            subscription.metadata?.platform?.trim() ||
+            "登録済みデバイス";
+          title.textContent = deviceName;
+          header.append(title);
+          if (
+            state.push.currentId &&
+            state.push.currentId === subscription.id
+          ) {
+            const badge = document.createElement("span");
+            badge.className = "tag success";
+            badge.textContent = "このデバイス";
+            header.append(badge);
+          }
+          li.append(header);
+
+          const meta = document.createElement("dl");
+          meta.className = "credential-meta";
+          const addMetaRow = (label, value) => {
+            const row = document.createElement("div");
+            const labelEl = document.createElement("dt");
+            labelEl.textContent = label;
+            const valueEl = document.createElement("dd");
+            valueEl.textContent = value;
+            valueEl.style.fontWeight = "500";
+            row.append(labelEl, valueEl);
+            meta.append(row);
+          };
+
+          addMetaRow("更新日", formatDate(subscription.updatedAt));
+          addMetaRow(
+            "最終通知",
+            subscription.metadata?.lastSuccessfulSendAt
+              ? formatDate(subscription.metadata.lastSuccessfulSendAt)
+              : "-",
+          );
+          if (subscription.metadata?.lastError) {
+            const message = subscription.metadata.lastError;
+            const timestamp = subscription.metadata.lastErrorAt
+              ? ` (${formatDate(subscription.metadata.lastErrorAt)})`
+              : "";
+            addMetaRow("状態", `${message}${timestamp}`);
+          } else {
+            addMetaRow("状態", "正常");
+          }
+          if (subscription.metadata?.platform) {
+            addMetaRow("デバイス", subscription.metadata.platform);
+          }
+
+          li.append(meta);
+
+          const actions = document.createElement("div");
+          actions.className = "credential-editor-actions";
+          const testButton = document.createElement("button");
+          testButton.type = "button";
+          testButton.className = "secondary";
+          testButton.dataset.action = "test-subscription";
+          testButton.dataset.subscriptionId = subscription.id;
+          testButton.textContent = "テスト通知";
+          actions.append(testButton);
+
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.className = "danger outline";
+          removeButton.dataset.action = "remove-subscription";
+          removeButton.dataset.subscriptionId = subscription.id;
+          removeButton.textContent = "解除";
+          actions.append(removeButton);
+
+          li.append(actions);
+          pushSubscriptionList.append(li);
         }
       };
 
@@ -306,6 +540,9 @@
             "サインインしてアカウントを管理しましょう。";
           accountUsernameInput.value = "";
           renderCredentials([]);
+          state.push.subscriptions = [];
+          state.push.currentId = null;
+          renderPushSubscriptions([]);
           updateView();
           return;
         }
@@ -313,6 +550,7 @@
         accountSummary.textContent = user.username;
         accountUsernameInput.value = user.username;
         renderCredentials(credentials);
+        renderPushSubscriptions(state.push.subscriptions);
         updateView();
       };
 
@@ -410,6 +648,280 @@
             error.message ?? "アカウントを更新できません。",
             "error",
           );
+        }
+      };
+
+      const ensureServiceWorkerRegistration = async () => {
+        if (!state.push.supported) {
+          throw new Error("このブラウザーでは通知を利用できません。");
+        }
+        if (state.push.registration) {
+          return state.push.registration;
+        }
+        try {
+          if (!navigator.serviceWorker.controller) {
+            await navigator.serviceWorker.register("/sw.js");
+          }
+        } catch (error) {
+          console.warn("Service worker registration failed", error);
+        }
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          state.push.registration = registration;
+          return registration;
+        } catch (error) {
+          throw new Error("サービスワーカーを初期化できませんでした。");
+        }
+      };
+
+      const fetchVapidKey = async () => {
+        if (state.push.vapidPublicKey) {
+          return state.push.vapidPublicKey;
+        }
+        const response = await fetch("/push/vapid-key", {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          throw new Error(await extractErrorMessage(response));
+        }
+        const data = await response.json();
+        if (!data || typeof data !== "object" || !data.publicKey) {
+          throw new Error("サーバーから鍵を取得できませんでした。");
+        }
+        state.push.vapidPublicKey = data.publicKey;
+        return data.publicKey;
+      };
+
+      const ensureNotificationPermission = async () => {
+        if (!state.push.supported) {
+          throw new Error("このブラウザーでは通知を利用できません。");
+        }
+        if (Notification.permission === "granted") {
+          return "granted";
+        }
+        if (Notification.permission === "denied") {
+          return "denied";
+        }
+        const permission = await Notification.requestPermission();
+        state.push.permission = permission;
+        return permission;
+      };
+
+      const loadPushSubscriptions = async (initial = false) => {
+        if (!state.account) {
+          state.push.subscriptions = [];
+          state.push.currentId = null;
+          renderPushSubscriptions([]);
+          return;
+        }
+        if (!state.push.supported) {
+          renderPushSubscriptions([]);
+          return;
+        }
+        try {
+          const response = await fetch("/push/subscriptions", {
+            credentials: "include",
+          });
+          if (!response.ok) {
+            throw new Error(await extractErrorMessage(response));
+          }
+          const data = await response.json();
+          const subscriptions = Array.isArray(data.subscriptions)
+            ? data.subscriptions
+            : [];
+          state.push.subscriptions = subscriptions;
+          if (initial) {
+            try {
+              const registration = await navigator.serviceWorker
+                .getRegistration();
+              if (registration) {
+                const existing = await registration.pushManager
+                  .getSubscription();
+                if (existing) {
+                  const match = subscriptions.find((item) =>
+                    item.endpoint === existing.endpoint
+                  );
+                  if (match) {
+                    state.push.currentId = match.id;
+                  }
+                }
+              }
+            } catch (error) {
+              console.warn(
+                "Failed to match existing push subscription",
+                error,
+              );
+            }
+          } else if (state.push.currentId) {
+            const stillExists = subscriptions.some((item) =>
+              item.id === state.push.currentId
+            );
+            if (!stillExists) {
+              state.push.currentId = null;
+            }
+          }
+          renderPushSubscriptions(subscriptions);
+        } catch (error) {
+          console.error("Failed to load push subscriptions:", error);
+          state.push.subscriptions = [];
+          state.push.currentId = null;
+          renderPushSubscriptions([]);
+          setStatus(
+            error?.message
+              ? `通知設定を取得できませんでした: ${error.message}`
+              : "通知設定を取得できませんでした。",
+            "error",
+          );
+        }
+      };
+
+      const subscribeCurrentDevice = async () => {
+        if (state.push.loading) {
+          return;
+        }
+        if (!state.account) {
+          setStatus(
+            "通知を設定する前にサインインしてください。",
+            "error",
+          );
+          return;
+        }
+        state.push.loading = true;
+        enablePushButton.dataset.loading = "true";
+        enablePushButton.disabled = true;
+        try {
+          const permission = await ensureNotificationPermission();
+          if (permission !== "granted") {
+            throw new Error(
+              "通知が許可されていません。ブラウザーの設定をご確認ください。",
+            );
+          }
+          const registration = await ensureServiceWorkerRegistration();
+          const existing = await registration.pushManager
+            .getSubscription();
+          const subscription = existing ??
+            await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: base64UrlToUint8Array(
+                await fetchVapidKey(),
+              ),
+            });
+          const response = await fetch("/push/subscriptions", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subscription: subscription.toJSON(),
+              metadata: collectPushMetadata(),
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(await extractErrorMessage(response));
+          }
+          const data = await response.json();
+          if (data?.subscription?.id) {
+            state.push.currentId = data.subscription.id;
+          }
+          setStatus("通知を有効化しました。", "success");
+          await loadPushSubscriptions();
+        } catch (error) {
+          setStatus(
+            error?.message
+              ? `通知を有効にできませんでした: ${error.message}`
+              : "通知を有効にできませんでした。",
+            "error",
+          );
+        } finally {
+          state.push.loading = false;
+          enablePushButton.dataset.loading = "false";
+          enablePushButton.disabled = false;
+          updatePushSummary();
+        }
+      };
+
+      const removeSubscription = async (id) => {
+        if (!id) return;
+        const confirmed = window.confirm(
+          "このデバイスの通知登録を解除しますか？",
+        );
+        if (!confirmed) {
+          return;
+        }
+        try {
+          const response = await fetch(
+            `/push/subscriptions/${encodeURIComponent(id)}`,
+            {
+              method: "DELETE",
+              credentials: "include",
+            },
+          );
+          if (!response.ok) {
+            throw new Error(await extractErrorMessage(response));
+          }
+          if (state.push.currentId === id) {
+            try {
+              const registration =
+                await ensureServiceWorkerRegistration();
+              const subscription = await registration.pushManager
+                .getSubscription();
+              if (subscription) {
+                await subscription.unsubscribe();
+              }
+            } catch (error) {
+              console.warn("Failed to unsubscribe push manager", error);
+            }
+            state.push.currentId = null;
+          }
+          setStatus("通知の登録を解除しました。", "success");
+          await loadPushSubscriptions();
+        } catch (error) {
+          setStatus(
+            error?.message
+              ? `通知の解除に失敗しました: ${error.message}`
+              : "通知の解除に失敗しました。",
+            "error",
+          );
+        }
+      };
+
+      const sendTestNotification = async (id, button) => {
+        if (!id) return;
+        if (button) {
+          button.dataset.loading = "true";
+          button.disabled = true;
+        }
+        try {
+          const response = await fetch("/push/notifications/test", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscriptionId: id }),
+          });
+          if (!response.ok) {
+            throw new Error(await extractErrorMessage(response));
+          }
+          const data = await response.json();
+          if (data?.removed) {
+            setStatus(
+              "通知が無効になっていたため登録を削除しました。",
+              "info",
+            );
+          } else {
+            setStatus("テスト通知を送信しました。", "success");
+          }
+          await loadPushSubscriptions();
+        } catch (error) {
+          setStatus(
+            error?.message
+              ? `テスト通知の送信に失敗しました: ${error.message}`
+              : "テスト通知の送信に失敗しました。",
+            "error",
+          );
+        } finally {
+          if (button) {
+            button.dataset.loading = "false";
+            button.disabled = false;
+          }
         }
       };
 
@@ -519,6 +1031,37 @@
         credentialForm.dataset.credentialId = "";
         credentialForm.dataset.originalNickname = "";
         credentialForm.reset();
+      });
+
+      enablePushButton.addEventListener("click", async () => {
+        await subscribeCurrentDevice();
+      });
+
+      pushSubscriptionList.addEventListener("click", async (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        const action = button.dataset.action;
+        const subscriptionId = button.dataset.subscriptionId;
+        if (!action || !subscriptionId) {
+          return;
+        }
+        if (button.dataset.loading === "true") {
+          return;
+        }
+        if (action === "remove-subscription") {
+          button.dataset.loading = "true";
+          button.disabled = true;
+          try {
+            await removeSubscription(subscriptionId);
+          } finally {
+            button.dataset.loading = "false";
+            button.disabled = false;
+          }
+          return;
+        }
+        if (action === "test-subscription") {
+          await sendTestNotification(subscriptionId, button);
+        }
       });
 
       credentialForm.addEventListener("submit", async (event) => {
@@ -782,6 +1325,7 @@
         }
         try {
           await loadAccount();
+          await loadPushSubscriptions(true);
           setStatus("おかえりなさい。", "success", { autoHide: true });
         } catch (error) {
           console.error("Failed to restore session:", error);

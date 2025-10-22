@@ -4,15 +4,24 @@ import {
   type PasskeyUser,
 } from "@kuboon/hono-passkeys-middleware";
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
-import { idpOrigin, relatedOrigins, rpID, rpName } from "./config.ts";
+import {
+  idpOrigin,
+  pushContact,
+  relatedOrigins,
+  rpID,
+  rpName,
+} from "./config.ts";
 
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
+import { PushService } from "./push/service.ts";
+import { createPushRouter } from "./push-router.ts";
 
 const app = new Hono();
 const credentialStore = await DenoKvPasskeyStore.create();
+const pushService = await PushService.create(credentialStore.getKv());
 
 const allowedOrigins = [
   ...(idpOrigin ? [idpOrigin] : []),
@@ -178,6 +187,16 @@ app.delete("/account", async (c) => {
   return c.json({ success: true });
 });
 
+app.route(
+  "/push",
+  createPushRouter({
+    pushService,
+    pushContact,
+    ensureAuthenticatedUser,
+    setNoStore,
+  }),
+);
+
 app.get("/", async (c) => {
   const html = await readStaticText("index.html");
   return c.html(html);
@@ -202,6 +221,12 @@ app.get("/usage.md", async (c) => {
   const markdown = await readStaticText("usage.md");
   c.header("Content-Type", "text/markdown; charset=utf-8");
   return c.body(markdown);
+});
+
+app.get("/sw.js", async (c) => {
+  const script = await readStaticText("sw.js");
+  c.header("Content-Type", "application/javascript; charset=utf-8");
+  return c.body(script);
 });
 
 app.onError((err, c) => {

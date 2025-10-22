@@ -373,6 +373,12 @@
 
       await initialise();
 
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js").catch((error) => {
+          console.warn("Service worker registration failed", error);
+        });
+      }
+
       statusEl.addEventListener("click", () => {
         if (statusHideTimeout) {
           clearTimeout(statusHideTimeout);
