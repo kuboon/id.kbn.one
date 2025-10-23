@@ -47,7 +47,9 @@ If returns error, fix them.
     `import { foo } from "@std/foo;`
 
 # jsr
-to get jsr sources, for example `jsr:@luca/flag@1.0.0`, run `curl https://jsr.io/@luca/flag/1.0.0/main.ts`
+
+to get jsr sources, for example `jsr:@luca/flag@1.0.0`, run
+`curl https://jsr.io/@luca/flag/1.0.0/main.ts`
 
 # General instructions
 

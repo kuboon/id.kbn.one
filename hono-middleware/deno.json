@@ -7,15 +7,8 @@
     "@deno/esbuild-plugin": "jsr:@deno/esbuild-plugin@^1.2.0",
     "@std/path": "jsr:@std/path@^1.1.2",
     "esbuild": "npm:esbuild@^0.25.11",
-    "hono": "npm:hono@^4.10.1",
-    "hono/cookie": "npm:hono@^4.10.1/cookie",
-    "hono/factory": "npm:hono@^4.10.1/factory",
-    "hono/http-exception": "npm:hono@^4.10.1/http-exception",
-    "hono/utils/http-status": "npm:hono@^4.10.1/utils/http-status",
     "@simplewebauthn/browser": "npm:@simplewebauthn/browser@^13.2.2",
-    "@simplewebauthn/server": "npm:@simplewebauthn/server@^13.2.2",
-    "@hexagon/base64": "npm:@hexagon/base64@^2.0.4",
-    "@std/assert": "jsr:@std/assert@^1.0.15"
+    "@simplewebauthn/server": "npm:@simplewebauthn/server@^13.2.2"
   },
   "tasks": {
     "build": "deno run -A scripts/build_client.ts"
