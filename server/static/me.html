@@ -26,23 +26,13 @@
           準備が整いました。
         </div>
       </div>
+      <button type="button" id="logout" class="secondary">
+        ログアウト
+      </button>
       <section id="account-view" class="panel" hidden>
         <div class="card">
           <header class="section-header">
-            <div>
-              <h2>プロフィール情報</h2>
-              <p class="hint" id="account-summary">
-                サインイン中のユーザー情報が表示されます。
-              </p>
-            </div>
-            <div class="section-actions">
-              <button type="button" id="logout" class="secondary">
-                ログアウト
-              </button>
-              <button type="button" id="delete-account" class="danger">
-                アカウントを削除
-              </button>
-            </div>
+            <h2>プロフィール情報</h2>
           </header>
           <form id="profile-form" class="stack">
             <label class="field" for="account-username">
@@ -82,6 +72,47 @@
           <ul id="credential-list" class="credentials">
             <li class="empty">パスキーを読み込んでいます…</li>
           </ul>
+          <template id="credential-item-template">
+            <li>
+              <div class="credential-header">
+                <strong data-role="credential-title"></strong>
+              </div>
+              <dl class="credential-meta">
+                <div>
+                  <dt>登録日</dt>
+                  <dd
+                    data-role="credential-created"
+                    style="font-weight: 500"
+                  >
+                  </dd>
+                </div>
+                <div>
+                  <dt>最終使用日</dt>
+                  <dd
+                    data-role="credential-last-used"
+                    style="font-weight: 500"
+                  >
+                  </dd>
+                </div>
+              </dl>
+                <div class="credential-actions">
+                  <button
+                    type="button"
+                    class="link"
+                    data-action="edit-credential"
+                  >
+                    変更
+                  </button>
+                  <button
+                    type="button"
+                    class="link"
+                    data-action="delete-credential"
+                  >
+                    削除
+                  </button>
+                </div>
+            </li>
+          </template>
         </div>
 
         <div class="card" id="push-card">
@@ -103,6 +134,9 @@
           </ul>
         </div>
       </section>
+      <button type="button" id="delete-account" class="danger">
+        アカウントを削除
+      </button>
     </main>
 
     <dialog id="passkey-dialog">
@@ -158,7 +192,6 @@
 
       const statusEl = document.getElementById("status");
       const accountView = document.getElementById("account-view");
-      const accountSummary = document.getElementById("account-summary");
       const logoutButton = document.getElementById("logout");
       const deleteAccountButton = document.getElementById(
         "delete-account",
@@ -173,6 +206,9 @@
       const addPasskeyButton = document.getElementById("add-passkey");
       const credentialsList = document.getElementById(
         "credential-list",
+      );
+      const credentialTemplate = document.getElementById(
+        "credential-item-template",
       );
       const passkeyDialog = document.getElementById("passkey-dialog");
       const passkeyForm = document.getElementById("passkey-form");
@@ -503,68 +539,39 @@
           return;
         }
         for (const credential of credentials) {
-          const li = document.createElement("li");
-
-          const header = document.createElement("div");
-          header.className = "credential-header";
-          const title = document.createElement("strong");
+          const fragment = credentialTemplate.content.cloneNode(true);
+          const title = fragment.querySelector(
+            '[data-role="credential-title"]',
+          );
+          const created = fragment.querySelector(
+            '[data-role="credential-created"]',
+          );
+          const lastUsed = fragment.querySelector(
+            '[data-role="credential-last-used"]',
+          );
+          const editButton = fragment.querySelector(
+            'button[data-action="edit-credential"]',
+          );
+          const deleteButton = fragment.querySelector(
+            'button[data-action="delete-credential"]',
+          );
           const fallbackName = "名前のないデバイス";
           const originalNickname = credential.nickname?.trim() ?? "";
           const displayName = originalNickname || fallbackName;
           title.textContent = displayName;
-          header.append(title);
-
-          const actions = document.createElement("div");
-          actions.className = "credential-actions";
-
-          const editButton = document.createElement("button");
-          editButton.type = "button";
-          editButton.className = "link";
           editButton.dataset.credentialId = credential.id;
-          editButton.dataset.action = "edit-credential";
-          editButton.textContent = "変更";
-          actions.append(editButton);
-
-          const deleteButton = document.createElement("button");
-          deleteButton.type = "button";
-          deleteButton.className = "link";
           deleteButton.dataset.credentialId = credential.id;
-          deleteButton.dataset.action = "delete-credential";
-          deleteButton.textContent = "削除";
-          actions.append(deleteButton);
-          header.append(actions);
-
-          const meta = document.createElement("dl");
-          meta.className = "credential-meta";
-          const addMetaRow = (label, value) => {
-            const row = document.createElement("div");
-            const labelEl = document.createElement("dt");
-            labelEl.textContent = label;
-            const valueEl = document.createElement("dd");
-            valueEl.textContent = value;
-            valueEl.style.fontWeight = "500";
-            row.append(labelEl, valueEl);
-            meta.append(row);
-          };
-
-          addMetaRow("登録日", formatDate(credential.createdAt));
-          addMetaRow(
-            "最終使用日",
-            credential.lastUsedAt
-              ? formatDate(credential.lastUsedAt)
-              : "-",
-          );
-
-          li.append(header, meta);
-          credentialsList.append(li);
+          created.textContent = formatDate(credential.createdAt);
+          lastUsed.textContent = credential.lastUsedAt
+            ? formatDate(credential.lastUsedAt)
+            : "-";
+          credentialsList.append(fragment);
         }
       };
 
       const renderAccount = () => {
         const account = state.account;
         if (!account) {
-          accountSummary.textContent =
-            "サインインしてアカウントを管理しましょう。";
           accountUsernameInput.value = "";
           renderCredentials([]);
           state.push.subscriptions = [];
@@ -575,7 +582,6 @@
           return;
         }
         const { user, credentials } = account;
-        accountSummary.textContent = user.username;
         accountUsernameInput.value = user.username;
         renderCredentials(credentials);
         renderPushSubscriptions(state.push.subscriptions);
@@ -1361,7 +1367,7 @@
         try {
           await loadAccount();
           await loadPushSubscriptions(true);
-          setStatus("おかえりなさい。", "success", { autoHide: true });
+          setStatus("", "success", { autoHide: true });
         } catch (error) {
           console.error("Failed to restore session:", error);
           clearAccount();

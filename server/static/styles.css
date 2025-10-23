@@ -18,8 +18,7 @@
   line-height: 1.5;
 }
 body {
-  margin: 0;
-  padding: 3rem 1.25rem 4rem;
+  margin: 0 1rem;
   display: grid;
   place-items: center;
   background:
@@ -70,9 +69,7 @@ main.page {
   gap: 2rem;
   max-width: 900px;
 }
-main.sign-in {
-  width: 600px;
-}
+main.signin {}
 .page-header {
   display: flex;
   flex-direction: column;
@@ -108,9 +105,9 @@ main.sign-in {
   background: var(--surface);
   border-radius: var(--radius-lg);
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
-  padding: clamp(1.5rem, 2vw + 1rem, 2.25rem);
+  padding: clamp(1rem, 2vw + 1rem, 2.25rem);
   display: grid;
-  gap: 1.5rem;
+  gap: 1rem;
   border: 1px solid var(--border);
 }
 .section-header {
