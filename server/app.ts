@@ -21,7 +21,7 @@ import { createPushRouter } from "./push-router.ts";
 
 const app = new Hono();
 const credentialStore = await DenoKvPasskeyStore.create();
-const pushService = await PushService.create(credentialStore.getKv());
+const pushService = await PushService.create();
 
 const allowedOrigins = [
   ...(idpOrigin ? [idpOrigin] : []),

@@ -3,6 +3,7 @@ import type {
   PasskeyStorage,
   PasskeyUser,
 } from "@kuboon/hono-passkeys-middleware";
+import { kvPromise } from "./kvInstance.ts";
 
 const USER_KEY_PREFIX = ["user"] as const;
 const USERNAME_KEY_PREFIX = ["username"] as const;
@@ -39,12 +40,8 @@ export class DenoKvPasskeyStore implements PasskeyStorage {
   constructor(private readonly kv: Deno.Kv) {}
 
   static async create(): Promise<DenoKvPasskeyStore> {
-    const kv = await Deno.openKv();
+    const kv = await kvPromise;
     return new DenoKvPasskeyStore(kv);
-  }
-
-  getKv(): Deno.Kv {
-    return this.kv;
   }
 
   async getUserByUsername(username: string): Promise<PasskeyUser | null> {

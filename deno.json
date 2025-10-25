@@ -10,10 +10,7 @@
     "@std/assert": "jsr:@std/assert@^1.0.15",
     "hono": "npm:hono@4.10.2"
   },
-  "unstable": [
-    "bundle",
-    "kv"
-  ],
+  "unstable": ["kv"],
   "deploy": {
     "org": "kuboon-tokyo",
     "app": "id-kbn-one"
