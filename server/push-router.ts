@@ -123,6 +123,26 @@ const parsePushSubscriptionRequest = async (
   };
 };
 
+const parsePushMetadataUpdateRequest = async (
+  c: Context,
+): Promise<PushSubscriptionMetadata> => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    throw new HTTPException(400, { message: "Invalid JSON payload" });
+  }
+  if (!body || typeof body !== "object") {
+    throw new HTTPException(400, { message: "Invalid request body" });
+  }
+  const { metadata } = body as { metadata?: unknown };
+  const sanitized = sanitizeMetadata(metadata);
+  if (!Object.keys(sanitized).length) {
+    throw new HTTPException(400, { message: "metadata is required" });
+  }
+  return sanitized;
+};
+
 const parsePushTestRequest = async (
   c: Context,
 ): Promise<{ subscriptionId: string }> => {
@@ -227,6 +247,37 @@ export const createPushRouter = ({
       throw new HTTPException(404, { message: "Subscription not found" });
     }
     return c.json({ success: true });
+  });
+
+  router.patch("/subscriptions/:id", async (c) => {
+    setNoStore(c);
+    const user = await ensureAuthenticatedUser(c);
+    const id = c.req.param("id");
+    if (!id || !id.trim()) {
+      throw new HTTPException(400, {
+        message: "subscription id is required",
+      });
+    }
+    const metadata = await parsePushMetadataUpdateRequest(c);
+    try {
+      const updated = await pushService.updateSubscriptionMetadata(
+        user.id,
+        id.trim(),
+        metadata,
+      );
+      return c.json({ subscription: serializePushSubscription(updated) });
+    } catch (error) {
+      if (
+        error instanceof Error && error.message === "Subscription not found"
+      ) {
+        throw new HTTPException(404, { message: error.message });
+      }
+      throw new HTTPException(400, {
+        message: error instanceof Error
+          ? error.message
+          : "Failed to update subscription",
+      });
+    }
   });
 
   router.post("/notifications/test", async (c) => {

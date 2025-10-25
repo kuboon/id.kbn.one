@@ -185,6 +185,39 @@
       </form>
     </dialog>
 
+    <dialog id="push-device-dialog">
+      <form id="push-device-form" class="dialog-form">
+        <h2>通知デバイスの名前を変更</h2>
+        <label class="field" for="push-device-name">
+          <span>表示名</span>
+          <input
+            id="push-device-name"
+            name="deviceName"
+            type="text"
+            placeholder="登録済みデバイス"
+            autocomplete="off"
+            required
+          />
+        </label>
+        <div class="button-row align-end">
+          <button
+            type="button"
+            id="cancel-push-device-dialog"
+            class="secondary"
+          >
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            id="submit-push-device-dialog"
+            class="primary"
+          >
+            保存
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <script type="module">
       import { createClient } from "/webauthn/client.js";
 
@@ -230,6 +263,21 @@
       );
       const credentialDialogNickname = document.getElementById(
         "credential-nickname",
+      );
+      const pushDeviceDialog = document.getElementById(
+        "push-device-dialog",
+      );
+      const pushDeviceForm = document.getElementById(
+        "push-device-form",
+      );
+      const pushDeviceDialogCancel = document.getElementById(
+        "cancel-push-device-dialog",
+      );
+      const pushDeviceDialogSubmit = document.getElementById(
+        "submit-push-device-dialog",
+      );
+      const pushDeviceDialogName = document.getElementById(
+        "push-device-name",
       );
       const pushCard = document.getElementById("push-card");
       const pushSummary = document.getElementById("push-summary");
@@ -352,9 +400,6 @@
       };
 
       const collectPushMetadata = () => {
-        const platformValue = typeof navigator.platform === "string"
-          ? navigator.platform.trim()
-          : "";
         let timezone;
         try {
           timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -363,7 +408,6 @@
         }
         return {
           deviceName: detectDeviceName(),
-          platform: platformValue || null,
           userAgent: navigator.userAgent,
           language: typeof navigator.language === "string"
             ? navigator.language
@@ -445,7 +489,6 @@
           const title = document.createElement("strong");
           const deviceName =
             subscription.metadata?.deviceName?.trim() ||
-            subscription.metadata?.platform?.trim() ||
             "登録済みデバイス";
           title.textContent = deviceName;
           header.append(title);
@@ -489,14 +532,18 @@
           } else {
             addMetaRow("状態", "正常");
           }
-          if (subscription.metadata?.platform) {
-            addMetaRow("デバイス", subscription.metadata.platform);
-          }
 
           li.append(meta);
 
           const actions = document.createElement("div");
           actions.className = "credential-editor-actions";
+          const renameButton = document.createElement("button");
+          renameButton.type = "button";
+          renameButton.className = "link";
+          renameButton.dataset.action = "edit-subscription";
+          renameButton.dataset.subscriptionId = subscription.id;
+          renameButton.textContent = "名前を変更";
+          actions.append(renameButton);
           const testButton = document.createElement("button");
           testButton.type = "button";
           testButton.className = "secondary";
@@ -1068,6 +1115,18 @@
         credentialForm.reset();
       });
 
+      pushDeviceDialogCancel.addEventListener("click", () => {
+        pushDeviceDialog.close();
+      });
+
+      pushDeviceDialog.addEventListener("close", () => {
+        pushDeviceForm.dataset.loading = "false";
+        pushDeviceDialogSubmit.disabled = false;
+        pushDeviceForm.dataset.subscriptionId = "";
+        pushDeviceForm.dataset.originalName = "";
+        pushDeviceForm.reset();
+      });
+
       enablePushButton.addEventListener("click", async () => {
         await subscribeCurrentDevice();
       });
@@ -1083,6 +1142,34 @@
         if (button.dataset.loading === "true") {
           return;
         }
+        if (action === "edit-subscription") {
+          const subscription = state.push.subscriptions.find((item) =>
+            item.id === subscriptionId
+          );
+          if (!subscription) {
+            setStatus(
+              "通知デバイスを読み込めませんでした。",
+              "error",
+            );
+            return;
+          }
+          const originalName =
+            subscription.metadata?.deviceName?.trim() ??
+              "";
+          pushDeviceForm.dataset.loading = "false";
+          pushDeviceDialogSubmit.disabled = false;
+          pushDeviceForm.dataset.subscriptionId = subscription.id;
+          pushDeviceForm.dataset.originalName = originalName;
+          pushDeviceDialogName.value = originalName;
+          try {
+            pushDeviceDialog.showModal();
+            pushDeviceDialogName.focus();
+            pushDeviceDialogName.select();
+          } catch (error) {
+            console.error("Unable to open push device dialog:", error);
+          }
+          return;
+        }
         if (action === "remove-subscription") {
           button.dataset.loading = "true";
           button.disabled = true;
@@ -1096,6 +1183,72 @@
         }
         if (action === "test-subscription") {
           await sendTestNotification(subscriptionId, button);
+        }
+      });
+
+      pushDeviceForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!state.account) {
+          setStatus(
+            "通知デバイスを管理する前にサインインしてください。",
+            "error",
+          );
+          return;
+        }
+        if (pushDeviceForm.dataset.loading === "true") {
+          return;
+        }
+        const subscriptionId = pushDeviceForm.dataset.subscriptionId;
+        if (!subscriptionId) {
+          return;
+        }
+        const normalizedName = pushDeviceDialogName.value.trim();
+        if (!normalizedName) {
+          setStatus("通知デバイスの名前を入力してください。", "error");
+          pushDeviceDialogName.focus();
+          return;
+        }
+        const originalName = (pushDeviceForm.dataset.originalName ?? "")
+          .trim();
+        if (normalizedName === originalName) {
+          setStatus("保存する変更がありません。", "info");
+          pushDeviceDialogName.focus();
+          return;
+        }
+        pushDeviceForm.dataset.loading = "true";
+        pushDeviceDialogSubmit.disabled = true;
+        try {
+          const response = await fetch(
+            `/push/subscriptions/${encodeURIComponent(subscriptionId)}`,
+            {
+              method: "PATCH",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                metadata: { deviceName: normalizedName },
+              }),
+            },
+          );
+          if (!response.ok) {
+            throw new Error(await extractErrorMessage(response));
+          }
+          setStatus(
+            `通知デバイスの名前を「${normalizedName}」に更新しました。`,
+            "success",
+            { autoHide: true },
+          );
+          pushDeviceDialog.close();
+          await loadPushSubscriptions();
+        } catch (error) {
+          setStatus(
+            error?.message
+              ? `通知デバイスの更新に失敗しました: ${error.message}`
+              : "通知デバイスの更新に失敗しました。",
+            "error",
+          );
+        } finally {
+          pushDeviceForm.dataset.loading = "false";
+          pushDeviceDialogSubmit.disabled = false;
         }
       });
 

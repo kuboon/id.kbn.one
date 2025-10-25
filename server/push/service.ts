@@ -258,6 +258,43 @@ export class PushService {
     return result.ok;
   }
 
+  async updateSubscriptionMetadata(
+    userId: string,
+    id: string,
+    metadata: PushSubscriptionMetadata,
+  ): Promise<StoredPushSubscription> {
+    if (!metadata || typeof metadata !== "object") {
+      throw new Error("Metadata is required");
+    }
+    if (!Object.keys(metadata).length) {
+      throw new Error("Metadata is required");
+    }
+    const existing = await this.kv.get<StoredPushSubscription>(
+      subscriptionKey(id),
+    );
+    if (!existing.value || existing.value.userId !== userId) {
+      throw new Error("Subscription not found");
+    }
+    const now = new Date().toISOString();
+    const updated: StoredPushSubscription = {
+      ...existing.value,
+      updatedAt: now,
+      metadata: {
+        ...(existing.value.metadata ?? {}),
+        ...metadata,
+        lastUpdatedAt: now,
+      },
+    };
+    const tx = this.kv.atomic()
+      .check(existing)
+      .set(subscriptionKey(id), updated);
+    const result = await tx.commit();
+    if (!result.ok) {
+      throw new Error("Failed to update subscription");
+    }
+    return updated;
+  }
+
   private async getSubscription(
     userId: string,
     id: string,
