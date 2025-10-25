@@ -1,16 +1,33 @@
-# Passkeys and DPoP utilities monorepo
+# Passkeys and WebPush ready ID provider
 
-This repository contains three cooperating modules demonstrating Deno-first
-implementations for passkeys (WebAuthn) and DPoP utilities:
+[![Deploy on Deno](https://deno.com/button)](https://console.deno.com/new?clone=kuboon/id.kbn.one)
 
-- `hono-middleware/` — a reusable Hono middleware that exposes WebAuthn
-  registration and authentication endpoints and serves a bundled `client.js`.
-- `server/` — a small demo Hono server that mounts the middleware (defaults to
-  `/webauthn`) and provides a minimal UI under `server/static/` for trying
-  registration and authentication flows locally.
-- `dpop/` — utilities for generating and verifying DPoP proofs (create/verify
-  DPoP JWTs). Useful when building OAuth flows that require DPoP-bound access
-  tokens.
+## Prerequisites
+
+Install deno
+
+```sh
+curl -fsSL https://deno.land/install.sh | sh
+```
+
+via mise
+
+```sh
+curl https://mise.run | sh
+mise use -g deno
+```
+
+## Environment variables
+
+for more details, see `server/config.ts`.
+
+- `RP_ID` (relying party id, e.g. `localhost`)
+- `RP_NAME` (relying party display name, e.g. `My ID Provider`)
+- `RP_ORIGIN` (origin used when running behind a proxy, e.g.
+  `http://localhost:8000`)
+- `IDP_ORIGIN` (the origin of the ID provider, e.g. `http://localhost:8000`)
+- `ORIGINS` (a comma-separated list of allowed origins for Passkeys & CORS, e.g.
+  `http://localhost:8000,http://example.com`)
 
 ## Project layout
 
@@ -18,7 +35,7 @@ implementations for passkeys (WebAuthn) and DPoP utilities:
 /
 ├─ dpop/               # DPoP key + proof helpers
 ├─ hono-middleware/    # Passkeys / WebAuthn middleware for Hono
-└─ server/             # Demo server that uses the middleware and static UI
+└─ server/             # ID provider server
 ```
 
 ## Quick start — run the demo server

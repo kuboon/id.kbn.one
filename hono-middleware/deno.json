@@ -14,9 +14,9 @@
     "build": "deno run -A scripts/build_client.ts"
   },
   "fmt": {
-    "include": ["mod.ts", "src/**/*.ts"]
+    "include": ["src/**/*.ts"]
   },
   "lint": {
-    "include": ["mod.ts", "src/**/*.ts"]
+    "include": ["src/**/*.ts"]
   }
 }

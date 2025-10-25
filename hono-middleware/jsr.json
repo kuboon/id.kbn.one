@@ -1,11 +1,10 @@
 {
-  "name": "@kuboon/hono-passkeys-middleware",
+  "name": "@scope/hono-passkeys-middleware",
   "version": "0.1.0",
-  "exports": "./mod.ts",
+  "exports": "./src/mod.ts",
   "publish": {
     "include": [
       "README.md",
-      "mod.ts",
       "src/**/*.ts"
     ]
   }

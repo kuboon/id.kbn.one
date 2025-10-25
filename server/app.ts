@@ -1,9 +1,7 @@
-import {
-  createPasskeyMiddleware,
-  type PasskeySessionState,
-  type PasskeyUser,
-} from "@kuboon/hono-passkeys-middleware";
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
+import { PushService } from "./push/service.ts";
+import { getKvInstance } from "./kvInstance.ts";
+import { createPushRouter } from "./push/router.ts";
 import {
   idpOrigin,
   pushContact,
@@ -11,16 +9,18 @@ import {
   rpID,
   rpName,
 } from "./config.ts";
+import {
+  createPasskeyMiddleware,
+  type PasskeySessionState,
+  type PasskeyUser,
+} from "@scope/hono-passkeys-middleware";
 
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
-import { setCookie } from "hono/cookie";
+import { deleteCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
-import { PushService } from "./push/service.ts";
-import { getKvInstance } from "./kvInstance.ts";
-import { createPushRouter } from "./push-router.ts";
+import { Secret } from "./secret.ts";
 
-const app = new Hono();
 const kv = await getKvInstance();
 const credentialStore = new DenoKvPasskeyStore(kv);
 const pushService = await PushService.create(kv);
@@ -31,13 +31,6 @@ const allowedOrigins = [
 ];
 
 const SESSION_COOKIE_NAME = "passkey_session";
-const baseCookieOptions = {
-  httpOnly: true,
-  sameSite: "Lax" as const,
-  path: "/",
-};
-
-const isSecureRequest = (c: Context) => c.req.url.startsWith("https://");
 
 const setNoStore = (c: Context) => {
   c.header("Cache-Control", "no-store");
@@ -57,11 +50,7 @@ const setSessionState = (c: Context, state: PasskeySessionState) => {
 };
 
 const clearSession = (c: Context) => {
-  setCookie(c, SESSION_COOKIE_NAME, "", {
-    ...baseCookieOptions,
-    secure: isSecureRequest(c),
-    maxAge: 0,
-  });
+  deleteCookie(c, SESSION_COOKIE_NAME);
   setSessionState(c, createDefaultSessionState());
 };
 
@@ -116,6 +105,13 @@ const readStaticText = async (relativePath: string) => {
   return await Deno.readTextFile(url);
 };
 
+const signingKey = await Secret<string>("signing_key", () => {
+  const key = crypto.randomUUID();
+  console.info(`Generated new signing key: ${key}`);
+  return key;
+}, 60 * 60 * 24); // 1 day expiration
+
+const app = new Hono();
 app.use("*", cors({ origin: allowedOrigins }));
 
 app.use(
@@ -123,6 +119,7 @@ app.use(
     rpID,
     rpName,
     storage: credentialStore,
+    secret: await signingKey.get(),
   }),
 );
 

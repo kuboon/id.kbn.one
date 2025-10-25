@@ -1,4 +1,4 @@
-# @kuboon/hono-passkeys-middleware
+# @scope/hono-passkeys-middleware
 
 A reusable [Hono](https://hono.dev/) middleware that adds
 [passkey / WebAuthn](https://passkeys.dev/) registration and authentication
@@ -14,13 +14,13 @@ as-is.
 ## Installation
 
 ```bash
-npm install @kuboon/hono-passkeys-middleware
+npm install @scope/hono-passkeys-middleware
 ```
 
 or using the `npm:` specifier in Deno/JSR projects:
 
 ```ts
-import { createPasskeyMiddleware } from "jsr:@kuboon/hono-passkeys-middleware";
+import { createPasskeyMiddleware } from "jsr:@scope/hono-passkeys-middleware";
 ```
 
 ## Usage
@@ -30,7 +30,7 @@ import { Hono } from "hono";
 import {
   createPasskeyMiddleware,
   InMemoryPasskeyStore,
-} from "@kuboon/hono-passkeys-middleware";
+} from "@scope/hono-passkeys-middleware";
 
 const app = new Hono();
 const storage = new InMemoryPasskeyStore();
@@ -74,7 +74,7 @@ with while still avoiding server-side storage.
 
 ### Storage
 
-`@kuboon/hono-passkeys-middleware` ships with `InMemoryPasskeyStore` for quick
+`@scope/hono-passkeys-middleware` ships with `InMemoryPasskeyStore` for quick
 experiments. For production use you should implement the `PasskeyStorage`
 interface with your own persistence layer and session handling. Challenge data
 is automatically signed and stored client-side in cookies using a secret kept in

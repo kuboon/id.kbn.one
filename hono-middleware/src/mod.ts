@@ -1,19 +1,3 @@
-import { Hono } from "hono";
-import type { Context } from "hono";
-import { createMiddleware } from "hono/factory";
-import { getCookie, setCookie } from "hono/cookie";
-import { HTTPException } from "hono/http-exception";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
-import {
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
-  verifyAuthenticationResponse,
-  verifyRegistrationResponse,
-} from "@simplewebauthn/server";
-import type {
-  GenerateAuthenticationOptionsOpts,
-  GenerateRegistrationOptionsOpts,
-} from "@simplewebauthn/server";
 import {
   AuthenticationOptionsRequestBody,
   AuthenticationVerifyRequestBody,
@@ -26,13 +10,31 @@ import {
   RegistrationOptionsRequestBody,
   RegistrationVerifyRequestBody,
 } from "./types.ts";
-import { base64 } from "@hexagon/base64";
-import {
-  CHALLENGE_COOKIE_NAME,
-  createSignedChallengeValue,
-  verifySignedChallengeValue,
-} from "./challenge-signature.ts";
 import { generateCredentialNickname } from "./generate-credential-nickname.ts";
+
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+} from "@simplewebauthn/server";
+import type {
+  GenerateAuthenticationOptionsOpts,
+  GenerateRegistrationOptionsOpts,
+} from "@simplewebauthn/server";
+import { base64 } from "@hexagon/base64";
+
+import { type Context, Hono } from "hono";
+import { createMiddleware } from "hono/factory";
+import {
+  deleteCookie,
+  getCookie,
+  getSignedCookie,
+  setCookie,
+  setSignedCookie,
+} from "hono/cookie";
+import { HTTPException } from "hono/http-exception";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -47,51 +49,44 @@ const decodeBase64Url = (input: string) =>
   new Uint8Array(base64.toArrayBuffer(input, true));
 
 const DEFAULT_MOUNT_PATH = "/webauthn";
+
+const cookieJar = <T>(
+  name: string,
+  opt?: { maxAge: number },
+  secret?: string,
+) =>
+(c: Context) => {
+  const secure = c.req.url.startsWith("https://");
+  const opt_ = {
+    httpOnly: true,
+    sameSite: "Lax" as const,
+    path: "/",
+    secure,
+    ...opt,
+  };
+  return {
+    async set(payload: T) {
+      if (secret) {
+        await setSignedCookie(c, name, JSON.stringify(payload), secret, opt_);
+      } else {
+        setCookie(c, name, JSON.stringify(payload), opt_);
+      }
+    },
+    async get(): Promise<T | undefined> {
+      let value;
+      if (secret) {
+        value = await getSignedCookie(c, secret, name);
+      } else {
+        value = getCookie(c, name);
+      }
+      return value ? JSON.parse(value) : undefined;
+    },
+    clear: () => deleteCookie(c, name),
+  };
+};
 const SESSION_COOKIE_NAME = "passkey_session";
-const cookieBaseOptions = {
-  httpOnly: true,
-  sameSite: "Lax" as const,
-  path: "/",
-};
+const CHALLENGE_COOKIE_NAME = "passkey_challenge";
 const CHALLENGE_COOKIE_MAX_AGE_SECONDS = 300;
-
-const isSecureRequest = (c: Context) => c.req.url.startsWith("https://");
-
-const setSignedChallengeCookie = async (
-  c: Context,
-  payload: {
-    userId: string;
-    type: "registration" | "authentication";
-    value: PasskeyStoredChallenge;
-  },
-) => {
-  const signedValue = await createSignedChallengeValue(payload);
-  setCookie(c, CHALLENGE_COOKIE_NAME, signedValue, {
-    ...cookieBaseOptions,
-    secure: isSecureRequest(c),
-    maxAge: CHALLENGE_COOKIE_MAX_AGE_SECONDS,
-  });
-};
-
-const clearSignedChallengeCookie = (c: Context) => {
-  setCookie(c, CHALLENGE_COOKIE_NAME, "", {
-    ...cookieBaseOptions,
-    secure: isSecureRequest(c),
-    maxAge: 0,
-  });
-};
-
-const readSignedChallenge = async (
-  c: Context,
-  expected: { userId: string; type: "registration" | "authentication" },
-): Promise<PasskeyStoredChallenge | null> => {
-  const token = getCookie(c, CHALLENGE_COOKIE_NAME);
-  const result = await verifySignedChallengeValue(token, expected);
-  if (!result) {
-    clearSignedChallengeCookie(c);
-  }
-  return result;
-};
 
 const normalizeMountPath = (path: string) => {
   if (!path || path === "/") return "";
@@ -166,6 +161,7 @@ export const createPasskeyMiddleware = (
   const {
     rpName,
     storage,
+    secret,
     registrationOptions,
     authenticationOptions,
     verifyRegistrationOptions,
@@ -181,10 +177,20 @@ export const createPasskeyMiddleware = (
   const mountPath = normalizeMountPath(
     options.mountPath ?? DEFAULT_MOUNT_PATH,
   );
+  const sessionCookieJar = cookieJar<string>(
+    SESSION_COOKIE_NAME,
+    { maxAge: 7 * 24 * 60 * 60 },
+    secret,
+  );
+  const challengeCookieJar = cookieJar<PasskeyStoredChallenge>(
+    CHALLENGE_COOKIE_NAME,
+    { maxAge: CHALLENGE_COOKIE_MAX_AGE_SECONDS },
+    secret,
+  );
   const router = new Hono();
 
   const loadSessionState = async (c: Context): Promise<PasskeySessionState> => {
-    const sessionValue = getCookie(c, SESSION_COOKIE_NAME)?.trim();
+    const sessionValue = (await sessionCookieJar(c).get())?.trim();
     if (!sessionValue) {
       return unauthenticatedState();
     }
@@ -358,13 +364,9 @@ export const createPasskeyMiddleware = (
       const optionsResult = await webauthn.generateRegistrationOptions(
         optionsInput,
       );
-      await setSignedChallengeCookie(c, {
-        userId: user.id,
-        type: "registration",
-        value: {
-          challenge: optionsResult.challenge,
-          origin: requestUrl.origin,
-        },
+      await challengeCookieJar(c).set({
+        challenge: optionsResult.challenge,
+        origin: requestUrl.origin,
       });
       return c.json(optionsResult);
     }));
@@ -379,10 +381,7 @@ export const createPasskeyMiddleware = (
       }
       const user = await ensureUserOrThrow(username);
       const existingCredentials = await storage.getCredentialsByUserId(user.id);
-      const storedChallenge = await readSignedChallenge(c, {
-        userId: user.id,
-        type: "registration",
-      });
+      const storedChallenge = await challengeCookieJar(c).get();
       if (!storedChallenge) {
         throw jsonError(400, "No registration challenge for user");
       }
@@ -441,15 +440,11 @@ export const createPasskeyMiddleware = (
       };
 
       await storage.saveCredential(storedCredential);
-      clearSignedChallengeCookie(c);
+      challengeCookieJar(c).clear();
 
       // Mark the user as authenticated in the session so they are logged in
       // immediately after registering a passkey.
-      const secure = c.req.url.startsWith("https://");
-      setCookie(c, SESSION_COOKIE_NAME, user.id, {
-        ...cookieBaseOptions,
-        secure,
-      });
+      await sessionCookieJar(c).set(user.id);
       const sessionState: PasskeySessionState = {
         isAuthenticated: true,
         user,
@@ -498,14 +493,9 @@ export const createPasskeyMiddleware = (
       const optionsResult = await webauthn.generateAuthenticationOptions(
         optionsInput,
       );
-
-      await setSignedChallengeCookie(c, {
-        userId: username ? (await ensureUserOrThrow(username)).id : "",
-        type: "authentication",
-        value: {
-          challenge: optionsResult.challenge,
-          origin: requestUrl.origin,
-        },
+      await challengeCookieJar(c).set({
+        challenge: optionsResult.challenge,
+        origin: requestUrl.origin,
       });
 
       return c.json(optionsResult);
@@ -532,10 +522,7 @@ export const createPasskeyMiddleware = (
       if (username) {
         // username-based verification
         user = await ensureUserOrThrow(username);
-        const storedChallenge = await readSignedChallenge(c, {
-          userId: user.id,
-          type: "authentication",
-        });
+        const storedChallenge = await challengeCookieJar(c).get();
         if (!storedChallenge) {
           throw jsonError(400, "No authentication challenge for user");
         }
@@ -549,10 +536,7 @@ export const createPasskeyMiddleware = (
         }
       } else {
         // conditional (discoverable) verification: user not supplied
-        const storedChallenge = await readSignedChallenge(c, {
-          userId: "",
-          type: "authentication",
-        });
+        const storedChallenge = await challengeCookieJar(c).get();
         if (storedChallenge) {
           expectedChallenge = storedChallenge.challenge;
           expectedOrigin = storedChallenge.origin;
@@ -604,13 +588,9 @@ export const createPasskeyMiddleware = (
       storedCredential!.backedUp = authenticationInfo.credentialBackedUp;
       storedCredential!.deviceType = authenticationInfo.credentialDeviceType;
       await storage.updateCredential(storedCredential!);
-      clearSignedChallengeCookie(c);
+      challengeCookieJar(c).clear();
 
-      const secure = c.req.url.startsWith("https://");
-      setCookie(c, SESSION_COOKIE_NAME, user!.id, {
-        ...cookieBaseOptions,
-        secure,
-      });
+      await sessionCookieJar(c).set(user!.id);
       const sessionState: PasskeySessionState = {
         isAuthenticated: true,
         user,

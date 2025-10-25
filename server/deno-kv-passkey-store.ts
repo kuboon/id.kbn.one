@@ -1,9 +1,9 @@
+import { getKvInstance } from "./kvInstance.ts";
 import type {
   PasskeyCredential,
   PasskeyStorage,
   PasskeyUser,
-} from "@kuboon/hono-passkeys-middleware";
-import { getKvInstance } from "./kvInstance.ts";
+} from "@scope/hono-passkeys-middleware";
 
 const USER_KEY_PREFIX = ["user"] as const;
 const USERNAME_KEY_PREFIX = ["username"] as const;

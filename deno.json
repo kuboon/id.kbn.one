@@ -10,9 +10,6 @@
     "@std/assert": "jsr:@std/assert@^1.0.15",
     "hono": "npm:hono@4.10.2"
   },
-  "tasks": {
-    "env": "deno run -A scripts/env.ts"
-  },
   "unstable": ["kv"],
   "deploy": {
     "org": "kuboon-tokyo",

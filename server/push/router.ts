@@ -1,12 +1,12 @@
-import { type Context, Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
-import type { PasskeyUser } from "@kuboon/hono-passkeys-middleware";
 import {
   PushService,
   type PushSubscriptionMetadata,
   type PushSubscriptionPayload,
   type StoredPushSubscription,
-} from "./push/service.ts";
+} from "./service.ts";
+import type { PasskeyUser } from "@scope/hono-passkeys-middleware";
+import { type Context, Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
   if (!metadata || typeof metadata !== "object") {

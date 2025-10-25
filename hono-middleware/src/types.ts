@@ -117,6 +117,7 @@ export interface PasskeyMiddlewareOptions {
   rpID: string;
   rpName: string;
   storage: PasskeyStorage;
+  secret: string;
   mountPath?: string;
   registrationOptions?: RegistrationOptionsOverrides;
   authenticationOptions?: AuthenticationOptionsOverrides;
