@@ -6,7 +6,7 @@ export const getKvInstance = (): Promise<Deno.Kv> => {
   return kvPromise;
 };
 export const test = {
-    overwrideKvPromise: (kvP: Promise<Deno.Kv>) => {
-        kvPromise = kvP;
-    }
-}
+  overwrideKvPromise: (kvP: Promise<Deno.Kv>) => {
+    kvPromise = kvP;
+  },
+};

@@ -4,12 +4,11 @@ import type { ChallengeType, PasskeyStoredChallenge } from "./types.ts";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-const SECRET_KV_KEY = ["passkey", "challenge_signature", "secret"] as const;
 const SECRET_BYTE_LENGTH = 32;
+const HMAC_ENV_KEY = "HMAC_KEY";
 export const CHALLENGE_COOKIE_NAME = "passkey_challenge";
 
-let kvOverride: Deno.Kv | null = null;
-let kvPromise: Promise<Deno.Kv> | undefined;
+let secretOverride: Uint8Array | null = null;
 let secretPromise: Promise<Uint8Array> | undefined;
 let hmacKeyPromise: Promise<CryptoKey> | undefined;
 
@@ -29,45 +28,39 @@ const base64UrlEncode = (input: Uint8Array | ArrayBuffer): string =>
 const base64UrlDecode = (input: string): Uint8Array =>
   new Uint8Array(base64.toArrayBuffer(input, true));
 
-const getKvInstance = (): Promise<Deno.Kv> => {
-  if (kvOverride) {
-    return Promise.resolve(kvOverride);
-  }
-  if (!kvPromise) {
-    kvPromise = Deno.openKv();
-  }
-  return kvPromise;
-};
-
 const getSecretBytes = (): Promise<Uint8Array> => {
   if (!secretPromise) {
-    secretPromise = (async () => {
-      const kv = await getKvInstance();
-      const current = await kv.get<Uint8Array>(SECRET_KV_KEY);
-      const existing = current.value;
-      if (
-        existing instanceof Uint8Array && existing.length === SECRET_BYTE_LENGTH
-      ) {
-        return new Uint8Array(existing);
+    secretPromise = Promise.resolve().then(() => {
+      if (secretOverride) {
+        return new Uint8Array(secretOverride);
       }
-      const generated = new Uint8Array(SECRET_BYTE_LENGTH);
-      crypto.getRandomValues(generated);
-      const atomic = kv.atomic();
-      if (current.versionstamp) {
-        atomic.check({
-          key: SECRET_KV_KEY,
-          versionstamp: current.versionstamp,
-        });
-      } else {
-        atomic.check({ key: SECRET_KV_KEY, versionstamp: null });
+      let secretValue: string | null;
+      try {
+        secretValue = Deno.env.get(HMAC_ENV_KEY) ?? null;
+      } catch (error) {
+        if (error instanceof Deno.errors.PermissionDenied) {
+          throw new Error(
+            `Reading ${HMAC_ENV_KEY} requires --allow-env=${HMAC_ENV_KEY}`,
+          );
+        }
+        throw error;
       }
-      const commit = await atomic.set(SECRET_KV_KEY, generated).commit();
-      if (!commit.ok) {
-        secretPromise = undefined;
-        return getSecretBytes();
+      if (!secretValue) {
+        throw new Error(`${HMAC_ENV_KEY} is not set`);
       }
-      return generated;
-    })();
+      let decoded: Uint8Array;
+      try {
+        decoded = base64UrlDecode(secretValue);
+      } catch {
+        throw new Error(`${HMAC_ENV_KEY} must be a base64url value`);
+      }
+      if (decoded.length !== SECRET_BYTE_LENGTH) {
+        throw new Error(
+          `${HMAC_ENV_KEY} must decode to ${SECRET_BYTE_LENGTH} bytes`,
+        );
+      }
+      return decoded;
+    });
   }
   return secretPromise;
 };
@@ -199,14 +192,17 @@ export const verifySignedChallengeValue = async (
   }
 };
 
+const resetSecretCache = () => {
+  secretPromise = undefined;
+  hmacKeyPromise = undefined;
+};
+
 export const challengeSignatureInternals = {
-  setKvOverride: (kv: Deno.Kv | null) => {
-    kvOverride = kv;
-    if (!kvOverride) {
-      kvPromise = undefined;
-    }
-    secretPromise = undefined;
-    hmacKeyPromise = undefined;
+  setSecretOverride: (secret: Uint8Array | null) => {
+    secretOverride = secret ? new Uint8Array(secret) : null;
+    resetSecretCache();
   },
-  getKvKey: () => SECRET_KV_KEY,
+  resetSecretCache,
+  getEnvKeyName: () => HMAC_ENV_KEY,
+  getSecretByteLength: () => SECRET_BYTE_LENGTH,
 };

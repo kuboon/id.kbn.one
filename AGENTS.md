@@ -32,10 +32,7 @@ mise use python
 mise exec -- python path/to/script.py
 ```
 
-`mise exec` ensures the tools defined in `mise.toml` are on PATH without
-polluting your shell environment.
-
-# run `deno fmt && deno lint && deno test -P` after your jobs
+# run `deno fmt && deno lint && && deno check && deno test -P` after your jobs
 
 If returns error, fix them.
 

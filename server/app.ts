@@ -17,11 +17,13 @@ import { cors } from "hono/cors";
 import { setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { PushService } from "./push/service.ts";
+import { getKvInstance } from "./kvInstance.ts";
 import { createPushRouter } from "./push-router.ts";
 
 const app = new Hono();
-const credentialStore = await DenoKvPasskeyStore.create();
-const pushService = await PushService.create();
+const kv = await getKvInstance();
+const credentialStore = new DenoKvPasskeyStore(kv);
+const pushService = await PushService.create(kv);
 
 const allowedOrigins = [
   ...(idpOrigin ? [idpOrigin] : []),

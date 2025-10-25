@@ -4,6 +4,7 @@ import { denoPlugin } from "@deno/esbuild-plugin";
 import { fromFileUrl, join } from "@std/path";
 
 if(Deno.env.get("DENO_DEPLOY")){
+  // https://docs.deno.com/deploy/reference/env_vars_and_contexts/#predefined-environment-variables
   const DENO_DEPLOY_ORG_SLUG = Deno.env.get("DENO_DEPLOY_ORG_SLUG");
   const DENO_DEPLOY_APP_SLUG = Deno.env.get("DENO_DEPLOY_APP_SLUG");
   const DENO_DEPLOY_BUILD_ID = Deno.env.get("DENO_DEPLOY_BUILD_ID");

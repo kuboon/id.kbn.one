@@ -11,10 +11,20 @@ import {
   verifySignedChallengeValue,
 } from "./challenge-signature.ts";
 
+const createTestSecret = (seed: number): Uint8Array => {
+  const secret = new Uint8Array(
+    challengeSignatureInternals.getSecretByteLength(),
+  );
+  for (let i = 0; i < secret.length; i++) {
+    secret[i] = (seed + i) % 256;
+  }
+  return secret;
+};
+
 Deno.test("creates and verifies signed challenge value", async () => {
-  const kv = await Deno.openKv(":memory:");
+  const secret = createTestSecret(10);
   try {
-    challengeSignatureInternals.setKvOverride(kv);
+    challengeSignatureInternals.setSecretOverride(secret);
     const payload = {
       userId: "user-123",
       type: "registration" as const,
@@ -29,21 +39,14 @@ Deno.test("creates and verifies signed challenge value", async () => {
     assertEquals(verified.challenge, payload.value.challenge);
     assertEquals(verified.origin, payload.value.origin);
     assertEquals(CHALLENGE_COOKIE_NAME, "passkey_challenge");
-    const storedSecret = await kv.get<Uint8Array>(
-      challengeSignatureInternals.getKvKey(),
-    );
-    assertExists(storedSecret.value);
-    assertEquals(storedSecret.value.length, 32);
   } finally {
-    challengeSignatureInternals.setKvOverride(null);
-    kv.close();
+    challengeSignatureInternals.setSecretOverride(null);
   }
 });
 
 Deno.test("rejects mismatched identifiers", async () => {
-  const kv = await Deno.openKv(":memory:");
   try {
-    challengeSignatureInternals.setKvOverride(kv);
+    challengeSignatureInternals.setSecretOverride(createTestSecret(20));
     const token = await createSignedChallengeValue({
       userId: "user-1",
       type: "authentication",
@@ -60,15 +63,13 @@ Deno.test("rejects mismatched identifiers", async () => {
     });
     assertStrictEquals(typeMismatch, null);
   } finally {
-    challengeSignatureInternals.setKvOverride(null);
-    kv.close();
+    challengeSignatureInternals.setSecretOverride(null);
   }
 });
 
 Deno.test("detects tampered signatures", async () => {
-  const kv = await Deno.openKv(":memory:");
   try {
-    challengeSignatureInternals.setKvOverride(kv);
+    challengeSignatureInternals.setSecretOverride(createTestSecret(30));
     const token = await createSignedChallengeValue({
       userId: "user-3",
       type: "authentication",
@@ -86,7 +87,6 @@ Deno.test("detects tampered signatures", async () => {
     });
     assertStrictEquals(verified, null);
   } finally {
-    challengeSignatureInternals.setKvOverride(null);
-    kv.close();
+    challengeSignatureInternals.setSecretOverride(null);
   }
 });

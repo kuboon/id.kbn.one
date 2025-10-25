@@ -5,11 +5,18 @@
   },
   "tasks": {
     "serve": "deno serve -P deno-server.ts",
-    "dev": "deno serve -P --allow-net --watch deno-server.ts"
+    "dev": "deno serve -P --allow-net --env --watch deno-server.ts"
   },
   "permissions": {
     "default": {
-      "env": ["RP_ID", "RP_NAME", "IDP_ORIGIN", "ORIGINS", "PUSH_CONTACT"],
+      "env": [
+        "RP_ID",
+        "RP_NAME",
+        "IDP_ORIGIN",
+        "ORIGINS",
+        "PUSH_CONTACT",
+        "HMAC_KEY"
+      ],
       "net": true,
       "read": [".."]
     }
