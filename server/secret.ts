@@ -1,6 +1,6 @@
 import { getKvInstance } from "./kvInstance.ts";
 
-const SecretKeys = ["signing_key"] as const;
+const SecretKeys = ["signing_key", "push_vapid_keys"] as const;
 
 export const Secret = async <T>(
   key: typeof SecretKeys[number],

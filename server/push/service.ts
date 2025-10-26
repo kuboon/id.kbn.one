@@ -1,5 +1,6 @@
 import { fromArrayBuffer } from "@hexagon/base64";
 import { pushContact } from "../config.ts";
+import { Secret } from "../secret.ts";
 import {
   ApplicationServer,
   exportApplicationServerKey,
@@ -13,7 +14,6 @@ import {
 
 const encoder = new TextEncoder();
 
-const VAPID_KEYS_KEY = ["push", "vapid", "keys"] as const;
 const SUBSCRIPTION_KEY_PREFIX = ["push", "subscription"] as const;
 const USER_INDEX_PREFIX = ["push", "user", "subscriptions"] as const;
 
@@ -101,23 +101,22 @@ export class PushService {
   static async create(
     kv: Deno.Kv,
   ): Promise<PushService> {
-    const storedKeysEntry = await kv.get<StoredVapidKeysRecord>(VAPID_KEYS_KEY);
+    const vapidSecret = await Secret<StoredVapidKeysRecord>(
+      "push_vapid_keys",
+      async () => {
+        const generated = await generateVapidKeys({ extractable: true });
+        const exported = await exportVapidKeys(generated);
+        const now = new Date().toISOString();
+        return {
+          keys: exported,
+          createdAt: now,
+          updatedAt: now,
+        };
+      },
+    );
 
-    let vapidKeys: CryptoKeyPair;
-    if (storedKeysEntry.value) {
-      vapidKeys = await importVapidKeys(storedKeysEntry.value.keys);
-    } else {
-      const generated = await generateVapidKeys({ extractable: true });
-      const exported = await exportVapidKeys(generated);
-      const now = new Date().toISOString();
-      const record: StoredVapidKeysRecord = {
-        keys: exported,
-        createdAt: now,
-        updatedAt: now,
-      };
-      await kv.set(VAPID_KEYS_KEY, record);
-      vapidKeys = await importVapidKeys(exported);
-    }
+    const storedVapidKeys = await vapidSecret.get();
+    const vapidKeys = await importVapidKeys(storedVapidKeys.keys);
 
     const applicationServer = await ApplicationServer.new({
       contactInformation: pushContact,
