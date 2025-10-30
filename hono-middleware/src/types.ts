@@ -127,6 +127,5 @@ export interface PasskeyMiddlewareOptions {
 }
 
 export interface PasskeySessionState {
-  isAuthenticated: boolean;
   user: PasskeyUser | null;
 }

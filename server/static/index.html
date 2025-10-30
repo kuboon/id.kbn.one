@@ -136,7 +136,7 @@
 
       const redirectToDashboard = async () => {
         const session = await getSession();
-        if (session?.isAuthenticated && session.user) {
+        if (session?.user) {
           window.location.href = "/me";
           return true;
         }
@@ -368,7 +368,7 @@
       const initialise = async () => {
         await checkConditionalMediation();
         const session = await getSession();
-        if (session?.isAuthenticated && session.user) {
+        if (session?.user) {
           window.location.href = "/me";
           return;
         }

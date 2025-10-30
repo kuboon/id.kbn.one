@@ -136,7 +136,6 @@ const respond = <T>(handler: () => Promise<T>) =>
   });
 
 const unauthenticatedState = (): PasskeySessionState => ({
-  isAuthenticated: false,
   user: null,
 });
 
@@ -187,7 +186,6 @@ export const createPasskeyMiddleware = (
     { maxAge: CHALLENGE_COOKIE_MAX_AGE_SECONDS },
     secret,
   );
-  const router = new Hono();
 
   const loadSessionState = async (c: Context): Promise<PasskeySessionState> => {
     const sessionValue = (await sessionCookieJar(c).get())?.trim();
@@ -199,7 +197,7 @@ export const createPasskeyMiddleware = (
       if (!user) {
         return unauthenticatedState();
       }
-      return { isAuthenticated: true, user };
+      return { user };
     } catch {
       return unauthenticatedState();
     }
@@ -209,6 +207,7 @@ export const createPasskeyMiddleware = (
     c.set("passkey", state);
   };
 
+  const router = new Hono();
   const routes = mountPath ? router.basePath(mountPath) : router;
 
   const ensureJsonBody = async <T>(c: Context) => {
@@ -233,12 +232,12 @@ export const createPasskeyMiddleware = (
 
   const requireAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
     const existing = c.get("passkey") as PasskeySessionState | undefined;
-    if (existing?.isAuthenticated && existing.user) {
+    if (existing?.user) {
       return existing.user;
     }
     const state = await loadSessionState(c);
     updateSessionState(c, state);
-    if (!state.isAuthenticated || !state.user) {
+    if (!state.user) {
       throw jsonError(401, "Authentication required");
     }
     return state.user;
@@ -445,10 +444,7 @@ export const createPasskeyMiddleware = (
       // Mark the user as authenticated in the session so they are logged in
       // immediately after registering a passkey.
       await sessionCookieJar(c).set(user.id);
-      const sessionState: PasskeySessionState = {
-        isAuthenticated: true,
-        user,
-      };
+      const sessionState: PasskeySessionState = { user };
       updateSessionState(c, sessionState);
 
       return c.json({
@@ -591,10 +587,7 @@ export const createPasskeyMiddleware = (
       challengeCookieJar(c).clear();
 
       await sessionCookieJar(c).set(user!.id);
-      const sessionState: PasskeySessionState = {
-        isAuthenticated: true,
-        user,
-      };
+      const sessionState: PasskeySessionState = { user };
       updateSessionState(c, sessionState);
 
       return c.json({

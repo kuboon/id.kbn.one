@@ -1513,7 +1513,7 @@
       const initialise = async () => {
         setStatus("アカウント情報を読み込んでいます…");
         const session = await getSession();
-        if (!session?.isAuthenticated || !session.user) {
+        if (!session?.user) {
           window.location.href = "/";
           return;
         }

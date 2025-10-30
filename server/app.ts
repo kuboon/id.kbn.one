@@ -37,7 +37,6 @@ const setNoStore = (c: Context) => {
 };
 
 const createDefaultSessionState = (): PasskeySessionState => ({
-  isAuthenticated: false,
   user: null,
 });
 
@@ -56,7 +55,7 @@ const clearSession = (c: Context) => {
 
 const ensureAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
   const session = getSessionState(c);
-  if (!session.isAuthenticated || !session.user) {
+  if (!session.user) {
     throw new HTTPException(401, { message: "Sign-in required" });
   }
   const user = await credentialStore.getUserById(session.user.id);
@@ -68,7 +67,7 @@ const ensureAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
 };
 
 const updateSessionUser = (c: Context, user: PasskeyUser) => {
-  setSessionState(c, { isAuthenticated: true, user });
+  setSessionState(c, { user });
 };
 
 type AccountUpdatePayload = {
@@ -203,7 +202,7 @@ app.get("/", async (c) => {
 
 app.get("/me", async (c) => {
   const session = getSessionState(c);
-  if (!session.isAuthenticated || !session.user) {
+  if (!session.user) {
     return c.redirect("/", 302);
   }
   const html = await readStaticText("me.html");
