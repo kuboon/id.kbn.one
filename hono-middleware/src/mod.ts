@@ -3,7 +3,6 @@ import {
   AuthenticationVerifyRequestBody,
   PasskeyCredential,
   PasskeyMiddlewareOptions,
-  PasskeySessionState,
   PasskeyStorage,
   PasskeyStoredChallenge,
   PasskeyUser,
@@ -38,7 +37,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 declare module "hono" {
   interface ContextVariableMap {
-    passkey: PasskeySessionState;
+    user: PasskeyUser | null;
   }
 }
 
@@ -47,8 +46,6 @@ const encodeBase64Url = (input: ArrayBuffer) =>
 
 const decodeBase64Url = (input: string) =>
   new Uint8Array(base64.toArrayBuffer(input, true));
-
-const DEFAULT_MOUNT_PATH = "/webauthn";
 
 const cookieJar = <T>(
   name: string,
@@ -87,14 +84,6 @@ const cookieJar = <T>(
 const SESSION_COOKIE_NAME = "passkey_session";
 const CHALLENGE_COOKIE_NAME = "passkey_challenge";
 const CHALLENGE_COOKIE_MAX_AGE_SECONDS = 300;
-
-const normalizeMountPath = (path: string) => {
-  if (!path || path === "/") return "";
-  const withLeadingSlash = path.startsWith("/") ? path : `/${path}`;
-  return withLeadingSlash.endsWith("/")
-    ? withLeadingSlash.slice(0, -1)
-    : withLeadingSlash;
-};
 
 const jsonError = (status: ContentfulStatusCode, message: string) =>
   new HTTPException(status, { message });
@@ -135,13 +124,6 @@ const respond = <T>(handler: () => Promise<T>) =>
     throw new HTTPException(500, { message: "Unexpected error", cause: error });
   });
 
-const unauthenticatedState = (): PasskeySessionState => ({
-  user: null,
-});
-
-const matchesMountPath = (path: string, mountPath: string) =>
-  mountPath === "" || path === mountPath || path.startsWith(`${mountPath}/`);
-
 const getRequestUrl = (c: Context): URL => {
   const headerOrigin = c.req.header("origin")?.trim();
   if (headerOrigin) {
@@ -173,9 +155,6 @@ export const createPasskeyMiddleware = (
     verifyAuthenticationResponse,
     ...options.webauthn,
   };
-  const mountPath = normalizeMountPath(
-    options.mountPath ?? DEFAULT_MOUNT_PATH,
-  );
   const sessionCookieJar = cookieJar<string>(
     SESSION_COOKIE_NAME,
     { maxAge: 7 * 24 * 60 * 60 },
@@ -187,28 +166,17 @@ export const createPasskeyMiddleware = (
     secret,
   );
 
-  const loadSessionState = async (c: Context): Promise<PasskeySessionState> => {
+  const loadSessionUser = async (c: Context): Promise<PasskeyUser | null> => {
     const sessionValue = (await sessionCookieJar(c).get())?.trim();
-    if (!sessionValue) {
-      return unauthenticatedState();
-    }
+    if (!sessionValue) return null;
     try {
-      const user = await storage.getUserById(sessionValue);
-      if (!user) {
-        return unauthenticatedState();
-      }
-      return { user };
+      return storage.getUserById(sessionValue);
     } catch {
-      return unauthenticatedState();
+      return null;
     }
-  };
-
-  const updateSessionState = (c: Context, state: PasskeySessionState) => {
-    c.set("passkey", state);
   };
 
   const router = new Hono();
-  const routes = mountPath ? router.basePath(mountPath) : router;
 
   const ensureJsonBody = async <T>(c: Context) => {
     try {
@@ -230,23 +198,10 @@ export const createPasskeyMiddleware = (
     c.header("Cache-Control", "no-store");
   };
 
-  const requireAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
-    const existing = c.get("passkey") as PasskeySessionState | undefined;
-    if (existing?.user) {
-      return existing.user;
-    }
-    const state = await loadSessionState(c);
-    updateSessionState(c, state);
-    if (!state.user) {
-      throw jsonError(401, "Authentication required");
-    }
-    return state.user;
-  };
-
   const clientJsPromise = Deno.readTextFile(
     new URL(import.meta.resolve("../_dist/client.js")),
   );
-  routes.get("/client.js", (c) =>
+  router.get("/client.js", (c) =>
     respond(async () => {
       setNoStore(c);
       const bundle = await clientJsPromise;
@@ -254,28 +209,24 @@ export const createPasskeyMiddleware = (
       return c.body(bundle);
     }));
 
-  routes.get("/credentials", (c) =>
+  router.get("/credentials", (c) =>
     respond(async () => {
       setNoStore(c);
-      const user = await requireAuthenticatedUser(c);
+      const user = c.get("user");
+      if (!user) throw jsonError(401, "Sign-in required");
       const credentials = await storage.getCredentialsByUserId(user.id);
       return c.json({ user, credentials });
     }));
 
-  routes.delete("/credentials/:credentialId", (c) =>
+  router.delete("/credentials/:credentialId", (c) =>
     respond(async () => {
       setNoStore(c);
-      if (!storage.deleteCredential) {
-        throw jsonError(405, "Credential deletion not supported");
-      }
-      const credentialIdParam = c.req.param("credentialId");
-      const credentialId = credentialIdParam
-        ? decodeURIComponent(credentialIdParam)
-        : "";
+      const user = c.get("user");
+      if (!user) throw jsonError(401, "Sign-in required");
+      const credentialId = c.req.param("credentialId");
       if (!credentialId) {
         throw jsonError(400, "Missing credential identifier");
       }
-      const user = await requireAuthenticatedUser(c);
       const credential = await storage.getCredentialById(credentialId);
       if (!credential || credential.userId !== user.id) {
         throw jsonError(404, "Credential not found");
@@ -284,13 +235,12 @@ export const createPasskeyMiddleware = (
       return c.json({ success: true });
     }));
 
-  routes.patch("/credentials/:credentialId", (c) =>
+  router.patch("/credentials/:credentialId", (c) =>
     respond(async () => {
       setNoStore(c);
-      const credentialIdParam = c.req.param("credentialId");
-      const credentialId = credentialIdParam
-        ? decodeURIComponent(credentialIdParam)
-        : "";
+      const user = c.get("user");
+      if (!user) throw jsonError(401, "Sign-in required");
+      const credentialId = c.req.param("credentialId");
       if (!credentialId) {
         throw jsonError(400, "Missing credential identifier");
       }
@@ -299,7 +249,6 @@ export const createPasskeyMiddleware = (
       if (!nickname) {
         throw jsonError(400, "nickname is required");
       }
-      const user = await requireAuthenticatedUser(c);
       const credential = await storage.getCredentialById(credentialId);
       if (!credential || credential.userId !== user.id) {
         throw jsonError(404, "Credential not found");
@@ -312,7 +261,7 @@ export const createPasskeyMiddleware = (
       return c.json({ credential });
     }));
 
-  routes.post("/register/options", (c) =>
+  router.post("/register/options", (c) =>
     respond(async () => {
       setNoStore(c);
       const body = await ensureJsonBody<RegistrationOptionsRequestBody>(c);
@@ -370,7 +319,7 @@ export const createPasskeyMiddleware = (
       return c.json(optionsResult);
     }));
 
-  routes.post("/register/verify", (c) =>
+  router.post("/register/verify", (c) =>
     respond(async () => {
       setNoStore(c);
       const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
@@ -444,8 +393,6 @@ export const createPasskeyMiddleware = (
       // Mark the user as authenticated in the session so they are logged in
       // immediately after registering a passkey.
       await sessionCookieJar(c).set(user.id);
-      const sessionState: PasskeySessionState = { user };
-      updateSessionState(c, sessionState);
 
       return c.json({
         verified: verification.verified,
@@ -453,7 +400,7 @@ export const createPasskeyMiddleware = (
       });
     }));
 
-  routes.post("/authenticate/options", (c) =>
+  router.post("/authenticate/options", (c) =>
     respond(async () => {
       setNoStore(c);
       const body = await ensureJsonBody<AuthenticationOptionsRequestBody>(c);
@@ -497,7 +444,7 @@ export const createPasskeyMiddleware = (
       return c.json(optionsResult);
     }));
 
-  routes.post("/authenticate/verify", (c) =>
+  router.post("/authenticate/verify", (c) =>
     respond(async () => {
       setNoStore(c);
       const rawBody = (await ensureJsonBody<unknown>(c)) as Record<
@@ -586,9 +533,7 @@ export const createPasskeyMiddleware = (
       await storage.updateCredential(storedCredential!);
       challengeCookieJar(c).clear();
 
-      await sessionCookieJar(c).set(user!.id);
-      const sessionState: PasskeySessionState = { user };
-      updateSessionState(c, sessionState);
+      await sessionCookieJar(c).set(user.id);
 
       return c.json({
         verified: verification.verified,
@@ -596,20 +541,16 @@ export const createPasskeyMiddleware = (
       });
     }));
 
-  routes.all("*", () => {
+  router.all("*", () => {
     throw jsonError(404, "Endpoint not found");
   });
 
-  return createMiddleware(async (c, next) => {
-    const state = await loadSessionState(c);
-    updateSessionState(c, state);
-
-    if (matchesMountPath(c.req.path, mountPath)) {
-      return router.fetch(c.req.raw, c.env);
-    }
-
+  const middleware = createMiddleware(async (c, next) => {
+    const user = await loadSessionUser(c);
+    c.set("user", user);
     return next();
   });
+  return { router, middleware };
 };
 
 export type PasskeyMiddleware = ReturnType<typeof createPasskeyMiddleware>;

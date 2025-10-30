@@ -39,6 +39,7 @@ const response = await fetch(`${PASSKEY_ORIGIN}/session`, {
   credentials: "include",
 });
 const session = await response.json();
+const isAuthenticated = Boolean(session.userId);
 ```
 
 Log users out through the shared session endpoint and handle any local cleanup

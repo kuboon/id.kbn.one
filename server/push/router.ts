@@ -179,7 +179,7 @@ const serializePushSubscription = (
 interface PushRouterDependencies {
   pushService: PushService;
   pushContact: string;
-  ensureAuthenticatedUser: (c: Context) => Promise<PasskeyUser>;
+  ensureAuthenticatedUser: (c: Context) => PasskeyUser;
   setNoStore: (c: Context) => void;
 }
 

@@ -11,7 +11,6 @@ import {
 } from "./config.ts";
 import {
   createPasskeyMiddleware,
-  type PasskeySessionState,
   type PasskeyUser,
 } from "@scope/hono-passkeys-middleware";
 
@@ -30,44 +29,14 @@ const allowedOrigins = [
   ...relatedOrigins,
 ];
 
-const SESSION_COOKIE_NAME = "passkey_session";
-
 const setNoStore = (c: Context) => {
   c.header("Cache-Control", "no-store");
 };
 
-const createDefaultSessionState = (): PasskeySessionState => ({
-  user: null,
-});
-
-const getSessionState = (c: Context): PasskeySessionState =>
-  (c.get("passkey") as PasskeySessionState | undefined) ??
-    createDefaultSessionState();
-
-const setSessionState = (c: Context, state: PasskeySessionState) => {
-  c.set("passkey", state);
-};
-
-const clearSession = (c: Context) => {
-  deleteCookie(c, SESSION_COOKIE_NAME);
-  setSessionState(c, createDefaultSessionState());
-};
-
-const ensureAuthenticatedUser = async (c: Context): Promise<PasskeyUser> => {
-  const session = getSessionState(c);
-  if (!session.user) {
-    throw new HTTPException(401, { message: "Sign-in required" });
-  }
-  const user = await credentialStore.getUserById(session.user.id);
-  if (!user) {
-    clearSession(c);
-    throw new HTTPException(404, { message: "User not found" });
-  }
+const ensureAuthenticatedUser = (c: Context): PasskeyUser => {
+  const user = c.get("user");
+  if (!user) throw new HTTPException(401, { message: "Sign-in required" });
   return user;
-};
-
-const updateSessionUser = (c: Context, user: PasskeyUser) => {
-  setSessionState(c, { user });
 };
 
 type AccountUpdatePayload = {
@@ -111,20 +80,20 @@ const signingKey = await Secret<string>("signing_key", () => {
 }, 60 * 60 * 24); // 1 day expiration
 
 const app = new Hono();
-app.use("*", cors({ origin: allowedOrigins }));
+const { router, middleware } = createPasskeyMiddleware({
+  rpID,
+  rpName,
+  storage: credentialStore,
+  secret: await signingKey.get(),
+});
 
-app.use(
-  createPasskeyMiddleware({
-    rpID,
-    rpName,
-    storage: credentialStore,
-    secret: await signingKey.get(),
-  }),
-);
+app.use("*", cors({ origin: allowedOrigins }));
+app.use(middleware);
+app.route("/webauthn", router);
 
 app.get("/session", (c) => {
   setNoStore(c);
-  return c.json(getSessionState(c));
+  return c.json({ user: c.get("user") });
 });
 
 app.get("/.well-known/webauthn", (c) => {
@@ -136,7 +105,6 @@ app.get("/.well-known/webauthn", (c) => {
 
 app.post("/session/logout", (c) => {
   setNoStore(c);
-  clearSession(c);
   return c.json({ success: true });
 });
 
@@ -162,7 +130,6 @@ app.patch("/account", async (c) => {
 
   const updatedUser: PasskeyUser = { ...currentUser, username };
   await credentialStore.updateUser(updatedUser);
-  updateSessionUser(c, updatedUser);
   return c.json({ user: updatedUser });
 });
 
@@ -181,7 +148,7 @@ app.delete("/account", async (c) => {
     }
   }
   await credentialStore.deleteUser(user.id);
-  clearSession(c);
+  deleteCookie(c, "session");
   return c.json({ success: true });
 });
 
@@ -201,10 +168,8 @@ app.get("/", async (c) => {
 });
 
 app.get("/me", async (c) => {
-  const session = getSessionState(c);
-  if (!session.user) {
-    return c.redirect("/", 302);
-  }
+  const user = c.get("user");
+  if (!user) return c.redirect("/", 302);
   const html = await readStaticText("me.html");
   return c.html(html);
 });
