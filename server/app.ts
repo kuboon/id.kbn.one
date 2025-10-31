@@ -11,6 +11,7 @@ import {
 } from "./config.ts";
 import {
   createPasskeyMiddleware,
+  SESSION_COOKIE_NAME,
   type PasskeyUser,
 } from "@scope/hono-passkeys-middleware";
 
@@ -105,12 +106,13 @@ app.get("/.well-known/webauthn", (c) => {
 
 app.post("/session/logout", (c) => {
   setNoStore(c);
+  deleteCookie(c, SESSION_COOKIE_NAME);
   return c.json({ success: true });
 });
 
 app.patch("/account", async (c) => {
   setNoStore(c);
-  const currentUser = await ensureAuthenticatedUser(c);
+  const currentUser = ensureAuthenticatedUser(c);
   const { username } = await parseAccountUpdate(c);
 
   if (username === undefined) {
@@ -162,9 +164,18 @@ app.route(
   }),
 );
 
-app.get("/", async (c) => {
-  const html = await readStaticText("index.html");
-  return c.html(html);
+Object.entries({
+  "/": { file: "index.html", mime: "text/html"  },
+  "/me": { file: "me.html", mime: "text/html"  },
+  "/styles.css": { file: "styles.css", mime: "text/css" },
+  "/usage.md": { file: "usage.md", mime: "text/markdown" },
+  "/sw.js": { file: "sw.js", mime: "application/javascript" },
+}).forEach(([path, { file, mime }]) => {
+  app.get(path, async (c) => {
+    const content = await readStaticText(file);
+    c.header("Content-Type", `${mime}; charset=utf-8`);
+    return c.body(content);
+  });
 });
 
 app.get("/me", async (c) => {
@@ -172,24 +183,6 @@ app.get("/me", async (c) => {
   if (!user) return c.redirect("/", 302);
   const html = await readStaticText("me.html");
   return c.html(html);
-});
-
-app.get("/styles.css", async (c) => {
-  const css = await readStaticText("styles.css");
-  c.header("Content-Type", "text/css; charset=utf-8");
-  return c.body(css);
-});
-
-app.get("/usage.md", async (c) => {
-  const markdown = await readStaticText("usage.md");
-  c.header("Content-Type", "text/markdown; charset=utf-8");
-  return c.body(markdown);
-});
-
-app.get("/sw.js", async (c) => {
-  const script = await readStaticText("sw.js");
-  c.header("Content-Type", "application/javascript; charset=utf-8");
-  return c.body(script);
 });
 
 app.onError((err, c) => {

@@ -81,7 +81,7 @@ const cookieJar = <T>(
     clear: () => deleteCookie(c, name),
   };
 };
-const SESSION_COOKIE_NAME = "passkey_session";
+export const SESSION_COOKIE_NAME = "passkey_session";
 const CHALLENGE_COOKIE_NAME = "passkey_challenge";
 const CHALLENGE_COOKIE_MAX_AGE_SECONDS = 300;
 
