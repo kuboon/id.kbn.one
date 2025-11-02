@@ -89,6 +89,15 @@ export interface PushNotificationPayload {
 export interface PushNotificationResult {
   subscription: StoredPushSubscription;
   removed?: boolean;
+  warnings?: string[];
+}
+
+interface PushServiceErrorInfo {
+  status: number;
+  statusText: string;
+  reason?: string;
+  detail?: string;
+  message: string;
 }
 
 export class PushService {
@@ -294,6 +303,82 @@ export class PushService {
     return updated;
   }
 
+  private async recordSendError(
+    subscription: StoredPushSubscription,
+    message: string,
+  ): Promise<StoredPushSubscription> {
+    const normalized = message?.trim() || "Push service error";
+    const now = new Date().toISOString();
+    const updated: StoredPushSubscription = {
+      ...subscription,
+      metadata: {
+        ...subscription.metadata,
+        lastError: normalized,
+        lastErrorAt: now,
+      },
+      updatedAt: now,
+    };
+    await this.kv.set(subscriptionKey(subscription.id), updated);
+    return updated;
+  }
+
+  private async extractPushServiceError(
+    error: PushMessageError,
+  ): Promise<PushServiceErrorInfo> {
+    const { response } = error;
+    const status = response.status;
+    const statusText = response.statusText;
+    let reason: string | undefined;
+    let detail: string | undefined;
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      try {
+        const body = await response.clone().json();
+        if (body && typeof body === "object") {
+          const record = body as Record<string, unknown>;
+          const maybeReason = record.reason;
+          if (typeof maybeReason === "string" && maybeReason.trim()) {
+            reason = maybeReason.trim();
+          }
+          const detailKeys = ["message", "detail", "error", "description"];
+          for (const key of detailKeys) {
+            const value = record[key];
+            if (typeof value === "string" && value.trim()) {
+              detail = value.trim();
+              break;
+            }
+          }
+        }
+      } catch {
+        // ignore JSON parse errors and fallback to text body
+      }
+    }
+
+    if (!detail) {
+      try {
+        const text = await response.clone().text();
+        if (text.trim()) {
+          detail = text.trim();
+        }
+      } catch {
+        // ignore body read errors
+      }
+    }
+
+    const base = `Push service responded with ${status} ${statusText}` +
+      (reason ? ` (${reason})` : "");
+    const message = detail ? `${base}: ${detail}` : base;
+
+    return {
+      status,
+      statusText,
+      reason,
+      detail,
+      message,
+    };
+  }
+
   private async getSubscription(
     userId: string,
     id: string,
@@ -339,41 +424,80 @@ export class PushService {
       timestamp: new Date().toISOString(),
     };
 
-    try {
-      await subscriber.pushTextMessage(
-        JSON.stringify(messagePayload),
-        {
+    const warnings: string[] = [];
+    let lastError: PushMessageError | null = null;
+    let lastErrorInfo: PushServiceErrorInfo | null = null;
+    let subscriptionRecord = subscription;
+    let topicRejected = false;
+
+    const topicsToTry = payload.topic !== undefined
+      ? [payload.topic, undefined]
+      : [undefined];
+
+    for (const candidateTopic of topicsToTry) {
+      try {
+        await subscriber.pushTextMessage(JSON.stringify(messagePayload), {
           urgency: payload.urgency ?? Urgency.Normal,
           ttl: payload.ttl ?? 2419200,
-          topic: payload.topic,
-        },
-      );
-    } catch (error) {
-      if (error instanceof PushMessageError) {
-        const now = new Date().toISOString();
-        const metadata: PushSubscriptionMetadata = {
-          ...subscription.metadata,
-          lastErrorAt: now,
-          lastError: error.toString(),
-        };
-        await this.kv.set(subscriptionKey(id), {
-          ...subscription,
-          metadata,
-          updatedAt: now,
+          topic: candidateTopic,
         });
-        if (error.isGone()) {
-          await this.deleteSubscription(userId, id);
-          return { subscription, removed: true };
+        if (topicRejected && candidateTopic === undefined) {
+          warnings.push(
+            "プッシュサービスに Topic ヘッダーを拒否されたため、省略して送信しました。",
+          );
         }
+        lastError = null;
+        lastErrorInfo = null;
+        break;
+      } catch (error) {
+        if (!(error instanceof PushMessageError)) {
+          throw error;
+        }
+
+        const info = await this.extractPushServiceError(error);
+        lastError = error;
+        lastErrorInfo = info;
+
+        if (error.isGone()) {
+          const updated = await this.recordSendError(
+            subscriptionRecord,
+            info.message,
+          );
+          subscriptionRecord = updated;
+          await this.deleteSubscription(userId, id);
+          return {
+            subscription: updated,
+            removed: true,
+            warnings,
+          };
+        }
+
+        const canRetryWithoutTopic = payload.topic !== undefined &&
+          candidateTopic !== undefined &&
+          info.reason === "BadWebPushTopic";
+        if (canRetryWithoutTopic) {
+          topicRejected = true;
+          continue;
+        }
+
+        break;
       }
-      throw error;
+    }
+
+    if (lastError) {
+      const message = lastErrorInfo?.message ?? lastError.toString();
+      subscriptionRecord = await this.recordSendError(
+        subscriptionRecord,
+        message,
+      );
+      throw new Error(message);
     }
 
     const now = new Date().toISOString();
     const updatedSubscription: StoredPushSubscription = {
-      ...subscription,
+      ...subscriptionRecord,
       metadata: {
-        ...subscription.metadata,
+        ...subscriptionRecord.metadata,
         lastSuccessfulSendAt: now,
         lastError: undefined,
         lastErrorAt: undefined,
@@ -381,7 +505,7 @@ export class PushService {
       updatedAt: now,
     };
     await this.kv.set(subscriptionKey(id), updatedSubscription);
-    return { subscription: updatedSubscription };
+    return { subscription: updatedSubscription, warnings };
   }
 
   async sendTestNotification(

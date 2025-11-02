@@ -11,8 +11,8 @@ import {
 } from "./config.ts";
 import {
   createPasskeyMiddleware,
-  SESSION_COOKIE_NAME,
   type PasskeyUser,
+  SESSION_COOKIE_NAME,
 } from "@scope/hono-passkeys-middleware";
 
 import { type Context, Hono } from "hono";
@@ -165,8 +165,7 @@ app.route(
 );
 
 Object.entries({
-  "/": { file: "index.html", mime: "text/html"  },
-  "/me": { file: "me.html", mime: "text/html"  },
+  "/": { file: "index.html", mime: "text/html" },
   "/styles.css": { file: "styles.css", mime: "text/css" },
   "/usage.md": { file: "usage.md", mime: "text/markdown" },
   "/sw.js": { file: "sw.js", mime: "application/javascript" },

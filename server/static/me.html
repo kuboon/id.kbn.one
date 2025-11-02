@@ -983,13 +983,24 @@
             throw new Error(await extractErrorMessage(response));
           }
           const data = await response.json();
+          const warnings = Array.isArray(data?.warnings)
+            ? data.warnings
+              .filter((item) => typeof item === "string" && item.trim())
+              .map((item) => item.trim())
+            : [];
           if (data?.removed) {
             setStatus(
               "通知が無効になっていたため登録を削除しました。",
               "info",
             );
           } else {
-            setStatus("テスト通知を送信しました。", "success");
+            const suffix = warnings.length
+              ? `（${warnings.join(" ")}）`
+              : "";
+            setStatus(`テスト通知を送信しました。${suffix}`, "success");
+          }
+          if (warnings.length) {
+            console.warn("Push notification warnings:", warnings);
           }
           await loadPushSubscriptions();
         } catch (error) {

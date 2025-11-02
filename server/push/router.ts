@@ -292,6 +292,7 @@ export const createPushRouter = ({
       return c.json({
         subscription: serializePushSubscription(result.subscription),
         removed: result.removed ?? false,
+        warnings: result.warnings ?? [],
       });
     } catch (error) {
       throw new HTTPException(400, {
