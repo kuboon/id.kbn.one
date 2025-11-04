@@ -991,10 +991,10 @@
               .map((item) => item.trim())
             : [];
           if (data?.removed) {
-            setStatus(
-              "通知が無効になっていたため登録を削除しました。",
-              "info",
-            );
+            const removalNotice = warnings.length
+              ? `通知の登録を削除しました。${warnings.join(" ")}`
+              : "通知が無効になっていたため登録を削除しました。";
+            setStatus(removalNotice, "info");
           } else {
             const suffix = warnings.length
               ? `（${warnings.join(" ")}）`

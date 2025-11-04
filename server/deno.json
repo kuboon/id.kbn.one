@@ -14,8 +14,7 @@
         "RP_NAME",
         "IDP_ORIGIN",
         "ORIGINS",
-        "PUSH_CONTACT",
-        "HMAC_KEY"
+        "PUSH_CONTACT"
       ],
       "net": true,
       "read": [".."]

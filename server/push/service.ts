@@ -472,6 +472,23 @@ export class PushService {
           };
         }
 
+        if (info.reason === "VapidPkHashMismatch") {
+          const updated = await this.recordSendError(
+            subscriptionRecord,
+            info.message,
+          );
+          subscriptionRecord = updated;
+          warnings.push(
+            "VAPID キーが変更されたため通知登録を削除しました。もう一度通知を有効化してください。",
+          );
+          await this.deleteSubscription(userId, id);
+          return {
+            subscription: updated,
+            removed: true,
+            warnings,
+          };
+        }
+
         const canRetryWithoutTopic = payload.topic !== undefined &&
           candidateTopic !== undefined &&
           info.reason === "BadWebPushTopic";

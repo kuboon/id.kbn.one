@@ -8,15 +8,16 @@ export const Secret = async <T>(
   expireIn?: number,
 ) => {
   const kv = await getKvInstance();
-  const stored = await kv.get<T>(["secret", key]);
+  const kvKey = ["secret", key] as const;
+  const stored = await kv.get<T>(kvKey);
   if (!stored.value) {
     console.info(`Generating new secret for: ${key}`);
     const newSecret = await generator();
-    await kv.set(["secret", key], newSecret, { expireIn });
+    await kv.set(kvKey, newSecret, { expireIn });
   }
   return {
     async get(): Promise<T> {
-      const stored = await kv.get<T>(["secret", key]);
+      const stored = await kv.get<T>(kvKey);
       if (stored.value) {
         return stored.value;
       }
