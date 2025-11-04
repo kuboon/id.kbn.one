@@ -169,6 +169,11 @@ Object.entries({
   "/styles.css": { file: "styles.css", mime: "text/css" },
   "/usage.md": { file: "usage.md", mime: "text/markdown" },
   "/sw.js": { file: "sw.js", mime: "application/javascript" },
+  "/manifest.json": {
+    file: "manifest.json",
+    mime: "application/manifest+json",
+  },
+  "/icons/icon.svg": { file: "icons/icon.svg", mime: "image/svg+xml" },
 }).forEach(([path, { file, mime }]) => {
   app.get(path, async (c) => {
     const content = await readStaticText(file);
