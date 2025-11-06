@@ -93,6 +93,6 @@ Notes:
   for production.
 - `dpop/` exports `createDpopProof` and `verifyDpopProof` helpers for working
   with DPoP-bound access tokens.
-
-If you'd like, I can also add a short example showing how to call
-`dpop/createDpopProof` from the demo UI.
+- The passkeys middleware now includes built-in DPoP support. When enabled on the
+  client side, sessions are cryptographically bound to a DPoP key pair for
+  enhanced security against token theft and replay attacks.

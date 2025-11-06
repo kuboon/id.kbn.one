@@ -80,6 +80,52 @@ interface with your own persistence layer and session handling. Challenge data
 is automatically signed and stored client-side in cookies using a secret kept in
 `Deno.Kv`.
 
+### DPoP Support
+
+The middleware includes optional support for [DPoP (Demonstrating Proof-of-Possession)](https://datatracker.ietf.org/doc/html/rfc9449) to bind sessions to a cryptographic key pair, providing enhanced security against token theft and replay attacks.
+
+#### Server-side
+
+The middleware automatically handles DPoP proofs when clients include them:
+
+1. During registration/authentication, if a `dpopProof` is included in the request body, the middleware verifies it and binds the DPoP public key (JWK) to the session.
+2. On subsequent requests, if the session has a bound DPoP key, the middleware verifies the `DPoP` header matches the stored key.
+3. The verified DPoP JWK is available in `c.get('dpopJwk')` for use in protected endpoints.
+
+#### Client-side
+
+Enable DPoP in the client by passing `enableDpop: true`:
+
+```ts
+import { createClient } from "/webauthn/client.js";
+
+const client = createClient({ enableDpop: true });
+await client.initDpop(); // Generate DPoP key pair
+
+// DPoP proofs are automatically included in registration/authentication
+await client.register({ username: "alice" });
+await client.authenticate({ username: "alice" });
+```
+
+You can also manually generate DPoP proofs:
+
+```ts
+import { generateDpopKeyPair, createDpopProof } from "/webauthn/client.js";
+
+const keyPair = await generateDpopKeyPair();
+const proof = await createDpopProof({
+  keyPair,
+  method: "POST",
+  url: "https://example.com/api/resource",
+});
+
+// Include proof in DPoP header
+await fetch("/api/resource", {
+  method: "POST",
+  headers: { DPoP: proof },
+});
+```
+
 ### Client bundle caching
 
 `client.js` is read from disk on first request and cached in-memory for
