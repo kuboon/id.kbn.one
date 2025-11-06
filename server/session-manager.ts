@@ -1,3 +1,6 @@
+const DEFAULT_SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
+const DEFAULT_INACTIVITY_TIMEOUT = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 export interface Session {
   id: string;
   userId: string;
@@ -19,9 +22,9 @@ export class SessionManager {
 
   constructor(options: SessionManagerOptions) {
     this.kv = options.kv;
-    this.sessionDuration = options.sessionDuration ?? 7 * 24 * 60 * 60 * 1000;
+    this.sessionDuration = options.sessionDuration ?? DEFAULT_SESSION_DURATION;
     this.inactivityTimeout = options.inactivityTimeout ??
-      30 * 24 * 60 * 60 * 1000;
+      DEFAULT_INACTIVITY_TIMEOUT;
   }
 
   async createSession(userId: string): Promise<Session> {

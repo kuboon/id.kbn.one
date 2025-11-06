@@ -24,8 +24,8 @@ import { getKvInstance } from "./kvInstance.ts";
 const kv = await getKvInstance();
 const sessionManager = new SessionManager({
   kv,
-  sessionDuration: 7 * 24 * 60 * 60 * 1000, // 7 days
-  inactivityTimeout: 30 * 24 * 60 * 60 * 1000, // 30 days
+  sessionDuration: 30 * 24 * 60 * 60 * 1000, // 30 days
+  inactivityTimeout: 7 * 24 * 60 * 60 * 1000, // 7 days
 });
 ```
 
@@ -92,9 +92,9 @@ console.log(`Cleaned up ${cleanedCount} expired sessions`);
 
 - **`kv`** (required): Deno KV instance for storage
 - **`sessionDuration`** (optional): Maximum session lifetime in milliseconds
-  (default: 7 days)
-- **`inactivityTimeout`** (optional): Maximum inactivity period in milliseconds
   (default: 30 days)
+- **`inactivityTimeout`** (optional): Maximum inactivity period in milliseconds
+  (default: 7 days)
 
 ## Session Interface
 
