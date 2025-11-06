@@ -57,11 +57,7 @@ export class SessionManager {
     const session = result.value;
     const now = Date.now();
 
-    if (now > session.expiresAt) {
-      await this.deleteSession(sessionId);
-      return null;
-    }
-
+    // Check inactivity timeout (KV TTL handles absolute expiration)
     if (now - session.lastAccessedAt > this.inactivityTimeout) {
       await this.deleteSession(sessionId);
       return null;
@@ -144,10 +140,8 @@ export class SessionManager {
 
     for await (const entry of sessions) {
       const session = entry.value;
-      if (
-        now > session.expiresAt ||
-        now - session.lastAccessedAt > this.inactivityTimeout
-      ) {
+      // Only check inactivity timeout; KV TTL handles absolute expiration
+      if (now - session.lastAccessedAt > this.inactivityTimeout) {
         await this.deleteSession(session.id);
         cleanedCount++;
       }
