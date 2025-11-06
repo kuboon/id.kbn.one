@@ -3,6 +3,7 @@ import {
   AuthenticationVerifyRequestBody,
   PasskeyCredential,
   PasskeyMiddlewareOptions,
+  PasskeySessionData,
   PasskeyStorage,
   PasskeyStoredChallenge,
   PasskeyUser,
@@ -22,6 +23,7 @@ import type {
   GenerateRegistrationOptionsOpts,
 } from "@simplewebauthn/server";
 import { base64 } from "@hexagon/base64";
+import { verifyDpopProof } from "@scope/dpop";
 
 import { type Context, Hono } from "hono";
 import { createMiddleware } from "hono/factory";
@@ -38,6 +40,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 declare module "hono" {
   interface ContextVariableMap {
     user: PasskeyUser | null;
+    dpopJwk: JsonWebKey | null;
   }
 }
 
@@ -155,7 +158,7 @@ export const createPasskeyMiddleware = (
     verifyAuthenticationResponse,
     ...options.webauthn,
   };
-  const sessionCookieJar = cookieJar<string>(
+  const sessionCookieJar = cookieJar<PasskeySessionData>(
     SESSION_COOKIE_NAME,
     { maxAge: 7 * 24 * 60 * 60 },
     secret,
@@ -167,10 +170,10 @@ export const createPasskeyMiddleware = (
   );
 
   const loadSessionUser = async (c: Context): Promise<PasskeyUser | null> => {
-    const sessionValue = (await sessionCookieJar(c).get())?.trim();
-    if (!sessionValue) return null;
+    const sessionData = await sessionCookieJar(c).get();
+    if (!sessionData?.userId) return null;
     try {
-      return storage.getUserById(sessionValue);
+      return storage.getUserById(sessionData.userId);
     } catch {
       return null;
     }
@@ -390,9 +393,20 @@ export const createPasskeyMiddleware = (
       await storage.saveCredential(storedCredential);
       challengeCookieJar(c).clear();
 
-      // Mark the user as authenticated in the session so they are logged in
-      // immediately after registering a passkey.
-      await sessionCookieJar(c).set(user.id);
+      let dpopJwk: JsonWebKey | undefined;
+      if (body.dpopProof) {
+        const requestUrl = getRequestUrl(c);
+        const dpopResult = await verifyDpopProof({
+          proof: body.dpopProof,
+          method: c.req.method,
+          url: requestUrl.toString(),
+        });
+        if (dpopResult.valid && dpopResult.jwk) {
+          dpopJwk = dpopResult.jwk;
+        }
+      }
+
+      await sessionCookieJar(c).set({ userId: user.id, dpopJwk });
 
       return c.json({
         verified: verification.verified,
@@ -533,7 +547,20 @@ export const createPasskeyMiddleware = (
       await storage.updateCredential(storedCredential!);
       challengeCookieJar(c).clear();
 
-      await sessionCookieJar(c).set(user.id);
+      let dpopJwk: JsonWebKey | undefined;
+      if (body.dpopProof) {
+        const requestUrl = getRequestUrl(c);
+        const dpopResult = await verifyDpopProof({
+          proof: body.dpopProof,
+          method: c.req.method,
+          url: requestUrl.toString(),
+        });
+        if (dpopResult.valid && dpopResult.jwk) {
+          dpopJwk = dpopResult.jwk;
+        }
+      }
+
+      await sessionCookieJar(c).set({ userId: user.id, dpopJwk });
 
       return c.json({
         verified: verification.verified,
@@ -546,8 +573,35 @@ export const createPasskeyMiddleware = (
   });
 
   const middleware = createMiddleware(async (c, next) => {
+    const sessionData = await sessionCookieJar(c).get();
     const user = await loadSessionUser(c);
     c.set("user", user);
+
+    if (sessionData?.dpopJwk) {
+      const dpopProof = c.req.header("DPoP");
+      if (dpopProof) {
+        const requestUrl = getRequestUrl(c);
+        const dpopResult = await verifyDpopProof({
+          proof: dpopProof,
+          method: c.req.method,
+          url: requestUrl.toString(),
+        });
+        if (dpopResult.valid && dpopResult.jwk) {
+          const sessionJwk = sessionData.dpopJwk;
+          if (
+            sessionJwk.kty === dpopResult.jwk.kty &&
+            sessionJwk.crv === dpopResult.jwk.crv &&
+            sessionJwk.x === dpopResult.jwk.x &&
+            sessionJwk.y === dpopResult.jwk.y
+          ) {
+            c.set("dpopJwk", dpopResult.jwk);
+          }
+        }
+      }
+    } else {
+      c.set("dpopJwk", null);
+    }
+
     return next();
   });
   return { router, middleware };

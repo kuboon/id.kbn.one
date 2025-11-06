@@ -51,6 +51,11 @@ export interface PasskeyStoredChallenge {
   origin: string;
 }
 
+export interface PasskeySessionData {
+  userId: string;
+  dpopJwk?: JsonWebKey;
+}
+
 export interface RegistrationOptionsRequestBody {
   username: string;
 }
@@ -58,6 +63,7 @@ export interface RegistrationOptionsRequestBody {
 export interface RegistrationVerifyRequestBody {
   username: string;
   credential: RegistrationResponseJSON;
+  dpopProof?: string;
 }
 
 export interface AuthenticationOptionsRequestBody {
@@ -67,6 +73,7 @@ export interface AuthenticationOptionsRequestBody {
 export interface AuthenticationVerifyRequestBody {
   username: string;
   credential: AuthenticationResponseJSON;
+  dpopProof?: string;
 }
 
 export type RegistrationOptionsOverrides = Partial<
