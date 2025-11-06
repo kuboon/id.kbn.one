@@ -74,14 +74,24 @@ export class SessionManager {
     }
 
     const now = Date.now();
-    session.lastAccessedAt = now;
-    session.expiresAt = now + this.sessionDuration;
+    const refreshedSession: Session = {
+      ...session,
+      lastAccessedAt: now,
+      expiresAt: now + this.sessionDuration,
+    };
 
-    await this.kv.set(["sessions", sessionId], session, {
+    await this.kv.set(["sessions", sessionId], refreshedSession, {
       expireIn: this.sessionDuration,
     });
+    await this.kv.set(
+      ["sessions_by_user", refreshedSession.userId, sessionId],
+      sessionId,
+      {
+        expireIn: this.sessionDuration,
+      },
+    );
 
-    return session;
+    return refreshedSession;
   }
 
   async deleteSession(sessionId: string): Promise<void> {
