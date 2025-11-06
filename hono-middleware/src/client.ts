@@ -2,6 +2,10 @@ import {
   startAuthentication,
   startRegistration,
 } from "@simplewebauthn/browser";
+import {
+  createDpopProof,
+  generateDpopKeyPair,
+} from "@scope/dpop";
 
 import type { PasskeyCredential } from "./types.ts";
 
@@ -55,6 +59,8 @@ type FetchLike = (
 export interface CreateClientOptions {
   mountPath?: string;
   fetch?: FetchLike;
+  dpopKeyPair?: CryptoKeyPair;
+  enableDpop?: boolean;
 }
 
 export interface RegisterParams {
@@ -138,10 +144,41 @@ const fetchJson = async <T = unknown>(
 export const createClient = (options: CreateClientOptions = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl: FetchLike = options.fetch ?? fetch;
+  let dpopKeyPair: CryptoKeyPair | undefined = options.dpopKeyPair;
+  const enableDpop = options.enableDpop ?? false;
 
   const ensureUsername = (username: string) => username.trim();
 
+  const createDpopProofIfEnabled = async (
+    method: string,
+    url: string,
+  ): Promise<string | undefined> => {
+    if (!enableDpop || !dpopKeyPair) {
+      return undefined;
+    }
+    try {
+      return await createDpopProof({
+        keyPair: dpopKeyPair,
+        method,
+        url,
+      });
+    } catch (error) {
+      console.error("Failed to create DPoP proof:", error);
+      return undefined;
+    }
+  };
+
   return {
+    async initDpop(): Promise<void> {
+      if (enableDpop && !dpopKeyPair) {
+        dpopKeyPair = await generateDpopKeyPair();
+      }
+    },
+
+    getDpopKeyPair(): CryptoKeyPair | undefined {
+      return dpopKeyPair;
+    },
+
     async register(params: RegisterParams): Promise<RegisterResult> {
       const username = ensureUsername(params.username);
       const optionsJSON = await fetchJson(
@@ -156,15 +193,20 @@ export const createClient = (options: CreateClientOptions = {}) => {
         { optionsJSON } as Parameters<typeof startRegistration>[0],
       );
 
+      const verifyUrl = buildUrl(mountPath, "/register/verify");
+      const dpopProof = await createDpopProofIfEnabled("POST", verifyUrl);
+
       const verification = await fetchJson(
         fetchImpl,
-        buildUrl(mountPath, "/register/verify"),
+        verifyUrl,
         {
           method: "POST",
           body: JSON.stringify({
             username,
             credential: attestationResponse,
+            ...(dpopProof ? { dpopProof } : {}),
           }),
+          headers: dpopProof ? { DPoP: dpopProof } : undefined,
         },
       );
 
@@ -189,15 +231,20 @@ export const createClient = (options: CreateClientOptions = {}) => {
         { optionsJSON } as Parameters<typeof startAuthentication>[0],
       );
 
+      const verifyUrl = buildUrl(mountPath, "/authenticate/verify");
+      const dpopProof = await createDpopProofIfEnabled("POST", verifyUrl);
+
       const verification = await fetchJson(
         fetchImpl,
-        buildUrl(mountPath, "/authenticate/verify"),
+        verifyUrl,
         {
           method: "POST",
           body: JSON.stringify({
             username,
             credential: assertionResponse,
+            ...(dpopProof ? { dpopProof } : {}),
           }),
+          headers: dpopProof ? { DPoP: dpopProof } : undefined,
         },
       );
 
@@ -259,4 +306,5 @@ export const createClient = (options: CreateClientOptions = {}) => {
   };
 };
 
+export { createDpopProof, generateDpopKeyPair } from "@scope/dpop";
 export * from "@simplewebauthn/browser";
