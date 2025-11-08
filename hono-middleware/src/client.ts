@@ -2,15 +2,12 @@ import {
   startAuthentication,
   startRegistration,
 } from "@simplewebauthn/browser";
-import {
-  createDpopProof,
-  generateDpopKeyPair,
-} from "@scope/dpop";
+import { createDpopProof, generateDpopKeyPair } from "@scope/dpop";
 
 import type { PasskeyCredential } from "./types.ts";
 
 const DEFAULT_MOUNT_PATH = "/webauthn";
-declare const PASSKEY_ORIGIN: string | null;
+const PASSKEY_ORIGIN = "{{PASSKEY_ORIGIN}}";
 
 const normalizeMountPath = (path: string | undefined) => {
   if (!path || path === "/") {

@@ -1,5 +1,9 @@
 import { assert, assertEquals } from "@std/assert";
-import { createDpopProof, generateDpopKeyPair, verifyDpopProof } from "@scope/dpop";
+import {
+  createDpopProof,
+  generateDpopKeyPair,
+  verifyDpopProof,
+} from "@scope/dpop";
 import type { PasskeySessionData } from "./types.ts";
 
 Deno.test("DPoP integration - create and verify proof", async () => {
@@ -135,8 +139,7 @@ Deno.test("DPoP integration - different keys should not match", async () => {
   const jwk1 = result1.jwk!;
   const jwk2 = result2.jwk!;
 
-  const keysMatch =
-    jwk1.kty === jwk2.kty &&
+  const keysMatch = jwk1.kty === jwk2.kty &&
     jwk1.crv === jwk2.crv &&
     jwk1.x === jwk2.x &&
     jwk1.y === jwk2.y;

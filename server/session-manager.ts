@@ -147,7 +147,10 @@ export class SessionManager {
     for await (const entry of sessions) {
       const session = entry.value;
       // Check absolute expiration or inactivity timeout
-      if (now > session.expiresAt || now - session.lastAccessedAt > this.inactivityTimeout) {
+      if (
+        now > session.expiresAt ||
+        now - session.lastAccessedAt > this.inactivityTimeout
+      ) {
         await this.deleteSession(session.id);
         cleanedCount++;
       }
