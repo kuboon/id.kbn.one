@@ -32,14 +32,6 @@
                 アカウントを作成
               </button>
             </div>
-            <label class="field">
-              <input
-                type="checkbox"
-                id="enable-dpop"
-                name="enable-dpop"
-              />
-              <span>DPoP を有効化 (高度なセキュリティ)</span>
-            </label>
           </form>
           <p id="conditional-status" class="hint" data-state="pending">
             パスキーの自動入力に対応しているか確認しています…
@@ -75,26 +67,11 @@
     <script type="module">
       import {
         createClient,
-        generateDpopKeyPair,
         startAuthentication,
       } from "/webauthn/client.js";
 
-      const enableDpopCheckbox = document.getElementById("enable-dpop");
-      let client = createClient();
-
-      const recreateClientWithDpop = async () => {
-        const enableDpop = enableDpopCheckbox?.checked || false;
-        if (enableDpop) {
-          client = createClient({ enableDpop: true });
-          await client.initDpop();
-        } else {
-          client = createClient();
-        }
-      };
-
-      enableDpopCheckbox?.addEventListener("change", async () => {
-        await recreateClientWithDpop();
-      });
+      const client = createClient();
+      await client.initDpop();
 
       const guestForm = document.getElementById("guest-form");
       const conditionalStatus = document.getElementById(

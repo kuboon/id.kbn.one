@@ -57,7 +57,6 @@ export interface CreateClientOptions {
   mountPath?: string;
   fetch?: FetchLike;
   dpopKeyPair?: CryptoKeyPair;
-  enableDpop?: boolean;
 }
 
 export interface RegisterParams {
@@ -142,15 +141,14 @@ export const createClient = (options: CreateClientOptions = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl: FetchLike = options.fetch ?? fetch;
   let dpopKeyPair: CryptoKeyPair | undefined = options.dpopKeyPair;
-  const enableDpop = options.enableDpop ?? false;
 
   const ensureUsername = (username: string) => username.trim();
 
-  const createDpopProofIfEnabled = async (
+  const createDpopProof_internal = async (
     method: string,
     url: string,
   ): Promise<string | undefined> => {
-    if (!enableDpop || !dpopKeyPair) {
+    if (!dpopKeyPair) {
       return undefined;
     }
     try {
@@ -167,7 +165,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
 
   return {
     async initDpop(): Promise<void> {
-      if (enableDpop && !dpopKeyPair) {
+      if (!dpopKeyPair) {
         dpopKeyPair = await generateDpopKeyPair();
       }
     },
@@ -191,7 +189,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
       );
 
       const verifyUrl = buildUrl(mountPath, "/register/verify");
-      const dpopProof = await createDpopProofIfEnabled("POST", verifyUrl);
+      const dpopProof = await createDpopProof_internal("POST", verifyUrl);
 
       const verification = await fetchJson(
         fetchImpl,
@@ -229,7 +227,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
       );
 
       const verifyUrl = buildUrl(mountPath, "/authenticate/verify");
-      const dpopProof = await createDpopProofIfEnabled("POST", verifyUrl);
+      const dpopProof = await createDpopProof_internal("POST", verifyUrl);
 
       const verification = await fetchJson(
         fetchImpl,

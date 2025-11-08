@@ -6,16 +6,18 @@ This document provides examples of how to use the DPoP integration with passkeys
 
 DPoP (Demonstrating Proof-of-Possession) adds an additional layer of security by binding authentication sessions to a cryptographic key pair. This prevents token theft and replay attacks by requiring the client to prove possession of the private key for each request.
 
+DPoP is always enabled in the passkeys middleware.
+
 ## Basic Client Usage
 
-### Enable DPoP for a session
+### Using DPoP with the client
 
 ```html
 <script type="module">
   import { createClient } from "/webauthn/client.js";
 
-  // Create client with DPoP enabled
-  const client = createClient({ enableDpop: true });
+  // Create client (DPoP is always enabled)
+  const client = createClient();
   
   // Initialize DPoP key pair
   await client.initDpop();
@@ -148,13 +150,11 @@ app.get("/api/high-security", requireDpop, (c) => {
 
 ## Demo UI
 
-The demo UI at `/` includes a checkbox to enable DPoP:
+The demo UI at `/` automatically initializes DPoP when the page loads:
 
-```html
-<label class="field">
-  <input type="checkbox" id="enable-dpop" name="enable-dpop" />
-  <span>DPoP を有効化 (高度なセキュリティ)</span>
-</label>
+```javascript
+const client = createClient();
+await client.initDpop();
 ```
 
 When checked, the client automatically generates DPoP proofs for all authentication operations.

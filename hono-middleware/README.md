@@ -82,7 +82,7 @@ is automatically signed and stored client-side in cookies using a secret kept in
 
 ### DPoP Support
 
-The middleware includes optional support for [DPoP (Demonstrating Proof-of-Possession)](https://datatracker.ietf.org/doc/html/rfc9449) to bind sessions to a cryptographic key pair, providing enhanced security against token theft and replay attacks.
+The middleware includes built-in support for [DPoP (Demonstrating Proof-of-Possession)](https://datatracker.ietf.org/doc/html/rfc9449) to bind sessions to a cryptographic key pair, providing enhanced security against token theft and replay attacks. DPoP is always enabled.
 
 #### Server-side
 
@@ -94,12 +94,12 @@ The middleware automatically handles DPoP proofs when clients include them:
 
 #### Client-side
 
-Enable DPoP in the client by passing `enableDpop: true`:
+DPoP is automatically enabled in the client. Initialize the DPoP key pair after creating the client:
 
 ```ts
 import { createClient } from "/webauthn/client.js";
 
-const client = createClient({ enableDpop: true });
+const client = createClient();
 await client.initDpop(); // Generate DPoP key pair
 
 // DPoP proofs are automatically included in registration/authentication
