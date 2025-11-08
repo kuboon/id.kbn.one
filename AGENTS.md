@@ -48,6 +48,9 @@ If returns error, fix them.
 to get jsr sources, for example `jsr:@luca/flag@1.0.0`, run
 `curl https://jsr.io/@luca/flag/1.0.0/main.ts`
 
+# Hono.js
+see https://hono.dev/llms.txt
+
 # General instructions
 
 - Do not add comments what you did like "// displayName inputs removed"

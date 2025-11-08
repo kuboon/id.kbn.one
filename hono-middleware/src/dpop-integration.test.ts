@@ -63,14 +63,14 @@ Deno.test("DPoP integration - verify JWK matches", async () => {
   const method = "GET";
   const url = "https://example.com/session";
 
-  const proof1 = await createDpopProof({
+  const proof = await createDpopProof({
     keyPair,
     method,
     url,
   });
 
   const result1 = await verifyDpopProof({
-    proof1,
+    proof,
     method,
     url,
   });
