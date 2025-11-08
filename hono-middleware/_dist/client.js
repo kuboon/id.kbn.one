@@ -38,10 +38,10 @@ function toPublicKeyCredentialDescriptor(descriptor) {
     ...descriptor,
     id: base64URLStringToBuffer(id),
     /**
-     * `descriptor.transports` is an array of our `AuthenticatorTransportFuture` that includes newer
-     * transports that TypeScript's DOM lib is ignorant of. Convince TS that our list of transports
-     * are fine to pass to WebAuthn since browsers will recognize the new value.
-     */
+         * `descriptor.transports` is an array of our `AuthenticatorTransportFuture` that includes newer
+         * transports that TypeScript's DOM lib is ignorant of. Convince TS that our list of transports
+         * are fine to pass to WebAuthn since browsers will recognize the new value.
+         */
     transports: descriptor.transports
   };
 }
@@ -57,7 +57,9 @@ function isValidDomain(hostname) {
 // ../node_modules/.deno/@simplewebauthn+browser@13.2.2/node_modules/@simplewebauthn/browser/esm/helpers/webAuthnError.js
 var WebAuthnError = class extends Error {
   constructor({ message, code, cause, name }) {
-    super(message, { cause });
+    super(message, {
+      cause
+    });
     Object.defineProperty(this, "code", {
       enumerable: true,
       configurable: true,
@@ -197,7 +199,10 @@ var BaseWebAuthnAbortService = class {
 var WebAuthnAbortService = new BaseWebAuthnAbortService();
 
 // ../node_modules/.deno/@simplewebauthn+browser@13.2.2/node_modules/@simplewebauthn/browser/esm/helpers/toAuthenticatorAttachment.js
-var attachments = ["cross-platform", "platform"];
+var attachments = [
+  "cross-platform",
+  "platform"
+];
 function toAuthenticatorAttachment(attachment) {
   if (!attachment) {
     return;
@@ -212,7 +217,9 @@ function toAuthenticatorAttachment(attachment) {
 async function startRegistration(options) {
   if (!options.optionsJSON && options.challenge) {
     console.warn("startRegistration() was not called correctly. It will try to continue with the provided options, but this call should be refactored to use the expected call structure instead. See https://simplewebauthn.dev/docs/packages/browser#typeerror-cannot-read-properties-of-undefined-reading-challenge for more information.");
-    options = { optionsJSON: options };
+    options = {
+      optionsJSON: options
+    };
   }
   const { optionsJSON, useAutoRegister = false } = options;
   if (!browserSupportsWebAuthn()) {
@@ -237,7 +244,10 @@ async function startRegistration(options) {
   try {
     credential = await navigator.credentials.create(createOptions);
   } catch (err) {
-    throw identifyRegistrationError({ error: err, options: createOptions });
+    throw identifyRegistrationError({
+      error: err,
+      options: createOptions
+    });
   }
   if (!credential) {
     throw new Error("Registration was not completed");
@@ -359,7 +369,9 @@ function identifyAuthenticationError({ error, options }) {
 async function startAuthentication(options) {
   if (!options.optionsJSON && options.challenge) {
     console.warn("startAuthentication() was not called correctly. It will try to continue with the provided options, but this call should be refactored to use the expected call structure instead. See https://simplewebauthn.dev/docs/packages/browser#typeerror-cannot-read-properties-of-undefined-reading-challenge for more information.");
-    options = { optionsJSON: options };
+    options = {
+      optionsJSON: options
+    };
   }
   const { optionsJSON, useBrowserAutofill = false, verifyBrowserAutofillInput = true } = options;
   if (!browserSupportsWebAuthn()) {
@@ -392,7 +404,10 @@ async function startAuthentication(options) {
   try {
     credential = await navigator.credentials.get(getOptions);
   } catch (err) {
-    throw identifyAuthenticationError({ error: err, options: getOptions });
+    throw identifyAuthenticationError({
+      error: err,
+      options: getOptions
+    });
   }
   if (!credential) {
     throw new Error("Authentication was not completed");
@@ -425,8 +440,154 @@ function platformAuthenticatorIsAvailable() {
   return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
 }
 
+// deno:https://jsr.io/@std/encoding/1.0.10/_common64.ts
+var padding = "=".charCodeAt(0);
+var alphabet = {
+  base64: new TextEncoder().encode("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"),
+  base64url: new TextEncoder().encode("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+};
+var rAlphabet = {
+  base64: new Uint8Array(128).fill(64),
+  base64url: new Uint8Array(128).fill(64)
+};
+alphabet.base64.forEach((byte, i) => rAlphabet.base64[byte] = i);
+alphabet.base64url.forEach((byte, i) => rAlphabet.base64url[byte] = i);
+function calcSizeBase64(originalSize) {
+  return ((originalSize + 2) / 3 | 0) * 4;
+}
+function encode(buffer, i, o, alphabet3, padding3) {
+  i += 2;
+  for (; i < buffer.length; i += 3) {
+    const x = buffer[i - 2] << 16 | buffer[i - 1] << 8 | buffer[i];
+    buffer[o++] = alphabet3[x >> 18];
+    buffer[o++] = alphabet3[x >> 12 & 63];
+    buffer[o++] = alphabet3[x >> 6 & 63];
+    buffer[o++] = alphabet3[x & 63];
+  }
+  switch (i) {
+    case buffer.length + 1: {
+      const x = buffer[i - 2] << 16;
+      buffer[o++] = alphabet3[x >> 18];
+      buffer[o++] = alphabet3[x >> 12 & 63];
+      buffer[o++] = padding3;
+      buffer[o++] = padding3;
+      break;
+    }
+    case buffer.length: {
+      const x = buffer[i - 2] << 16 | buffer[i - 1] << 8;
+      buffer[o++] = alphabet3[x >> 18];
+      buffer[o++] = alphabet3[x >> 12 & 63];
+      buffer[o++] = alphabet3[x >> 6 & 63];
+      buffer[o++] = padding3;
+      break;
+    }
+  }
+  return o;
+}
+
+// deno:https://jsr.io/@std/encoding/1.0.10/_common_detach.ts
+function detach(buffer, maxSize) {
+  const originalSize = buffer.length;
+  if (buffer.byteOffset) {
+    const b = new Uint8Array(buffer.buffer);
+    b.set(buffer);
+    buffer = b.subarray(0, originalSize);
+  }
+  buffer = new Uint8Array(buffer.buffer.transfer(maxSize));
+  buffer.set(buffer.subarray(0, originalSize), maxSize - originalSize);
+  return [
+    buffer,
+    maxSize - originalSize
+  ];
+}
+
+// deno:https://jsr.io/@std/encoding/1.0.10/base64url.ts
+var padding2 = "=".charCodeAt(0);
+var alphabet2 = new TextEncoder().encode("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+var rAlphabet2 = new Uint8Array(128).fill(64);
+alphabet2.forEach((byte, i) => rAlphabet2[byte] = i);
+function encodeBase64Url(data) {
+  if (typeof data === "string") {
+    data = new TextEncoder().encode(data);
+  } else if (data instanceof ArrayBuffer) data = new Uint8Array(data).slice();
+  else data = data.slice();
+  const [output, i] = detach(data, calcSizeBase64(data.length));
+  let o = encode(output, i, 0, alphabet2, padding2);
+  o = output.indexOf(padding2, o - 2);
+  return new TextDecoder().decode(o > 0 ? new Uint8Array(output.buffer.transfer(o)) : output);
+}
+
+// ../dpop/mod.ts
+var textEncoder = new TextEncoder();
+var textDecoder = new TextDecoder();
+var toUint8Array = (input) => input instanceof Uint8Array ? input : new Uint8Array(input);
+var base64UrlEncode = (input) => encodeBase64Url(toUint8Array(input));
+var sha256Base64Url = async (value) => {
+  const data = textEncoder.encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return base64UrlEncode(digest);
+};
+var normalizeMethod = (method) => method.trim().toUpperCase();
+var normalizeHtu = (url) => {
+  const parsed = new URL(url);
+  return `${parsed.origin}${parsed.pathname}${parsed.search}`;
+};
+var generateDpopKeyPair = (options = {}) => crypto.subtle.generateKey({
+  name: "ECDSA",
+  namedCurve: "P-256"
+}, options.extractable ?? true, [
+  "sign",
+  "verify"
+]);
+var stripPrivateFields = (jwk) => {
+  const { crv, kty, x, y } = jwk;
+  return {
+    crv,
+    kty,
+    x,
+    y
+  };
+};
+var createDpopProof = async (options) => {
+  const method = normalizeMethod(options.method);
+  const htu = normalizeHtu(options.url);
+  const iat = options.iat ?? Math.floor(Date.now() / 1e3);
+  const jti = options.jti ?? crypto.randomUUID();
+  if (!method) {
+    throw new TypeError("HTTP method is required to create a DPoP proof.");
+  }
+  const payload = {
+    htm: method,
+    htu,
+    iat,
+    jti,
+    ...options.nonce !== void 0 ? {
+      nonce: options.nonce
+    } : {},
+    ...options.accessToken ? {
+      ath: await sha256Base64Url(options.accessToken)
+    } : {}
+  };
+  const publicJwk = await crypto.subtle.exportKey("jwk", options.keyPair.publicKey);
+  const header = {
+    alg: "ES256",
+    typ: "dpop+jwt",
+    jwk: stripPrivateFields(publicJwk)
+  };
+  const encodedHeader = base64UrlEncode(textEncoder.encode(JSON.stringify(header)));
+  const encodedPayload = base64UrlEncode(textEncoder.encode(JSON.stringify(payload)));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const signature = await crypto.subtle.sign({
+    name: "ECDSA",
+    hash: "SHA-256"
+  }, options.keyPair.privateKey, textEncoder.encode(signingInput));
+  const encodedSignature = base64UrlEncode(signature);
+  return `${signingInput}.${encodedSignature}`;
+};
+
 // src/client.ts
 var DEFAULT_MOUNT_PATH = "/webauthn";
+var PASSKEY_ORIGIN = null;
 var normalizeMountPath = (path) => {
   if (!path || path === "/") {
     return "";
@@ -461,8 +622,8 @@ var PasskeyClientError = class extends Error {
 };
 var buildUrl = (mountPath, endpoint) => {
   const path = `${mountPath}${endpoint}`;
-  if (true) return path;
-  return new URL(path, null).toString();
+  if (!PASSKEY_ORIGIN) return path;
+  return new URL(path, PASSKEY_ORIGIN).toString();
 };
 var fetchJson = async (fetchImpl, input, init) => {
   const headers = new Headers(init?.headers);
@@ -501,8 +662,33 @@ var fetchJson = async (fetchImpl, input, init) => {
 var createClient = (options = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl = options.fetch ?? fetch;
+  let dpopKeyPair = options.dpopKeyPair;
+  const enableDpop = options.enableDpop ?? false;
   const ensureUsername = (username) => username.trim();
+  const createDpopProofIfEnabled = async (method, url) => {
+    if (!enableDpop || !dpopKeyPair) {
+      return void 0;
+    }
+    try {
+      return await createDpopProof({
+        keyPair: dpopKeyPair,
+        method,
+        url
+      });
+    } catch (error) {
+      console.error("Failed to create DPoP proof:", error);
+      return void 0;
+    }
+  };
   return {
+    async initDpop() {
+      if (enableDpop && !dpopKeyPair) {
+        dpopKeyPair = await generateDpopKeyPair();
+      }
+    },
+    getDpopKeyPair() {
+      return dpopKeyPair;
+    },
     async register(params) {
       const username = ensureUsername(params.username);
       const optionsJSON = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/options"), {
@@ -514,12 +700,20 @@ var createClient = (options = {}) => {
       const attestationResponse = await startRegistration({
         optionsJSON
       });
-      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/register/verify"), {
+      const verifyUrl = buildUrl(mountPath, "/register/verify");
+      const dpopProof = await createDpopProofIfEnabled("POST", verifyUrl);
+      const verification = await fetchJson(fetchImpl, verifyUrl, {
         method: "POST",
         body: JSON.stringify({
           username,
-          credential: attestationResponse
-        })
+          credential: attestationResponse,
+          ...dpopProof ? {
+            dpopProof
+          } : {}
+        }),
+        headers: dpopProof ? {
+          DPoP: dpopProof
+        } : void 0
       });
       return verification;
     },
@@ -534,12 +728,20 @@ var createClient = (options = {}) => {
       const assertionResponse = await startAuthentication({
         optionsJSON
       });
-      const verification = await fetchJson(fetchImpl, buildUrl(mountPath, "/authenticate/verify"), {
+      const verifyUrl = buildUrl(mountPath, "/authenticate/verify");
+      const dpopProof = await createDpopProofIfEnabled("POST", verifyUrl);
+      const verification = await fetchJson(fetchImpl, verifyUrl, {
         method: "POST",
         body: JSON.stringify({
           username,
-          credential: assertionResponse
-        })
+          credential: assertionResponse,
+          ...dpopProof ? {
+            dpopProof
+          } : {}
+        }),
+        headers: dpopProof ? {
+          DPoP: dpopProof
+        } : void 0
       });
       return verification;
     },
@@ -582,6 +784,8 @@ export {
   browserSupportsWebAuthnAutofill,
   bufferToBase64URLString,
   createClient,
+  createDpopProof,
+  generateDpopKeyPair,
   platformAuthenticatorIsAvailable,
   startAuthentication,
   startRegistration

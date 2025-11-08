@@ -71,6 +71,7 @@
       } from "/webauthn/client.js";
 
       const client = createClient();
+      await client.initDpop();
 
       const guestForm = document.getElementById("guest-form");
       const conditionalStatus = document.getElementById(
