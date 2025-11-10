@@ -186,13 +186,12 @@ app.route(
 app.get("/me", async (c) => {
   const user = c.get("user");
   if (!user) return c.redirect("/", 302);
-  const html = await readStaticText("me.html");
-  return c.html(html);
+  return c.next();
 });
 app.use(
   "*",
   serveBundled({
-    entryPoints: ["index.html"],
+    entryPoints: ["index.html", "me.html"],
     replacements: {
       '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
     },
