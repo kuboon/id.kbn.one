@@ -6,7 +6,7 @@ import {
 import type { PasskeyCredential } from "./types.ts";
 
 const DEFAULT_MOUNT_PATH = "/webauthn";
-declare const PASSKEY_ORIGIN: string | null;
+const PASSKEY_ORIGIN = "{{PASSKEY_ORIGIN}}";
 
 const normalizeMountPath = (path: string | undefined) => {
   if (!path || path === "/") {
