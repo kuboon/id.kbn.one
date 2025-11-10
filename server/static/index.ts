@@ -1,4 +1,4 @@
-import { createClient } from "../../hono-middleware/src/client.ts";
+import { createClient } from "../../hono-middleware/static/client.ts";
 
 const client = createClient();
 

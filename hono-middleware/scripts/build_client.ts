@@ -1,48 +1,29 @@
 import { idpOrigin } from "../../server/config.ts";
 import { fromFileUrl } from "@std/path";
 
-interface BundleOptions {
-  entryPoint: string;
-  outputDir: string;
-  outputFileName?: string;
-  replacements?: Record<string, string>;
+const resolvePath = (relativePath: string) =>
+  fromFileUrl(new URL(relativePath, import.meta.url));
+const result = await Deno.bundle({
+  entrypoints: [resolvePath("../static/client.ts")],
+  outputDir: resolvePath("../static"),
+  platform: "browser",
+  sourcemap: "linked",
+  minify: true,
+  write: false,
+})
+
+
+if (!result.success) {
+  console.error("Bundle failed:");
+  for (const error of result.errors) {
+    console.error(error);
+  }
+  Deno.exit(1);
 }
 
-async function bundle(options: BundleOptions): Promise<void> {
-  const {
-    entryPoint,
-    outputDir,
-    outputFileName = "bundle.js",
-    replacements = {},
-  } = options;
-
-  await Deno.mkdir(outputDir, { recursive: true });
-
-  const result = await Deno.bundle({
-    entrypoints: [entryPoint],
-    outputDir,
-    platform: "browser",
-    sourcemap: "external",
-    minify: true,
-    write: false,
-  });
-
-  if (!result.success) {
-    console.error("Bundle failed:");
-    for (const error of result.errors) {
-      console.error(error);
-    }
-    Deno.exit(1);
-  }
-
-  for (const outputFile of result.outputFiles || []) {
-    let content = outputFile.text();
-    for (const [pattern, replacement] of Object.entries(replacements)) {
-      content = content.replace(new RegExp(pattern, "g"), replacement);
-    }
-
-    await Deno.writeTextFile(outputFile.path, content);
-  }
+for (const outputFile of result.outputFiles || []) {
+  const content = outputFile.text().replaceAll('"{{PASSKEY_ORIGIN}}"', JSON.stringify(idpOrigin))
+  await Deno.writeTextFile(outputFile.path, content);
 }
 
 if (Deno.env.get("DENO_DEPLOY")) {
@@ -55,18 +36,3 @@ if (Deno.env.get("DENO_DEPLOY")) {
   console.log(Deno.env.toObject());
   console.log({ PREVIEW_URL });
 }
-
-const resolvePath = (relativePath: string) =>
-  fromFileUrl(new URL(relativePath, import.meta.url));
-
-const entryPoint = resolvePath("../src/client.ts");
-const distDir = resolvePath("../_dist");
-
-await bundle({
-  entryPoint,
-  outputDir: distDir,
-  outputFileName: "client.js",
-  replacements: {
-    '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
-  },
-});

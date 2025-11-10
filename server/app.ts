@@ -71,11 +71,6 @@ const parseAccountUpdate = async (
   return { username: username.trim() };
 };
 
-const readStaticText = async (relativePath: string) => {
-  const url = new URL(`./static/${relativePath}`, import.meta.url);
-  return await Deno.readTextFile(url);
-};
-
 const signingKey = await Secret<string>("signing_key", () => {
   const key = crypto.randomUUID();
   console.info(`Generated new signing key: ${key}`);
@@ -166,33 +161,10 @@ app.route(
   }),
 );
 
-// Object.entries({
-//   "/": { file: "index.html", mime: "text/html" },
-//   "/styles.css": { file: "styles.css", mime: "text/css" },
-//   "/usage.md": { file: "usage.md", mime: "text/markdown" },
-//   "/sw.js": { file: "sw.js", mime: "application/javascript" },
-//   "/manifest.json": {
-//     file: "manifest.json",
-//     mime: "application/manifest+json",
-//   },
-//   "/icons/icon.svg": { file: "icons/icon.svg", mime: "image/svg+xml" },
-// }).forEach(([path, { file, mime }]) => {
-//   app.get(path, async (c) => {
-//     const content = await readStaticText(file);
-//     c.header("Content-Type", `${mime}; charset=utf-8`);
-//     return c.body(content);
-//   });
-// });
-app.get("/me", async (c) => {
-  const user = c.get("user");
-  if (!user) return c.redirect("/", 302);
-  const html = await readStaticText("me.html");
-  return c.html(html);
-});
 app.use(
   "*",
   serveBundled({
-    entryPoints: ["index.html"],
+    entryPoints: ["index.html", "me.html"],
     replacements: {
       '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
     },
