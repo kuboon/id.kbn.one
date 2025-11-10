@@ -1,13 +1,13 @@
-import { createClient } from "../../hono-middleware/src/client.ts";
+import { createClient } from "../../hono-middleware/static/client.ts";
 
 const client = createClient();
 
 const statusEl = document.getElementById("status")!;
 const accountView = document.getElementById("account-view")!;
-const logoutButton = document.getElementById("logout")!;
+const logoutButton = document.getElementById("logout") as HTMLButtonElement;
 const deleteAccountButton = document.getElementById(
   "delete-account",
-)!;
+) as HTMLButtonElement;
 const profileForm = document.getElementById("profile-form")! as HTMLFormElement;
 const accountUsernameInput = document.getElementById(
   "account-username",
@@ -22,7 +22,9 @@ const credentialsList = document.getElementById(
 const credentialTemplate = document.getElementById(
   "credential-item-template",
 )! as HTMLTemplateElement;
-const passkeyDialog = document.getElementById("passkey-dialog")! as HTMLDialogElement;
+const passkeyDialog = document.getElementById(
+  "passkey-dialog",
+)! as HTMLDialogElement;
 const passkeyForm = document.getElementById("passkey-form")! as HTMLFormElement;
 const passkeyDialogCancel = document.getElementById(
   "cancel-passkey-dialog",
@@ -33,7 +35,9 @@ const passkeyDialogSubmit = document.getElementById(
 const credentialDialog = document.getElementById(
   "credential-dialog",
 )! as HTMLDialogElement;
-const credentialForm = document.getElementById("credential-form")! as HTMLFormElement;
+const credentialForm = document.getElementById(
+  "credential-form",
+)! as HTMLFormElement;
 const credentialDialogCancel = document.getElementById(
   "cancel-credential-dialog",
 )!;
@@ -58,9 +62,10 @@ const pushDeviceDialogSubmit = document.getElementById(
 const pushDeviceDialogName = document.getElementById(
   "push-device-name",
 )! as HTMLInputElement;
-const pushCard = document.getElementById("push-card")!;
 const pushSummary = document.getElementById("push-summary")!;
-const enablePushButton = document.getElementById("enable-push")! as HTMLButtonElement;
+const enablePushButton = document.getElementById(
+  "enable-push",
+)! as HTMLButtonElement;
 const pushSubscriptionList = document.getElementById(
   "push-subscription-list",
 )!;
@@ -152,8 +157,7 @@ const updateProfileSubmitState = () => {
     profileSubmitButton.disabled = true;
     return;
   }
-  profileSubmitButton.disabled =
-    inputUsername === getAccountUsername();
+  profileSubmitButton.disabled = inputUsername === getAccountUsername();
 };
 
 const setStatus = (
@@ -195,20 +199,6 @@ const formatDate = (value: string): string => {
   }
 };
 
-const base64UrlToUint8Array = (value: string): Uint8Array => {
-  const padded = value.padEnd(
-    value.length + ((4 - (value.length % 4)) % 4),
-    "=",
-  );
-  const base64 = padded.replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) {
-    bytes[i] = raw.charCodeAt(i);
-  }
-  return bytes;
-};
-
 const detectDeviceName = (): string => {
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes("iphone")) return "iPhone";
@@ -244,8 +234,7 @@ const collectPushMetadata = () => {
 const updatePushSummary = () => {
   if (!pushSummary) return;
   if (!state.account) {
-    pushSummary.textContent =
-      "通知を有効化するにはサインインしてください。";
+    pushSummary.textContent = "通知を有効化するにはサインインしてください。";
     enablePushButton.disabled = true;
     return;
   }
@@ -293,16 +282,14 @@ const renderPushSubscriptions = (subscriptions: PushSubscription[]) => {
   if (!state.push.supported) {
     const li = document.createElement("li");
     li.className = "empty";
-    li.textContent =
-      "このブラウザーは Web Push に対応していません。";
+    li.textContent = "このブラウザーは Web Push に対応していません。";
     pushSubscriptionList.append(li);
     return;
   }
   if (!subscriptions.length) {
     const li = document.createElement("li");
     li.className = "empty";
-    li.textContent =
-      "まだ通知を受け取るデバイスが登録されていません。";
+    li.textContent = "まだ通知を受け取るデバイスが登録されていません。";
     pushSubscriptionList.append(li);
     return;
   }
@@ -312,8 +299,7 @@ const renderPushSubscriptions = (subscriptions: PushSubscription[]) => {
     const header = document.createElement("div");
     header.className = "credential-header";
     const title = document.createElement("strong");
-    const deviceName =
-      subscription.metadata?.deviceName?.trim() ||
+    const deviceName = subscription.metadata?.deviceName?.trim() ||
       "登録済みデバイス";
     title.textContent = deviceName;
     header.append(title);
@@ -411,7 +397,9 @@ const renderCredentials = (credentials: Credential[]) => {
     return;
   }
   for (const credential of credentials) {
-    const fragment = credentialTemplate.content.cloneNode(true) as DocumentFragment;
+    const fragment = credentialTemplate.content.cloneNode(
+      true,
+    ) as DocumentFragment;
     const title = fragment.querySelector(
       '[data-role="credential-title"]',
     )!;
@@ -532,9 +520,7 @@ const fetchAccount = async (): Promise<Account> => {
   if (!data || typeof data !== "object" || !data.user) {
     throw new Error("アカウントが見つかりません。");
   }
-  const credentials = Array.isArray(data.credentials)
-    ? data.credentials
-    : [];
+  const credentials = Array.isArray(data.credentials) ? data.credentials : [];
   return { user: data.user, credentials };
 };
 
@@ -552,13 +538,17 @@ const refreshAccount = async () => {
     await loadAccount();
   } catch (error) {
     setStatus(
-      error instanceof Error ? (error.message ?? "アカウントを更新できません。") : "アカウントを更新できません。",
+      error instanceof Error
+        ? (error.message ?? "アカウントを更新できません。")
+        : "アカウントを更新できません。",
       "error",
     );
   }
 };
 
-const ensureServiceWorkerRegistration = async (): Promise<ServiceWorkerRegistration> => {
+const ensureServiceWorkerRegistration = async (): Promise<
+  ServiceWorkerRegistration
+> => {
   if (!state.push.supported) {
     throw new Error("このブラウザーでは通知を利用できません。");
   }
@@ -576,7 +566,7 @@ const ensureServiceWorkerRegistration = async (): Promise<ServiceWorkerRegistrat
     const registration = await navigator.serviceWorker.ready;
     state.push.registration = registration;
     return registration;
-  } catch (error) {
+  } catch (_) {
     throw new Error("サービスワーカーを初期化できませんでした。");
   }
 };
@@ -599,7 +589,9 @@ const fetchVapidKey = async (): Promise<string> => {
   return data.publicKey;
 };
 
-const ensureNotificationPermission = async (): Promise<NotificationPermission> => {
+const ensureNotificationPermission = async (): Promise<
+  NotificationPermission
+> => {
   if (!state.push.supported) {
     throw new Error("このブラウザーでは通知を利用できません。");
   }
@@ -709,9 +701,7 @@ const subscribeCurrentDevice = async () => {
     const subscription = existing ??
       await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: base64UrlToUint8Array(
-          await fetchVapidKey(),
-        ),
+        applicationServerKey: await fetchVapidKey(),
       });
     const response = await fetch("/push/subscriptions", {
       method: "POST",
@@ -748,7 +738,7 @@ const subscribeCurrentDevice = async () => {
 
 const removeSubscription = async (id: string) => {
   if (!id) return;
-  const confirmed = window.confirm(
+  const confirmed = globalThis.confirm(
     "このデバイスの通知登録を解除しますか？",
   );
   if (!confirmed) {
@@ -767,8 +757,7 @@ const removeSubscription = async (id: string) => {
     }
     if (state.push.currentId === id) {
       try {
-        const registration =
-          await ensureServiceWorkerRegistration();
+        const registration = await ensureServiceWorkerRegistration();
         const subscription = await registration.pushManager
           .getSubscription();
         if (subscription) {
@@ -810,7 +799,9 @@ const sendTestNotification = async (id: string, button?: HTMLButtonElement) => {
     const data = await response.json();
     const warnings = Array.isArray(data?.warnings)
       ? data.warnings
-        .filter((item: unknown) => typeof item === "string" && (item as string).trim())
+        .filter((item: unknown) =>
+          typeof item === "string" && (item as string).trim()
+        )
         .map((item: unknown) => (item as string).trim())
       : [];
     if (data?.removed) {
@@ -819,9 +810,7 @@ const sendTestNotification = async (id: string, button?: HTMLButtonElement) => {
         : "通知が無効になっていたため登録を削除しました。";
       setStatus(removalNotice, "info");
     } else {
-      const suffix = warnings.length
-        ? `（${warnings.join(" ")}）`
-        : "";
+      const suffix = warnings.length ? `（${warnings.join(" ")}）` : "";
       setStatus(`テスト通知を送信しました。${suffix}`, "success");
     }
     if (warnings.length) {
@@ -858,7 +847,7 @@ logoutButton.addEventListener("click", async () => {
       throw new Error(await extractErrorMessage(response));
     }
     clearAccount();
-    window.location.href = "/";
+    globalThis.location.href = "/";
   } catch (error) {
     setStatus(
       error instanceof Error && error.message
@@ -883,7 +872,7 @@ deleteAccountButton.addEventListener("click", async () => {
   if (deleteAccountButton.dataset.loading === "true") {
     return;
   }
-  const confirmed = window.confirm(
+  const confirmed = globalThis.confirm(
     "アカウントを削除するとすべてのパスキーが消えます。この操作は取り消せません。続行しますか？",
   );
   if (!confirmed) {
@@ -900,7 +889,7 @@ deleteAccountButton.addEventListener("click", async () => {
       throw new Error(await extractErrorMessage(response));
     }
     clearAccount();
-    window.location.href = "/";
+    globalThis.location.href = "/";
   } catch (error) {
     setStatus(
       error instanceof Error && error.message
@@ -989,9 +978,8 @@ pushSubscriptionList.addEventListener("click", async (event) => {
       );
       return;
     }
-    const originalName =
-      subscription.metadata?.deviceName?.trim() ??
-        "";
+    const originalName = subscription.metadata?.deviceName?.trim() ??
+      "";
     pushDeviceForm.dataset.loading = "false";
     pushDeviceDialogSubmit.disabled = false;
     pushDeviceForm.dataset.subscriptionId = subscription.id;
@@ -1194,8 +1182,7 @@ passkeyForm.addEventListener("submit", async (event) => {
           break;
         default:
           if (error.message?.trim()) {
-            message =
-              `パスキーの設定に失敗しました: ${error.message}`;
+            message = `パスキーの設定に失敗しました: ${error.message}`;
           }
           break;
       }
@@ -1350,7 +1337,7 @@ const initialise = async () => {
   setStatus("アカウント情報を読み込んでいます…");
   const session = await getSession();
   if (!session?.user) {
-    window.location.href = "/";
+    globalThis.location.href = "/";
     return;
   }
   try {
@@ -1364,7 +1351,7 @@ const initialise = async () => {
       "アカウント情報を取得できませんでした。もう一度サインインしてください。",
       "error",
     );
-    window.location.href = "/";
+    globalThis.location.href = "/";
   }
 };
 

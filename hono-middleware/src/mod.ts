@@ -24,6 +24,7 @@ import type {
 import { base64 } from "@hexagon/base64";
 
 import { type Context, Hono } from "hono";
+import { serveStatic } from "hono/deno";
 import { createMiddleware } from "hono/factory";
 import {
   deleteCookie,
@@ -187,26 +188,8 @@ export const createPasskeyMiddleware = (
     c.header("Cache-Control", "no-store");
   };
 
-  const clientJsPromise = Deno.readTextFile(
-    new URL(import.meta.resolve("../_dist/client.js")),
-  );
-  router.get("/client.js", async (c) => {
-    const bundle = await clientJsPromise;
-    c.header("Content-Type", "application/javascript; charset=utf-8");
-    c.header("SourceMap", "client.js.map");
-    return c.body(bundle);
-  });
-  const clientJsMapPromise = Deno.readTextFile(
-    new URL(import.meta.resolve("../_dist/client.js.map")),
-  );
-  router.get("/client.js.map", async (c) => {
-    const bundle = await clientJsMapPromise;
-    c.header("Content-Type", "application/json; charset=utf-8");
-    return c.body(bundle);
-  });
-
   router.get("/credentials", async (c) => {
-    setNoStore(c);
+    c.header("Cache-Control", "no-store");
     const user = c.get("user");
     if (!user) throw jsonError(401, "Sign-in required");
     const credentials = await storage.getCredentialsByUserId(user.id);
@@ -214,7 +197,7 @@ export const createPasskeyMiddleware = (
   });
 
   router.delete("/credentials/:credentialId", async (c) => {
-    setNoStore(c);
+    c.header("Cache-Control", "no-store");
     const user = c.get("user");
     if (!user) throw jsonError(401, "Sign-in required");
     const credentialId = c.req.param("credentialId");
@@ -529,6 +512,8 @@ export const createPasskeyMiddleware = (
       credential: storedCredential,
     });
   });
+
+  router.get("*", serveStatic({ root: "./static" }));
 
   router.all("*", () => {
     throw jsonError(404, "Endpoint not found");
