@@ -16,10 +16,12 @@ import {
 } from "@scope/hono-passkeys-middleware";
 
 import { type Context, Hono } from "hono";
+import { serveStatic } from "hono/deno";
 import { cors } from "hono/cors";
 import { deleteCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { Secret } from "./secret.ts";
+import { serveBundled } from "./serveBundled.ts";
 
 const kv = await getKvInstance();
 const credentialStore = new DenoKvPasskeyStore(kv);
@@ -164,30 +166,39 @@ app.route(
   }),
 );
 
-Object.entries({
-  "/": { file: "index.html", mime: "text/html" },
-  "/styles.css": { file: "styles.css", mime: "text/css" },
-  "/usage.md": { file: "usage.md", mime: "text/markdown" },
-  "/sw.js": { file: "sw.js", mime: "application/javascript" },
-  "/manifest.json": {
-    file: "manifest.json",
-    mime: "application/manifest+json",
-  },
-  "/icons/icon.svg": { file: "icons/icon.svg", mime: "image/svg+xml" },
-}).forEach(([path, { file, mime }]) => {
-  app.get(path, async (c) => {
-    const content = await readStaticText(file);
-    c.header("Content-Type", `${mime}; charset=utf-8`);
-    return c.body(content);
-  });
-});
-
+// Object.entries({
+//   "/": { file: "index.html", mime: "text/html" },
+//   "/styles.css": { file: "styles.css", mime: "text/css" },
+//   "/usage.md": { file: "usage.md", mime: "text/markdown" },
+//   "/sw.js": { file: "sw.js", mime: "application/javascript" },
+//   "/manifest.json": {
+//     file: "manifest.json",
+//     mime: "application/manifest+json",
+//   },
+//   "/icons/icon.svg": { file: "icons/icon.svg", mime: "image/svg+xml" },
+// }).forEach(([path, { file, mime }]) => {
+//   app.get(path, async (c) => {
+//     const content = await readStaticText(file);
+//     c.header("Content-Type", `${mime}; charset=utf-8`);
+//     return c.body(content);
+//   });
+// });
 app.get("/me", async (c) => {
   const user = c.get("user");
   if (!user) return c.redirect("/", 302);
   const html = await readStaticText("me.html");
   return c.html(html);
 });
+app.use(
+  "*",
+  serveBundled({
+    entryPoints: ["index.html"],
+    replacements: {
+      '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
+    },
+  }),
+);
+app.use("*", serveStatic({ root: "./static" }));
 
 app.onError((err, c) => {
   console.error(err);

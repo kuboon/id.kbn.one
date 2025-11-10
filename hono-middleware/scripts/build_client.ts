@@ -20,7 +20,7 @@ async function bundle(options: BundleOptions): Promise<void> {
 
   const result = await Deno.bundle({
     entrypoints: [entryPoint],
-    outputDir: outputDir,
+    outputDir,
     platform: "browser",
     sourcemap: "external",
     minify: true,
