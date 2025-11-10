@@ -203,9 +203,18 @@ export const createPasskeyMiddleware = (
   );
   router.get("/client.js", (c) =>
     respond(async () => {
-      setNoStore(c);
       const bundle = await clientJsPromise;
       c.header("Content-Type", "application/javascript; charset=utf-8");
+      c.header("SourceMap", "client.js.map");
+      return c.body(bundle);
+    }));
+  const clientJsMapPromise = Deno.readTextFile(
+    new URL(import.meta.resolve("../_dist/client.js.map")),
+  );
+  router.get("/client.js.map", (c) =>
+    respond(async () => {
+      const bundle = await clientJsMapPromise;
+      c.header("Content-Type", "application/json; charset=utf-8");
       return c.body(bundle);
     }));
 

@@ -22,6 +22,7 @@ async function bundle(options: BundleOptions): Promise<void> {
     entrypoints: [entryPoint],
     outputDir: outputDir,
     platform: "browser",
+    sourcemap: "external",
     minify: true,
     write: false,
   });
