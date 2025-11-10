@@ -1125,7 +1125,7 @@ credentialForm.addEventListener("submit", async (event) => {
       credentialId,
       nickname: normalizedNickname,
     });
-    const nickname = updated.credential?.nickname?.trim() ||
+    const nickname = updated.nickname?.trim() ||
       normalizedNickname;
     setStatus(
       `パスキーの名前を「${nickname}」に更新しました。`,
