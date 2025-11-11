@@ -62,7 +62,6 @@ export interface RegisterParams {
 }
 
 export interface AuthenticateParams {
-  username: string;
 }
 
 export interface DeleteParams {
@@ -172,17 +171,13 @@ export const createClient = (options: CreateClientOptions = {}) => {
     },
 
     async authenticate(
-      params: AuthenticateParams,
+      params: AuthenticateParams = {},
     ): Promise<AuthenticateResult> {
-      const username = ensureUsername(params.username);
 
       const optionsJSON = await fetchJson(
         fetchImpl,
         buildUrl(mountPath, "/authenticate/options"),
-        {
-          method: "POST",
-          body: JSON.stringify({ username }),
-        },
+        { method: "POST", },
       );
 
       const assertionResponse = await startAuthentication(
@@ -195,7 +190,6 @@ export const createClient = (options: CreateClientOptions = {}) => {
         {
           method: "POST",
           body: JSON.stringify({
-            username,
             credential: assertionResponse,
           }),
         },

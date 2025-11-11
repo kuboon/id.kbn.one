@@ -1,5 +1,4 @@
-import {
-  AuthenticationOptionsRequestBody,
+import type {
   AuthenticationVerifyRequestBody,
   PasskeyCredential,
   PasskeyMiddlewareOptions,
@@ -84,7 +83,6 @@ const cookieJar = <T>(
 };
 export const SESSION_COOKIE_NAME = "passkey_session";
 const CHALLENGE_COOKIE_NAME = "passkey_challenge";
-const CHALLENGE_COOKIE_MAX_AGE_SECONDS = 300;
 
 const jsonError = (status: ContentfulStatusCode, message: string) =>
   new HTTPException(status, { message });
@@ -152,7 +150,7 @@ export const createPasskeyMiddleware = (
   );
   const challengeCookieJar = cookieJar<PasskeyStoredChallenge>(
     CHALLENGE_COOKIE_NAME,
-    { maxAge: CHALLENGE_COOKIE_MAX_AGE_SECONDS },
+    { maxAge: 60 },
     secret,
   );
 
@@ -375,35 +373,13 @@ export const createPasskeyMiddleware = (
 
   router.post("/authenticate/options", async (c) => {
     setNoStore(c);
-    const body = await ensureJsonBody<AuthenticationOptionsRequestBody>(c);
-    const username = body.username?.trim();
     const requestUrl = getRequestUrl(c);
 
-    let optionsInput: GenerateAuthenticationOptionsOpts;
-    if (username) {
-      // username-based flow: restrict to credentials for that user
-      const user = await ensureUserOrThrow(username);
-      const credentials = await storage.getCredentialsByUserId(user.id);
-      if (credentials.length === 0) {
-        throw jsonError(404, "No registered credentials for user");
-      }
-      optionsInput = {
-        rpID: requestUrl.hostname,
-        allowCredentials: credentials.map((credential) => ({
-          id: credential.id,
-          transports: credential.transports,
-        })),
-        userVerification: "preferred",
-        ...authenticationOptions,
-      };
-    } else {
-      // conditional / discoverable credentials flow: do not set allowCredentials
-      optionsInput = {
-        rpID: requestUrl.hostname,
-        userVerification: "preferred",
-        ...authenticationOptions,
-      };
-    }
+    const optionsInput = {
+      rpID: requestUrl.hostname,
+      userVerification: "preferred",
+      ...authenticationOptions,
+    } satisfies GenerateAuthenticationOptionsOpts;
 
     const optionsResult = await webauthn.generateAuthenticationOptions(
       optionsInput,
@@ -429,11 +405,12 @@ export const createPasskeyMiddleware = (
         origin?: string;
       };
     if (!body.credential) throw jsonError(400, "credential is required");
-    
-    const storedCredential = await storage.getCredentialById(body.credential.id);
+
+    const storedCredential = await storage.getCredentialById(
+      body.credential.id,
+    );
     if (!storedCredential) throw jsonError(401, "Credential not found");
-    
-    
+
     const storedChallenge = await challengeCookieJar(c).get();
     if (!storedChallenge) {
       throw jsonError(400, "No authentication challenge for user");

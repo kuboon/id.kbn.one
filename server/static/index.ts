@@ -68,24 +68,14 @@ const redirectToDashboard = async () => {
   );
 };
 
-const authenticateWithPasskey = async (username: string) => {
+const authenticateWithPasskey = async () => {
   setStatus("パスキーの操作を待機しています…");
-  if (username) {
-    await client.authenticate({ username });
-    await redirectToDashboard();
-    setStatus("サインインに成功しました。", "success", {
-      autoHide: true,
-    });
-    return;
-  }
   if (!state.conditionalAvailable) {
     throw new Error("ユーザー名が必要です。");
   }
-  await client.authenticate({ username: "" });
+  await client.authenticate();
+  setStatus("サインインに成功しました。", "success", { autoHide: true });
   await redirectToDashboard();
-  setStatus("サインインに成功しました。", "success", {
-    autoHide: true,
-  });
 };
 
 const checkConditionalMediation = async () => {
@@ -156,7 +146,7 @@ guestForm.addEventListener("submit", async (event) => {
   }
   guestForm.dataset.loading = "true";
   try {
-    await authenticateWithPasskey("");
+    await authenticateWithPasskey();
   } catch (error) {
     const message =
       typeof error === "object" && error !== null && "message" in error
