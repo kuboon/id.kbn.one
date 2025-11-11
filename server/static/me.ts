@@ -15,23 +15,13 @@ const accountUsernameInput = document.getElementById(
 const profileSubmitButton = profileForm.querySelector(
   'button[type="submit"]',
 )! as HTMLButtonElement;
-const addPasskeyButton = document.getElementById("add-passkey")!;
+const addPasskeyButton = document.getElementById("add-passkey")! as HTMLButtonElement;
 const credentialsList = document.getElementById(
   "credential-list",
 )!;
 const credentialTemplate = document.getElementById(
   "credential-item-template",
 )! as HTMLTemplateElement;
-const passkeyDialog = document.getElementById(
-  "passkey-dialog",
-)! as HTMLDialogElement;
-const passkeyForm = document.getElementById("passkey-form")! as HTMLFormElement;
-const passkeyDialogCancel = document.getElementById(
-  "cancel-passkey-dialog",
-)!;
-const passkeyDialogSubmit = document.getElementById(
-  "submit-passkey-dialog",
-)! as HTMLButtonElement;
 const credentialDialog = document.getElementById(
   "credential-dialog",
 )! as HTMLDialogElement;
@@ -903,7 +893,7 @@ deleteAccountButton.addEventListener("click", async () => {
   }
 });
 
-addPasskeyButton.addEventListener("click", () => {
+addPasskeyButton.addEventListener("click", async () => {
   if (!state.account) {
     setStatus(
       "新しいパスキーを追加する前にサインインしてください。",
@@ -911,21 +901,55 @@ addPasskeyButton.addEventListener("click", () => {
     );
     return;
   }
-  try {
-    passkeyDialog.showModal();
-    passkeyDialogSubmit.focus();
-  } catch (error) {
-    console.error("Unable to open passkey dialog:", error);
+  if (addPasskeyButton.dataset.loading === "true") {
+    return;
   }
-});
-
-passkeyDialogCancel.addEventListener("click", () => {
-  passkeyDialog.close();
-});
-
-passkeyDialog.addEventListener("close", () => {
-  passkeyForm.dataset.loading = "false";
-  passkeyDialogSubmit.disabled = false;
+  addPasskeyButton.dataset.loading = "true";
+  addPasskeyButton.disabled = true;
+  try {
+    setStatus("セキュリティキーの操作を待機しています…");
+    const result = await client.register({
+      username: state.account.user.username,
+    });
+    const nickname = result?.credential?.nickname?.trim();
+    setStatus(
+      nickname
+        ? `パスキー「${nickname}」を追加しました。`
+        : "パスキーを追加しました。",
+      "success",
+    );
+    await refreshAccount();
+  } catch (error) {
+    let message = "パスキーの設定に失敗しました。";
+    let statusType: "info" | "error" | "success" = "error";
+    if (error instanceof DOMException) {
+      switch (error.name) {
+        case "NotAllowedError":
+          message =
+            "このデバイスには既にこのアカウントのパスキーがあります。別の認証器を使用するか既存の鍵を削除してください。";
+          break;
+        case "InvalidStateError":
+          message =
+            "この認証器は既にこのアカウントに登録されているため要求を拒否しました。";
+          break;
+        case "AbortError":
+          message = "パスキーの設定がキャンセルされました。";
+          statusType = "info";
+          break;
+        default:
+          if (error.message?.trim()) {
+            message = `パスキーの設定に失敗しました: ${error.message}`;
+          }
+          break;
+      }
+    } else if (error instanceof Error && error.message.trim()) {
+      message = `パスキーの設定に失敗しました: ${error.message}`;
+    }
+    setStatus(message, statusType);
+  } finally {
+    addPasskeyButton.disabled = false;
+    addPasskeyButton.dataset.loading = "false";
+  }
 });
 
 credentialDialogCancel.addEventListener("click", () => {
@@ -1132,67 +1156,6 @@ credentialForm.addEventListener("submit", async (event) => {
   } finally {
     credentialForm.dataset.loading = "false";
     credentialDialogSubmit.disabled = false;
-  }
-});
-
-passkeyForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (passkeyForm.dataset.loading === "true") {
-    return;
-  }
-  if (!state.account) {
-    setStatus(
-      "サインイン中のアカウントがありません。",
-      "error",
-    );
-    return;
-  }
-  passkeyForm.dataset.loading = "true";
-  passkeyDialogSubmit.disabled = true;
-  try {
-    setStatus("セキュリティキーの操作を待機しています…");
-    const result = await client.register({
-      username: state.account.user.username,
-    });
-    const nickname = result?.credential?.nickname?.trim();
-    setStatus(
-      nickname
-        ? `パスキー「${nickname}」を追加しました。`
-        : "パスキーを追加しました。",
-      "success",
-    );
-    passkeyDialog.close();
-    await refreshAccount();
-  } catch (error) {
-    let message = "パスキーの設定に失敗しました。";
-    let statusType: "info" | "error" | "success" = "error";
-    if (error instanceof DOMException) {
-      switch (error.name) {
-        case "NotAllowedError":
-          message =
-            "このデバイスには既にこのアカウントのパスキーがあります。別の認証器を使用するか既存の鍵を削除してください。";
-          break;
-        case "InvalidStateError":
-          message =
-            "この認証器は既にこのアカウントに登録されているため要求を拒否しました。";
-          break;
-        case "AbortError":
-          message = "パスキーの設定がキャンセルされました。";
-          statusType = "info";
-          break;
-        default:
-          if (error.message?.trim()) {
-            message = `パスキーの設定に失敗しました: ${error.message}`;
-          }
-          break;
-      }
-    } else if (error instanceof Error && error.message.trim()) {
-      message = `パスキーの設定に失敗しました: ${error.message}`;
-    }
-    setStatus(message, statusType);
-  } finally {
-    passkeyDialogSubmit.disabled = false;
-    passkeyForm.dataset.loading = "false";
   }
 });
 

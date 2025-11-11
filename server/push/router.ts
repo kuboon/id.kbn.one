@@ -4,7 +4,7 @@ import {
   type PushSubscriptionPayload,
   type StoredPushSubscription,
 } from "./service.ts";
-import type { PasskeyUser } from "@scope/hono-passkeys-middleware";
+import type { PasskeyUser } from "@scope/passkeys";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
