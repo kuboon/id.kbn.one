@@ -36,8 +36,8 @@ const hashSubscriptionEndpoint = async (endpoint: string): Promise<string> => {
 
 interface StoredVapidKeysRecord {
   keys: Awaited<ReturnType<typeof exportVapidKeys>>;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface PushSubscriptionPayload {
@@ -55,10 +55,10 @@ export interface PushSubscriptionMetadata {
   userAgent?: string;
   language?: string;
   timezone?: string;
-  lastSuccessfulSendAt?: string;
-  lastErrorAt?: string;
+  lastSuccessfulSendAt?: number;
+  lastErrorAt?: number;
   lastError?: string;
-  lastUpdatedAt?: string;
+  lastUpdatedAt?: number;
 }
 
 export interface StoredPushSubscription {
@@ -67,8 +67,8 @@ export interface StoredPushSubscription {
   endpoint: string;
   expirationTime: number | null;
   keys: WebPushSubscription["keys"];
-  createdAt: string;
-  updatedAt: string;
+  createdAt: number;
+  updatedAt: number;
   metadata: PushSubscriptionMetadata;
 }
 
@@ -115,7 +115,7 @@ export class PushService {
       async () => {
         const generated = await generateVapidKeys({ extractable: true });
         const exported = await exportVapidKeys(generated);
-        const now = new Date().toISOString();
+        const now = Date.now();
         return {
           keys: exported,
           createdAt: now,
@@ -181,7 +181,7 @@ export class PushService {
     const existingEntry = await this.kv.get<StoredPushSubscription>(
       subscriptionKey(id),
     );
-    const now = new Date().toISOString();
+    const now = Date.now();
     const previous = existingEntry.value;
 
     const record: StoredPushSubscription = {
@@ -283,7 +283,7 @@ export class PushService {
     if (!existing.value || existing.value.userId !== userId) {
       throw new Error("Subscription not found");
     }
-    const now = new Date().toISOString();
+    const now = Date.now();
     const updated: StoredPushSubscription = {
       ...existing.value,
       updatedAt: now,
@@ -308,7 +308,7 @@ export class PushService {
     message: string,
   ): Promise<StoredPushSubscription> {
     const normalized = message?.trim() || "Push service error";
-    const now = new Date().toISOString();
+    const now = Date.now();
     const updated: StoredPushSubscription = {
       ...subscription,
       metadata: {
@@ -510,7 +510,7 @@ export class PushService {
       throw new Error(message);
     }
 
-    const now = new Date().toISOString();
+    const now = Date.now();
     const updatedSubscription: StoredPushSubscription = {
       ...subscriptionRecord,
       metadata: {

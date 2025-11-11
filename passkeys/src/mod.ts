@@ -438,11 +438,11 @@ export const createPasskeyMiddleware = (
       throw jsonError(400, "Authentication could not be verified");
     }
 
-    storedCredential!.counter = authenticationInfo.newCounter;
-    storedCredential!.updatedAt = Date.now();
-    storedCredential!.backedUp = authenticationInfo.credentialBackedUp;
-    storedCredential!.deviceType = authenticationInfo.credentialDeviceType;
-    await storage.updateCredential(storedCredential!);
+    storedCredential.counter = authenticationInfo.newCounter;
+    storedCredential.updatedAt = Date.now();
+    storedCredential.backedUp = authenticationInfo.credentialBackedUp;
+    storedCredential.deviceType = authenticationInfo.credentialDeviceType;
+    await storage.updateCredential(storedCredential);
     challengeCookieJar(c).clear();
 
     await sessionCookieJar(c).set(storedCredential.userId);

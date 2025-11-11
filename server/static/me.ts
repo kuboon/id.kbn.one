@@ -70,8 +70,8 @@ type User = {
 type Credential = {
   id: string;
   nickname?: string;
-  createdAt: string;
-  lastUsedAt?: string;
+  createdAt: number;
+  updatedAt: number;
 };
 
 type Account = {
@@ -82,15 +82,15 @@ type Account = {
 type PushSubscription = {
   id: string;
   endpoint: string;
-  updatedAt: string;
+  updatedAt: number;
   metadata?: {
     deviceName?: string;
     userAgent?: string;
     language?: string;
     timezone?: string;
-    lastSuccessfulSendAt?: string;
+    lastSuccessfulSendAt?: number;
     lastError?: string;
-    lastErrorAt?: string;
+    lastErrorAt?: number;
   };
 };
 
@@ -179,7 +179,7 @@ const setStatus = (
   });
 };
 
-const formatDate = (value: string): string => {
+const formatDate = (value: number): string => {
   try {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
@@ -414,8 +414,8 @@ const renderCredentials = (credentials: Credential[]) => {
     editButton.dataset.credentialId = credential.id;
     deleteButton.dataset.credentialId = credential.id;
     created.textContent = formatDate(credential.createdAt);
-    lastUsed.textContent = credential.lastUsedAt
-      ? formatDate(credential.lastUsedAt)
+    lastUsed.textContent = credential.updatedAt
+      ? formatDate(credential.updatedAt)
       : "-";
     credentialsList.append(fragment);
   }
