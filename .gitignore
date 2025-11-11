@@ -1,6 +1,5 @@
 node_modules/
 .mise
-.env
 *.js
 *.js.map
 server/_data/
