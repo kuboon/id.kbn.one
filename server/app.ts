@@ -73,7 +73,7 @@ const parseAccountUpdate = async (
 
 const signingKey = await Secret<string>("signing_key", () => {
   return crypto.randomUUID();
-}, 60 * 60 * 24); // 1 day expiration
+}, 1000 * 60 * 60 * 24); // 1 day expiration
 
 const app = new Hono();
 const { router, middleware } = createPasskeyMiddleware({

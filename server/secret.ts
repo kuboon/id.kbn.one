@@ -5,7 +5,7 @@ const SecretKeys = ["signing_key", "push_vapid_keys"] as const;
 export const Secret = async <T>(
   key: typeof SecretKeys[number],
   generator: () => T | Promise<T>,
-  expireIn?: number,
+  expireIn?: number, // in milliseconds
 ) => {
   const kv = await getKvInstance();
   const kvKey = ["secret", key] as const;
