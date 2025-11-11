@@ -15,7 +15,9 @@ const accountUsernameInput = document.getElementById(
 const profileSubmitButton = profileForm.querySelector(
   'button[type="submit"]',
 )! as HTMLButtonElement;
-const addPasskeyButton = document.getElementById("add-passkey")! as HTMLButtonElement;
+const addPasskeyButton = document.getElementById(
+  "add-passkey",
+)! as HTMLButtonElement;
 const credentialsList = document.getElementById(
   "credential-list",
 )!;

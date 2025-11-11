@@ -19,7 +19,9 @@ export function serveBundled(
   let bundled: BundleResults | "fail" | null = null;
   const { entryPoints, rewriteRequestPath } = bundleOptions;
   return async (c, next) => {
-    const path = rewriteRequestPath ? rewriteRequestPath(c.req.path) : c.req.path;
+    const path = rewriteRequestPath
+      ? rewriteRequestPath(c.req.path)
+      : c.req.path;
     if (!bundled && entryPoints.some((x) => path === `/${x}`)) {
       bundled = await getBundleResults(bundleOptions);
     }

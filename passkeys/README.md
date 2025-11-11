@@ -1,4 +1,4 @@
-# @scope/hono-passkeys-middleware
+# @scope/passkeys
 
 A reusable [Hono](https://hono.dev/) middleware that adds
 [passkey / WebAuthn](https://passkeys.dev/) registration and authentication
@@ -12,16 +12,7 @@ designed so the package can be published to both npm and [JSR](https://jsr.io/)
 as-is.
 
 ## Installation
-
-```bash
-npm install @scope/hono-passkeys-middleware
-```
-
-or using the `npm:` specifier in Deno/JSR projects:
-
-```ts
-import { createPasskeyMiddleware } from "jsr:@scope/hono-passkeys-middleware";
-```
+WIP
 
 ## Usage
 
@@ -30,9 +21,11 @@ import { Hono } from "hono";
 import {
   createPasskeyMiddleware,
   InMemoryPasskeyStore,
-} from "@scope/hono-passkeys-middleware";
+} from "@scope/passkeys";
 
 const app = new Hono();
+
+// Use an appropriate PasskeyStorage implementation for your server
 const storage = new InMemoryPasskeyStore();
 
 app.use(
@@ -74,11 +67,10 @@ with while still avoiding server-side storage.
 
 ### Storage
 
-`@scope/hono-passkeys-middleware` ships with `InMemoryPasskeyStore` for quick
+`@scope/passkeys` ships with `InMemoryPasskeyStore` for quick
 experiments. For production use you should implement the `PasskeyStorage`
 interface with your own persistence layer and session handling. Challenge data
-is automatically signed and stored client-side in cookies using a secret kept in
-`Deno.Kv`.
+is automatically signed and stored in Hono's signed cookies using a secret.
 
 ### Client bundle caching
 

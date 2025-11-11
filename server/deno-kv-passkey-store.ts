@@ -3,7 +3,7 @@ import type {
   PasskeyCredential,
   PasskeyStorage,
   PasskeyUser,
-} from "@scope/hono-passkeys-middleware";
+} from "@scope/passkeys";
 
 const USER_KEY_PREFIX = ["user"] as const;
 const USERNAME_KEY_PREFIX = ["username"] as const;

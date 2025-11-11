@@ -34,7 +34,7 @@ for more details, see `server/config.ts`.
 ```
 /
 ├─ dpop/               # DPoP key + proof helpers
-├─ hono-middleware/    # Passkeys / WebAuthn middleware for Hono
+├─ passkeys/    # Passkeys / WebAuthn middleware for Hono
 └─ server/             # ID provider server
 ```
 
@@ -73,22 +73,18 @@ passkeys using the UI in `server/static/index.html`.
 Run formatting, linting and tests as recommended in `AGENTS.md`:
 
 ```bash
-mise exec -- deno fmt && mise exec -- deno lint && mise exec -- deno test -C . -P
+deno fmt && deno lint && deno test -C . -P
 ```
 
 You can also run module-local tasks. Examples:
 
 ```bash
-cd server
-mise exec -- deno task dev
-
-cd hono-middleware
-mise exec -- deno task check
+deno task --cwd server dev
 ```
 
 Notes:
 
-- The `hono-middleware` package includes an `InMemoryPasskeyStore` intended for
+- The `@scope/passkeys` package includes an `InMemoryPasskeyStore` intended for
   local development only. Replace it with a persistent storage implementation
   for production.
 - `dpop/` exports `createDpopProof` and `verifyDpopProof` helpers for working

@@ -72,7 +72,7 @@ const parseAccountUpdate = async (
 };
 
 const signingKey = await Secret<string>("signing_key", () => {
-  return crypto.randomUUID();;
+  return crypto.randomUUID();
 }, 60 * 60 * 24); // 1 day expiration
 
 const app = new Hono();
@@ -160,9 +160,12 @@ app.route(
 );
 function rewriteRequestPath(path: string): string {
   switch (path) {
-    case "/": return "/index.html";
-    case "/me": return "/me.html";
-    default: return path;
+    case "/":
+      return "/index.html";
+    case "/me":
+      return "/me.html";
+    default:
+      return path;
   }
 }
 app.use(
@@ -172,7 +175,7 @@ app.use(
     replacements: {
       '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
     },
-    rewriteRequestPath
+    rewriteRequestPath,
   }),
 );
 app.use("*", serveStatic({ root: "./static", rewriteRequestPath }));

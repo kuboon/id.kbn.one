@@ -166,8 +166,6 @@ export const createPasskeyMiddleware = (
     }
   };
 
-  const router = new Hono();
-
   const ensureJsonBody = async <T>(c: Context) => {
     try {
       return (await c.req.json()) as T;
@@ -188,6 +186,7 @@ export const createPasskeyMiddleware = (
     c.header("Cache-Control", "no-store");
   };
 
+  const router = new Hono();
   router.get("/credentials", async (c) => {
     c.header("Cache-Control", "no-store");
     const user = c.get("user");
@@ -513,10 +512,10 @@ export const createPasskeyMiddleware = (
     });
   });
 
-  router.get("*", serveStatic({ root: "./static" }));
+  router.get("*", serveStatic({ root: import.meta.resolve("./static") }));
 
-  router.all("*", () => {
-    throw jsonError(404, "Endpoint not found");
+  router.all("*", (c) => {
+    throw jsonError(404, "Endpoint not found for " + c.req.url);
   });
 
   const middleware = createMiddleware(async (c, next) => {
