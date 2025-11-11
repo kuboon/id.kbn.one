@@ -171,7 +171,8 @@ function rewriteRequestPath(path: string): string {
 app.use(
   "*",
   serveBundled({
-    entryPoints: ["index.html", "me.html"],
+    baseDir: import.meta.resolve("./static"),
+    entrypoints: ["index.html", "me.html"],
     replacements: {
       '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
     },

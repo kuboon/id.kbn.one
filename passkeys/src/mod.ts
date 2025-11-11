@@ -422,61 +422,25 @@ export const createPasskeyMiddleware = (
       string,
       unknown
     >;
-    const body = (rawBody as unknown) as AuthenticationVerifyRequestBody & {
-      challenge?: string;
-      origin?: string;
-    };
-    const username = body.username?.trim();
-
-    let expectedChallenge: string;
-    let expectedOrigin: string;
-    let storedCredential: PasskeyCredential | null = null;
-    let user: PasskeyUser | null = null;
-
-    if (username) {
-      // username-based verification
-      user = await ensureUserOrThrow(username);
-      const storedChallenge = await challengeCookieJar(c).get();
-      if (!storedChallenge) {
-        throw jsonError(400, "No authentication challenge for user");
-      }
-      expectedChallenge = storedChallenge.challenge;
-      expectedOrigin = storedChallenge.origin;
-
-      const credentialId = body.credential.id;
-      storedCredential = await storage.getCredentialById(credentialId);
-      if (!storedCredential || storedCredential.userId !== user.id) {
-        throw jsonError(404, "Credential not found");
-      }
-    } else {
-      // conditional (discoverable) verification: user not supplied
-      const storedChallenge = await challengeCookieJar(c).get();
-      if (storedChallenge) {
-        expectedChallenge = storedChallenge.challenge;
-        expectedOrigin = storedChallenge.origin;
-      } else {
-        // fallback: client may include challenge/origin in body
-        expectedChallenge = body.challenge ?? "";
-        expectedOrigin = body.origin ?? "";
-        if (!expectedChallenge || !expectedOrigin) {
-          throw jsonError(400, "No authentication challenge");
-        }
-      }
-
-      const credentialId = body.credential?.id;
-      if (!credentialId) {
-        throw jsonError(400, "Credential missing");
-      }
-      storedCredential = await storage.getCredentialById(credentialId);
-      if (!storedCredential) {
-        throw jsonError(404, "Credential not found");
-      }
-      // determine user from credential
-      user = await storage.getUserById(storedCredential.userId);
-      if (!user) {
-        throw jsonError(404, "User not found");
-      }
+    const body = (rawBody as unknown) as
+      & Partial<AuthenticationVerifyRequestBody>
+      & {
+        challenge?: string;
+        origin?: string;
+      };
+    if (!body.credential) throw jsonError(400, "credential is required");
+    
+    const storedCredential = await storage.getCredentialById(body.credential.id);
+    if (!storedCredential) throw jsonError(401, "Credential not found");
+    
+    
+    const storedChallenge = await challengeCookieJar(c).get();
+    if (!storedChallenge) {
+      throw jsonError(400, "No authentication challenge for user");
     }
+
+    const expectedChallenge = storedChallenge.challenge;
+    const expectedOrigin = storedChallenge.origin;
 
     const verification = await webauthn.verifyAuthenticationResponse({
       response: body.credential,
@@ -504,7 +468,7 @@ export const createPasskeyMiddleware = (
     await storage.updateCredential(storedCredential!);
     challengeCookieJar(c).clear();
 
-    await sessionCookieJar(c).set(user.id);
+    await sessionCookieJar(c).set(storedCredential.userId);
 
     return c.json({
       verified: verification.verified,

@@ -2,8 +2,8 @@ import { MiddlewareHandler } from "hono/types";
 import { contentType } from "@std/media-types";
 
 type BundleOptions = {
-  baseDir?: string;
-  entryPoints: string[];
+  baseDir: string;
+  entrypoints: string[];
   replacements?: Record<string, string>;
   rewriteRequestPath?: (path: string) => string;
 };
@@ -17,12 +17,12 @@ export function serveBundled(
   bundleOptions: BundleOptions,
 ): MiddlewareHandler {
   let bundled: BundleResults | "fail" | null = null;
-  const { entryPoints, rewriteRequestPath } = bundleOptions;
+  const { entrypoints, rewriteRequestPath } = bundleOptions;
   return async (c, next) => {
     const path = rewriteRequestPath
       ? rewriteRequestPath(c.req.path)
       : c.req.path;
-    if (!bundled && entryPoints.some((x) => path === `/${x}`)) {
+    if (!bundled && entrypoints.some((x) => path === `/${x}`)) {
       bundled = await getBundleResults(bundleOptions);
     }
     if (!bundled) return next();
@@ -42,9 +42,9 @@ export function serveBundled(
   async function getBundleResults(
     options: BundleOptions,
   ): Promise<BundleResults | "fail"> {
-    const { baseDir = "./static", entryPoints, replacements = {} } = options;
+    const { baseDir, entrypoints, replacements = {} } = options;
     const bundled = await Deno.bundle({
-      entrypoints: entryPoints.map((p) => `${baseDir}/${p}`),
+      entrypoints: entrypoints.map((p) => `${baseDir}/${p}`),
       outputDir: "/",
       platform: "browser",
       sourcemap: "external",
