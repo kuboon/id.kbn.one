@@ -1,8 +1,9 @@
 import { MiddlewareHandler } from "hono/types";
 import { contentType } from "@std/media-types";
+import { HTTPException } from "hono/http-exception";
 
 type BundleOptions = {
-  baseDir: string;
+  root: string;
   entrypoints: string[];
   replacements?: Record<string, string>;
   rewriteRequestPath?: (path: string) => string;
@@ -10,31 +11,23 @@ type BundleOptions = {
 type BundleResult = {
   contentType: string;
   content: string;
-  sourceMap?: string;
 };
 type BundleResults = Record<string, BundleResult>;
 export function serveBundled(
   bundleOptions: BundleOptions,
 ): MiddlewareHandler {
-  let bundled: BundleResults | "fail" | null = null;
-  const { entrypoints, rewriteRequestPath } = bundleOptions;
+  const bundlePromise = getBundleResults(bundleOptions);
+  let { rewriteRequestPath } = bundleOptions;
+  rewriteRequestPath ||= (path) => path;
   return async (c, next) => {
-    const path = rewriteRequestPath
-      ? rewriteRequestPath(c.req.path)
-      : c.req.path;
-    if (!bundled && entrypoints.some((x) => path === `/${x}`)) {
-      bundled = await getBundleResults(bundleOptions);
-    }
-    if (!bundled) return next();
+    const bundled = await bundlePromise;
     if (bundled === "fail") {
-      return c.text("Internal Server Error", 500);
+      throw new HTTPException(500, { message: "Bundling failed" });
     }
+    const path = rewriteRequestPath(c.req.path);
     if (bundled[path]) {
       const result = bundled[path];
       c.header("Content-Type", result.contentType);
-      if (result.sourceMap) {
-        c.header("SourceMap", result.sourceMap);
-      }
       return c.body(result.content);
     }
     return next();
@@ -42,12 +35,12 @@ export function serveBundled(
   async function getBundleResults(
     options: BundleOptions,
   ): Promise<BundleResults | "fail"> {
-    const { baseDir, entrypoints, replacements = {} } = options;
+    const { root, entrypoints, replacements = {} } = options;
     const bundled = await Deno.bundle({
-      entrypoints: entrypoints.map((p) => `${baseDir}/${p}`),
+      entrypoints: entrypoints.map((p) => `${root}/${p}`),
       outputDir: "/",
       platform: "browser",
-      sourcemap: "external",
+      sourcemap: "linked",
       minify: true,
       write: false,
     });
@@ -70,15 +63,6 @@ export function serveBundled(
         contentType: mime,
         content,
       };
-      if (ext === "js" || ext === "mjs") {
-        const mapFilePath = `${outputFile.path}.map`;
-        const mapFile = bundled.outputFiles?.find((f) =>
-          f.path === mapFilePath
-        );
-        if (mapFile) {
-          results[outputFile.path].sourceMap = mapFilePath;
-        }
-      }
     }
     return results;
   }

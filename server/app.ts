@@ -172,7 +172,7 @@ const staticDir = new URL("./static", import.meta.url).pathname;
 app.use(
   "*",
   serveBundled({
-    baseDir: staticDir,
+    root: staticDir,
     entrypoints: ["index.html", "me.html"],
     replacements: {
       '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
