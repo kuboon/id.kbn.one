@@ -27,7 +27,7 @@
         "ORIGINS",
         "PUSH_CONTACT"
       ],
-      "net": true,
+      "net": ["updates.push.services.mozilla.com"],
       "read": ["."],
       "write": ["./_data"]
     }
