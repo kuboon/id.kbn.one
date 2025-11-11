@@ -168,10 +168,11 @@ function rewriteRequestPath(path: string): string {
       return path;
   }
 }
+const staticDir = new URL("./static", import.meta.url).pathname;
 app.use(
   "*",
   serveBundled({
-    baseDir: import.meta.resolve("./static"),
+    baseDir: staticDir,
     entrypoints: ["index.html", "me.html"],
     replacements: {
       '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
@@ -179,7 +180,7 @@ app.use(
     rewriteRequestPath,
   }),
 );
-app.use("*", serveStatic({ root: import.meta.resolve("./static"), rewriteRequestPath }));
+app.use("*", serveStatic({ root: staticDir, rewriteRequestPath }));
 
 app.onError((err, c) => {
   console.error(err);

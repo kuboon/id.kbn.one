@@ -4,22 +4,7 @@
     "@std/media-types": "jsr:@std/media-types@^1.1.0"
   },
   "tasks": {
-    "serve": "deno serve -P deno-server.ts",
-    "dev": "deno serve -P --allow-net --env --watch deno-server.ts"
-  },
-  "permissions": {
-    "default": {
-      "env": [
-        "RP_ID",
-        "RP_NAME",
-        "IDP_ORIGIN",
-        "ORIGINS",
-        "PUSH_CONTACT"
-      ],
-      "net": true,
-      "read": [".."],
-      "write": ["./_data"]
-    }
+    "dev": "cd .. && deno serve -P --watch server/deno-server.ts"
   },
   "compilerOptions": {
     "lib": ["deno.ns", "deno.unstable", "dom"]

@@ -1,5 +1,8 @@
 {
   "nodeModulesDir": "auto",
+  "tasks": {
+    "serve": "deno serve --env -P server/deno-server.ts"
+  },
   "workspace": [
     "server",
     "passkeys",
@@ -14,5 +17,19 @@
   "deploy": {
     "org": "kuboon-tokyo",
     "app": "id-kbn-one"
+  },
+  "permissions": {
+    "default": {
+      "env": [
+        "RP_ID",
+        "RP_NAME",
+        "IDP_ORIGIN",
+        "ORIGINS",
+        "PUSH_CONTACT"
+      ],
+      "net": true,
+      "read": ["."],
+      "write": ["./_data"]
+    }
   }
 }
