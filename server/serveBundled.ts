@@ -5,6 +5,7 @@ type BundleOptions = {
   baseDir?: string;
   entryPoints: string[];
   replacements?: Record<string, string>;
+  rewriteRequestPath?: (path: string) => string;
 };
 type BundleResult = {
   contentType: string;
@@ -16,18 +17,18 @@ export function serveBundled(
   bundleOptions: BundleOptions,
 ): MiddlewareHandler {
   let bundled: BundleResults | "fail" | null = null;
-  const { entryPoints } = bundleOptions;
+  const { entryPoints, rewriteRequestPath } = bundleOptions;
   return async (c, next) => {
-    const localPath = c.req.path === "/" ? "/index.html" : c.req.path;
-    if (!bundled && entryPoints.some((x) => localPath.endsWith(x))) {
+    const path = rewriteRequestPath ? rewriteRequestPath(c.req.path) : c.req.path;
+    if (!bundled && entryPoints.some((x) => path === `/${x}`)) {
       bundled = await getBundleResults(bundleOptions);
     }
     if (!bundled) return next();
     if (bundled === "fail") {
       return c.text("Internal Server Error", 500);
     }
-    if (bundled[localPath]) {
-      const result = bundled[localPath];
+    if (bundled[path]) {
+      const result = bundled[path];
       c.header("Content-Type", result.contentType);
       if (result.sourceMap) {
         c.header("SourceMap", result.sourceMap);

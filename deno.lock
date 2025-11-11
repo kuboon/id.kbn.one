@@ -267,7 +267,7 @@
           "jsr:@std/encoding@1.0.10"
         ]
       },
-      "hono-middleware": {
+      "passkeys": {
         "dependencies": [
           "jsr:@std/path@^1.1.2",
           "npm:@simplewebauthn/browser@^13.2.2",

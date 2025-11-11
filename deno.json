@@ -2,7 +2,7 @@
   "nodeModulesDir": "auto",
   "workspace": [
     "server",
-    "hono-middleware",
+    "passkeys",
     "dpop"
   ],
   "imports": {

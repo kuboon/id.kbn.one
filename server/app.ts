@@ -13,7 +13,7 @@ import {
   createPasskeyMiddleware,
   type PasskeyUser,
   SESSION_COOKIE_NAME,
-} from "@scope/hono-passkeys-middleware";
+} from "@scope/passkeys";
 
 import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/deno";
@@ -72,9 +72,7 @@ const parseAccountUpdate = async (
 };
 
 const signingKey = await Secret<string>("signing_key", () => {
-  const key = crypto.randomUUID();
-  console.info(`Generated new signing key: ${key}`);
-  return key;
+  return crypto.randomUUID();;
 }, 60 * 60 * 24); // 1 day expiration
 
 const app = new Hono();
@@ -160,7 +158,13 @@ app.route(
     setNoStore,
   }),
 );
-
+function rewriteRequestPath(path: string): string {
+  switch (path) {
+    case "/": return "/index.html";
+    case "/me": return "/me.html";
+    default: return path;
+  }
+}
 app.use(
   "*",
   serveBundled({
@@ -168,9 +172,10 @@ app.use(
     replacements: {
       '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
     },
+    rewriteRequestPath
   }),
 );
-app.use("*", serveStatic({ root: "./static" }));
+app.use("*", serveStatic({ root: "./static", rewriteRequestPath }));
 
 app.onError((err, c) => {
   console.error(err);

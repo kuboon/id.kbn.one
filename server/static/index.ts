@@ -1,4 +1,4 @@
-import { createClient } from "../../hono-middleware/static/client.ts";
+import { createClient } from "@scope/passkeys/static/client.ts";
 
 const client = createClient();
 
