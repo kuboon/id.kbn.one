@@ -179,7 +179,7 @@ app.use(
     rewriteRequestPath,
   }),
 );
-app.use("*", serveStatic({ root: "./static", rewriteRequestPath }));
+app.use("*", serveStatic({ root: import.meta.resolve("./static"), rewriteRequestPath }));
 
 app.onError((err, c) => {
   console.error(err);
