@@ -25,8 +25,6 @@ export interface VerifyDpopProofOptions {
   readonly proof: string;
   readonly method: string;
   readonly url: string;
-  readonly accessToken?: string;
-  readonly nonce?: string;
   /** Maximum allowed age (seconds) for the `iat` claim. Defaults to 300s. */
   readonly maxAgeSeconds?: number;
   /**

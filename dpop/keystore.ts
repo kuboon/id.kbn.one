@@ -1,0 +1,73 @@
+export interface KeyStore {
+  getKeyPair(): Promise<CryptoKeyPair | undefined>;
+  saveKeyPair(keyPair: CryptoKeyPair): Promise<void>;
+}
+
+export class InMemoryKeyStore implements KeyStore {
+  private store = new Map<string, CryptoKeyPair>();
+
+  async getKeyPair(): Promise<CryptoKeyPair | undefined> {
+    return this.store.get("default");
+  }
+
+  async saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
+    this.store.set("default", keyPair);
+  }
+}
+
+export class IndexedDbKeyStore implements KeyStore {
+  private dbName = "dpop-keys-v1";
+
+  private async openDb() {
+    // Browser-only IndexedDB
+    const req = indexedDB.open(this.dbName, 1);
+    return await new Promise<IDBDatabase>((resolve, reject) => {
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("keys")) {
+          db.createObjectStore("keys");
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+
+  async getKeyPair(): Promise<CryptoKeyPair | undefined> {
+    const db = await this.openDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction("keys", "readonly");
+      const store = tx.objectStore("keys");
+      const req = store.get("default");
+      req.onsuccess = async () => {
+        const val = req.result;
+        if (!val) return resolve(undefined);
+        try {
+          // Store CryptoKey objects directly in IndexedDB (browser-supported)
+          resolve(val as CryptoKeyPair);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
+    const db = await this.openDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction("keys", "readwrite");
+      const store = tx.objectStore("keys");
+      const req = store.put(keyPair, "default");
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+}
+
+export async function generateAndSaveKeyPair(keyStore: KeyStore): Promise<CryptoKeyPair> {
+  const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]) as CryptoKeyPair;
+  await keyStore.saveKeyPair(kp);
+  return kp;
+}

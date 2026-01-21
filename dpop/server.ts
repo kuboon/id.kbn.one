@@ -1,5 +1,5 @@
 import { VerifyDpopProofOptions, VerifyDpopProofResult, DpopJwtPayload } from "./types.ts";
-import { normalizeMethod, normalizeHtu, sha256Base64Url } from "./common.ts";
+import { normalizeMethod, normalizeHtu } from "./common.ts";
 import { decodeBase64Url } from "@std/encoding/base64url";
 
 const textEncoder = new TextEncoder();
@@ -25,19 +25,6 @@ const isValidPublicJwk = (jwk: unknown): jwk is JsonWebKey => {
     typeof record.x === "string" &&
     typeof record.y === "string"
   );
-};
-
-const timingSafeEqual = (a: string, b: string): boolean => {
-  const aBytes = textEncoder.encode(a);
-  const bBytes = textEncoder.encode(b);
-  if (aBytes.length !== bBytes.length) {
-    return false;
-  }
-  let result = 0;
-  for (let i = 0; i < aBytes.length; i += 1) {
-    result |= aBytes[i]! ^ bBytes[i]!;
-  }
-  return result === 0;
 };
 
 export const verifyDpopProof = async (
@@ -101,22 +88,6 @@ export const verifyDpopProof = async (
     return { valid: false, error: "expired" };
   }
 
-  if (options.nonce !== undefined) {
-    if (payload.nonce !== options.nonce) {
-      return { valid: false, error: "nonce-mismatch" };
-    }
-  }
-
-  if (options.accessToken) {
-    if (typeof payload.ath !== "string") {
-      return { valid: false, error: "missing-ath" };
-    }
-    const expectedAth = await sha256Base64Url(options.accessToken);
-    if (!timingSafeEqual(payload.ath, expectedAth)) {
-      return { valid: false, error: "ath-mismatch" };
-    }
-  }
-
   if (options.checkReplay) {
     const ok = await options.checkReplay(payload.jti);
     if (!ok) {
@@ -140,10 +111,10 @@ export const verifyDpopProof = async (
     return { valid: false, error: "invalid-jwk" };
   }
 
-  const decodedSignature = base64UrlDecode(parts[2]!);
+  const decodedSignature = base64UrlDecode(parts[2]);
   const signatureBytes = new Uint8Array(decodedSignature.length);
   signatureBytes.set(decodedSignature);
-  const signingInput = textEncoder.encode(`${parts[0]!}.${parts[1]!}`);
+  const signingInput = textEncoder.encode(`${parts[0]}.${parts[1]}`);
   const signatureValid = await crypto.subtle.verify(
     { name: "ECDSA", hash: "SHA-256" },
     publicKey,
