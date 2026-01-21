@@ -1,6 +1,6 @@
 import { DpopJwtPayload } from "./types.ts";
 import { base64UrlEncode, normalizeMethod, normalizeHtu } from "./common.ts";
-import type { KeyStore } from "./keystore.ts";
+import type { KeyStore } from "./client_keystore.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -39,12 +39,19 @@ export interface InitOptions {
   fetch?: typeof fetch;
 }
 
-export const init = (opts: InitOptions) => {
+function generateKeyPair(): Promise<CryptoKeyPair> {
+  return crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
+}
+export const init = async (opts: InitOptions) => {
   const useFetch = opts.fetch ?? fetch.bind(globalThis);
 
+  let keyPair_ = await opts.keyStore.getKeyPair();
+  if (!keyPair_) {
+    keyPair_ = await generateKeyPair();
+    await opts.keyStore.saveKeyPair(keyPair_);
+  }
+  const keyPair = keyPair_;
   const apiCall = async (input: RequestInfo, init?: RequestInit) => {
-    const keyPair = await opts.keyStore.getKeyPair();
-    if (!keyPair) throw new Error("DPoP key not found in KeyStore; generate and save a key pair before calling apiCall()");
     const method = (init && init.method) ?? (typeof input === "string" ? "GET" : (input as Request).method);
     const url = typeof input === "string" ? input : (input as Request).url;
     const proof = await createDpopProof(keyPair, method, url);

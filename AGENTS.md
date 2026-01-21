@@ -13,7 +13,7 @@ Ensure the configured tools are installed:
 mise install
 ```
 
-## Deno
+# Deno
 
 Run any Deno command through mise so the pinned version is used. Examples:
 
@@ -22,6 +22,15 @@ mise exec -- deno check
 mise exec -- deno task dev
 mise exec -- deno run --allow-env --allow-net server/src/index.ts
 ```
+
+## Do not use `-A` flag
+
+For security reasons, do not use the `-A` (allow all) flag with Deno. Try
+minimizing permissions by specifying only the necessary ones for your
+application. Test should be run with `deno test -P` to use permissions defined
+in `deno.json`. If new test needs additional permissions, update the test
+permission in `deno.json`. see
+https://github.com/denoland/deno/blob/main/cli/schemas/config-file.v1.json
 
 ## Python (or Perl, optional)
 

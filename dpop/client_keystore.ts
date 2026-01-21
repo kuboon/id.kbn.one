@@ -65,9 +65,3 @@ export class IndexedDbKeyStore implements KeyStore {
     });
   }
 }
-
-export async function generateAndSaveKeyPair(keyStore: KeyStore): Promise<CryptoKeyPair> {
-  const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]) as CryptoKeyPair;
-  await keyStore.saveKeyPair(kp);
-  return kp;
-}
