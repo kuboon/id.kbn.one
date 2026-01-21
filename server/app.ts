@@ -1,6 +1,8 @@
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
-import { PushService } from "./push/service.ts";
+import { Secret } from "./secret.ts";
+import { serveBundled } from "./serveBundled.ts";
 import { getKvInstance } from "./kvInstance.ts";
+import { PushService } from "./push/service.ts";
 import { createPushRouter } from "./push/router.ts";
 import {
   idpOrigin,
@@ -9,6 +11,7 @@ import {
   rpID,
   rpName,
 } from "./config.ts";
+
 import {
   createPasskeyMiddleware,
   type PasskeyUser,
@@ -20,8 +23,6 @@ import { serveStatic } from "hono/deno";
 import { cors } from "hono/cors";
 import { deleteCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
-import { Secret } from "./secret.ts";
-import { serveBundled } from "./serveBundled.ts";
 
 const kv = await getKvInstance();
 const credentialStore = new DenoKvPasskeyStore(kv);
