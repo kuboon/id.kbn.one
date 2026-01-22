@@ -41,9 +41,11 @@ export interface VerifyDpopProofOptions {
   readonly now?: number;
 }
 
-export interface VerifyDpopProofResult {
-  readonly valid: boolean;
-  readonly error?: string;
-  readonly payload?: DpopJwtPayload;
-  readonly jwk?: JsonWebKey;
+export type VerifyDpopProofResult = {
+  valid: true;
+  readonly payload: DpopJwtPayload;
+  readonly jwk: JsonWebKey;
+} | {
+  valid: false
+  readonly error: string;
 }

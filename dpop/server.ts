@@ -139,3 +139,20 @@ export const verifyDpopProof = async (
   };
 };
 
+export const verifyDpopProofFromRequest = async (
+  req: Request,
+  options: Omit<VerifyDpopProofOptions, "proof" | "method" | "url"> = {},
+): Promise<VerifyDpopProofResult> => {
+  const header = req.headers.get("dpop") ?? req.headers.get("DPoP");
+  if (!header) {
+    return { valid: false, error: "missing-dpop-header" };
+  }
+
+  return await verifyDpopProof({
+    proof: header,
+    method: req.method,
+    url: req.url,
+    ...options,
+  });
+};
+
