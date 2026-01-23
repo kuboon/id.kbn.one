@@ -46,6 +46,6 @@ export type VerifyDpopProofResult = {
   readonly payload: DpopJwtPayload;
   readonly jwk: JsonWebKey;
 } | {
-  valid: false
+  valid: false;
   readonly error: string;
-}
+};

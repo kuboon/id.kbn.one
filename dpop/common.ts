@@ -6,7 +6,8 @@ export const toUint8Array = (input: ArrayBuffer | Uint8Array): Uint8Array =>
 export const base64UrlEncode = (input: ArrayBuffer | Uint8Array): string =>
   encodeBase64Url(toUint8Array(input));
 
-export const normalizeMethod = (method: string): string => method.trim().toUpperCase();
+export const normalizeMethod = (method: string): string =>
+  method.trim().toUpperCase();
 
 export const normalizeHtu = (url: string): string => {
   const parsed = new URL(url);

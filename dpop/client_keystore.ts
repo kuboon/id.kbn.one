@@ -35,7 +35,6 @@ export class IndexedDbKeyStore implements KeyStore {
     });
   }
 
-
   async getKeyPair(): Promise<CryptoKeyPair | undefined> {
     const db = await this.openDb();
     return await new Promise((resolve, reject) => {

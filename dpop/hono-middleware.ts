@@ -10,12 +10,14 @@ declare module "hono" {
   }
 }
 
-export type DpopMiddlewareOptions = Omit<VerifyDpopProofOptions, "proof" | "method" | "url">
+export type DpopMiddlewareOptions = Omit<
+  VerifyDpopProofOptions,
+  "proof" | "method" | "url"
+>;
 
 export const createDpopMiddleware = (
   options: DpopMiddlewareOptions = {},
 ): MiddlewareHandler => {
-
   return async (c, next) => {
     const result = await verifyDpopProofFromRequest(c.req.raw, options);
     c.set("dpop", result);

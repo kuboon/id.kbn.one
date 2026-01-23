@@ -1,4 +1,5 @@
 import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
+import { DenoKvSessionStore } from "./deno-kv-session-store.ts";
 import { Secret } from "./secret.ts";
 import { serveBundled } from "./serveBundled.ts";
 import { getKvInstance } from "./kvInstance.ts";
@@ -11,6 +12,7 @@ import {
   rpID,
   rpName,
 } from "./config.ts";
+import { createDpopSessionMiddleware } from "./dpop-session-middleware.ts";
 
 import {
   createPasskeyMiddleware,
@@ -26,6 +28,7 @@ import { HTTPException } from "hono/http-exception";
 
 const kv = await getKvInstance();
 const credentialStore = new DenoKvPasskeyStore(kv);
+const sessionStore = new DenoKvSessionStore(kv);
 const pushService = await PushService.create(kv);
 
 const allowedOrigins = [
@@ -84,7 +87,12 @@ const { router, middleware } = createPasskeyMiddleware({
   secret: await signingKey.get(),
 });
 
+const dpopSessionMiddleware = createDpopSessionMiddleware({
+  sessionStore,
+});
+
 app.use("*", cors({ origin: allowedOrigins }));
+app.use(dpopSessionMiddleware);
 app.use(middleware);
 app.route("/webauthn", router);
 

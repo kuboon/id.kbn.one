@@ -1,5 +1,9 @@
-import { VerifyDpopProofOptions, VerifyDpopProofResult, DpopJwtPayload } from "./types.ts";
-import { normalizeMethod, normalizeHtu } from "./common.ts";
+import {
+  DpopJwtPayload,
+  VerifyDpopProofOptions,
+  VerifyDpopProofResult,
+} from "./types.ts";
+import { normalizeHtu, normalizeMethod } from "./common.ts";
 import { decodeBase64Url } from "@std/encoding/base64url";
 
 const textEncoder = new TextEncoder();
@@ -155,4 +159,3 @@ export const verifyDpopProofFromRequest = async (
     ...options,
   });
 };
-
