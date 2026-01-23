@@ -22,7 +22,7 @@ if (!result.success) {
 }
 
 for (const outputFile of result.outputFiles || []) {
-  const content = outputFile.text().replaceAll('"{{PASSKEY_ORIGIN}}"', JSON.stringify(idpOrigin))
+  const content = outputFile.text()
   await Deno.writeTextFile(outputFile.path, content);
 }
 

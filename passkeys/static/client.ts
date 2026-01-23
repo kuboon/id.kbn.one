@@ -6,7 +6,6 @@ import {
 import type { PasskeyCredential } from "../src/core/types.ts";
 
 const DEFAULT_MOUNT_PATH = "/webauthn";
-const PASSKEY_ORIGIN = "{{PASSKEY_ORIGIN}}";
 
 const normalizeMountPath = (path: string | undefined) => {
   if (!path || path === "/") {
@@ -83,12 +82,6 @@ export interface AuthenticateResult {
   credential: PasskeyCredential;
 }
 
-const buildUrl = (mountPath: string, endpoint: string) => {
-  const path = `${mountPath}${endpoint}`;
-  if (!PASSKEY_ORIGIN) return path;
-  return new URL(path, PASSKEY_ORIGIN).toString();
-};
-
 const fetchJson = async <T = unknown>(
   fetchImpl: FetchLike,
   input: string,
@@ -139,6 +132,10 @@ export const createClient = (options: CreateClientOptions = {}) => {
   const fetchImpl: FetchLike = options.fetch ?? fetch;
 
   const ensureUsername = (username: string) => username.trim();
+  const buildUrl = (mountPath: string, endpoint: string) => {
+    return`${mountPath}${endpoint}`;
+  };
+
 
   return {
     async register(params: RegisterParams): Promise<RegisterResult> {
@@ -196,59 +193,6 @@ export const createClient = (options: CreateClientOptions = {}) => {
       );
 
       return verification as AuthenticateResult;
-    },
-
-    async list(): Promise<PasskeyCredential[]> {
-      const url = buildUrl(mountPath, "/credentials");
-
-      const response = await fetchJson(fetchImpl, url);
-      const credentials =
-        (response && typeof response === "object" && "credentials" in response)
-          ? (response as { credentials?: PasskeyCredential[] }).credentials ??
-            []
-          : [];
-      return Array.isArray(credentials) ? credentials : [];
-    },
-
-    async delete(params: DeleteParams): Promise<void> {
-      const credentialId = params.credentialId;
-      const url = buildUrl(
-        mountPath,
-        `/credentials/${encodeURIComponent(credentialId)}`,
-      );
-
-      await fetchJson(fetchImpl, url, { method: "DELETE" });
-    },
-
-    async update(params: UpdateCredentialParams): Promise<PasskeyCredential> {
-      const credentialId = params.credentialId;
-      const url = buildUrl(
-        mountPath,
-        `/credentials/${encodeURIComponent(credentialId)}`,
-      );
-
-      const response = await fetchJson(
-        fetchImpl,
-        url,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ nickname: params.nickname }),
-        },
-      );
-
-      if (
-        response &&
-        typeof response === "object" &&
-        "credential" in response
-      ) {
-        return (response as { credential: PasskeyCredential }).credential;
-      }
-
-      throw new PasskeyClientError(
-        "Unexpected response when updating credential",
-        500,
-        response,
-      );
     },
   };
 };

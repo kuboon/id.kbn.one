@@ -14,7 +14,6 @@ is set to `id.kbn.one`), so you can instantiate it without additional options.
 ```ts
 import { createClient } from "https://id.kbn.one/webauthn/client.js";
 
-const PASSKEY_ORIGIN = "https://id.kbn.one";
 const client = createClient();
 ```
 

@@ -174,9 +174,7 @@ app.use(
   serveBundled({
     root: staticDir,
     entrypoints: ["index.html", "me.html"],
-    replacements: {
-      '"{{PASSKEY_ORIGIN}}"': JSON.stringify(idpOrigin),
-    },
+    replacements: { },
     rewriteRequestPath,
   }),
 );
