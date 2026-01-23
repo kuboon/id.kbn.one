@@ -1,9 +1,9 @@
-export interface KeyStore {
+export interface KeyRepository {
   getKeyPair(): Promise<CryptoKeyPair | undefined>;
   saveKeyPair(keyPair: CryptoKeyPair): Promise<void>;
 }
 
-export class InMemoryKeyStore implements KeyStore {
+export class InMemoryKeyRepository implements KeyRepository {
   private store = new Map<string, CryptoKeyPair>();
 
   // deno-lint-ignore require-await
@@ -17,13 +17,13 @@ export class InMemoryKeyStore implements KeyStore {
   }
 }
 
-export class IndexedDbKeyStore implements KeyStore {
+// Browser-only IndexedDB
+export class IndexedDbKeyRepository implements KeyRepository {
   private dbName = "dpop-keys-v1";
 
-  private async openDb() {
-    // Browser-only IndexedDB
+  private openDb() {
     const req = indexedDB.open(this.dbName, 1);
-    return await new Promise<IDBDatabase>((resolve, reject) => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains("keys")) {
@@ -37,27 +37,18 @@ export class IndexedDbKeyStore implements KeyStore {
 
   async getKeyPair(): Promise<CryptoKeyPair | undefined> {
     const db = await this.openDb();
-    return await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction("keys", "readonly");
       const store = tx.objectStore("keys");
       const req = store.get("default");
-      req.onsuccess = () => {
-        const val = req.result;
-        if (!val) return resolve(undefined);
-        try {
-          // Store CryptoKey objects directly in IndexedDB (browser-supported)
-          resolve(val as CryptoKeyPair);
-        } catch (e) {
-          reject(e);
-        }
-      };
+      req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
   }
 
   async saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
     const db = await this.openDb();
-    return await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction("keys", "readwrite");
       const store = tx.objectStore("keys");
       const req = store.put(keyPair, "default");

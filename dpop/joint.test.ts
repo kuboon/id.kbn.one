@@ -1,5 +1,5 @@
 import { init } from "./client.ts";
-import { InMemoryKeyStore } from "./client_keystore.ts";
+import { InMemoryKeyRepository } from "./client_keystore.ts";
 import { verifyDpopProofFromRequest } from "./server.ts";
 
 Deno.test("client and server together validate DPoP proof", async () => {
@@ -21,8 +21,8 @@ Deno.test("client and server together validate DPoP proof", async () => {
     return new Response("ok", { status: 200 });
   };
 
-  const keyStore = new InMemoryKeyStore();
-  const { apiCall } = await init({
+  const keyStore = new InMemoryKeyRepository();
+  const { fetchDpop: apiCall } = await init({
     keyStore,
     fetch: fakeFetch as typeof fetch,
   });

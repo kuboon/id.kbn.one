@@ -2,7 +2,7 @@ import type { MiddlewareHandler } from "hono/types";
 import { createDpopMiddleware } from "../dpop/hono-middleware.ts";
 import type { DpopMiddlewareOptions } from "../dpop/hono-middleware.ts";
 import type {
-  DenoKvSessionStore,
+  DenoKvSessionRepository,
   SessionData,
 } from "./deno-kv-session-store.ts";
 import { equal } from "@std/assert";
@@ -14,7 +14,7 @@ declare module "hono" {
 }
 
 export interface DpopSessionMiddlewareOptions extends DpopMiddlewareOptions {
-  sessionStore: DenoKvSessionStore;
+  sessionStore: DenoKvSessionRepository;
 }
 
 export const createDpopSessionMiddleware = (

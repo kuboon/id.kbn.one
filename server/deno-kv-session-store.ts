@@ -2,7 +2,7 @@ export interface SessionData {
   [key: string]: unknown;
 }
 
-export class DenoKvSessionStore {
+export class DenoKvSessionRepository {
   constructor(private kv: Deno.Kv) {}
 
   async get(sessionKey: string): Promise<SessionData | null> {

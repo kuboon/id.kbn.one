@@ -20,13 +20,13 @@ WIP
 import { Hono } from "hono";
 import {
   createPasskeyMiddleware,
-  InMemoryPasskeyStore,
+  InMemoryPasskeyRepository,
 } from "@scope/passkeys";
 
 const app = new Hono();
 
-// Use an appropriate PasskeyStorage implementation for your server
-const storage = new InMemoryPasskeyStore();
+// Use an appropriate PasskeyRepository implementation for your server
+const storage = new InMemoryPasskeyRepository();
 
 app.use(
   createPasskeyMiddleware({
@@ -67,8 +67,8 @@ with while still avoiding server-side storage.
 
 ### Storage
 
-`@scope/passkeys` ships with `InMemoryPasskeyStore` for quick
-experiments. For production use you should implement the `PasskeyStorage`
+`@scope/passkeys` ships with `InMemoryPasskeyRepository` for quick
+experiments. For production use you should implement the `PasskeyRepository`
 interface with your own persistence layer and session handling. Challenge data
 is automatically signed and stored in Hono's signed cookies using a secret.
 

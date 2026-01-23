@@ -226,3 +226,5 @@ if ("serviceWorker" in navigator) {
     console.warn("Service worker registration failed", error);
   });
 }
+
+export const test = { authenticateWithPasskey };

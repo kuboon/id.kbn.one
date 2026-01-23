@@ -1,6 +1,6 @@
-import type { PasskeyCredential, PasskeyStorage } from "./types.ts";
+import type { PasskeyCredential, PasskeyRepository } from "./types.ts";
 
-export class InMemoryPasskeyStore implements PasskeyStorage {
+export class InMemoryPasskeyRepository implements PasskeyRepository {
   private readonly users = new Set<string>();
   private readonly credentials = new Map<string, PasskeyCredential>();
 

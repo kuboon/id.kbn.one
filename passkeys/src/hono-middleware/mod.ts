@@ -21,7 +21,6 @@ import { base64 } from "@hexagon/base64";
 
 import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/deno";
-import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
@@ -87,13 +86,6 @@ export const createPasskeyMiddleware = (
     ...options.webauthn,
   };
 
-  const loadSessionUser = (c: Context): Promise<string | null> => {
-    const session = c.get("session");
-    const userId = session?.userId;
-    if (!userId || typeof userId !== "string") return Promise.resolve(null);
-    return storage.getUserById(userId).then((exists) => exists ? userId : null);
-  };
-
   const ensureJsonBody = async <T>(c: Context) => {
     try {
       return (await c.req.json()) as T;
@@ -107,55 +99,6 @@ export const createPasskeyMiddleware = (
   };
 
   const router = new Hono();
-  router.get("/credentials", async (c) => {
-    c.header("Cache-Control", "no-store");
-    const userId = c.get("userId");
-    if (!userId) throw jsonError(401, "Sign-in required");
-    const credentials = await storage.getCredentialsByUserId(userId);
-    return c.json({ userId, credentials });
-  });
-
-  router.delete("/credentials/:credentialId", async (c) => {
-    c.header("Cache-Control", "no-store");
-    const userId = c.get("userId");
-    if (!userId) throw jsonError(401, "Sign-in required");
-    const credentialId = c.req.param("credentialId");
-    if (!credentialId) {
-      throw jsonError(400, "Missing credential identifier");
-    }
-    const credential = await storage.getCredentialById(credentialId);
-    if (!credential || credential.userId !== userId) {
-      throw jsonError(404, "Credential not found");
-    }
-    await storage.deleteCredential(credentialId);
-    return c.json({ success: true });
-  });
-
-  router.patch("/credentials/:credentialId", async (c) => {
-    setNoStore(c);
-    const userId = c.get("userId");
-    if (!userId) throw jsonError(401, "Sign-in required");
-    const credentialId = c.req.param("credentialId");
-    if (!credentialId) {
-      throw jsonError(400, "Missing credential identifier");
-    }
-    const body = await ensureJsonBody<{ nickname?: string }>(c);
-    const nickname = body.nickname?.trim();
-    if (!nickname) {
-      throw jsonError(400, "nickname is required");
-    }
-    const credential = await storage.getCredentialById(credentialId);
-    if (!credential || credential.userId !== userId) {
-      throw jsonError(404, "Credential not found");
-    }
-    if (credential.nickname !== nickname) {
-      credential.nickname = nickname;
-      credential.updatedAt = Date.now();
-      await storage.updateCredential(credential);
-    }
-    return c.json({ credential });
-  });
-
   router.post("/register/options", async (c) => {
     setNoStore(c);
     const body = await ensureJsonBody<RegistrationOptionsRequestBody>(c);
@@ -396,15 +339,10 @@ export const createPasskeyMiddleware = (
     throw jsonError(404, "Endpoint not found for " + c.req.url);
   });
 
-  const middleware = createMiddleware(async (c, next) => {
-    const userId = await loadSessionUser(c);
-    c.set("userId", userId);
-    return next();
-  });
-  return { router, middleware };
+  return router;
 };
 
 export type PasskeyMiddleware = ReturnType<typeof createPasskeyMiddleware>;
 
-export { InMemoryPasskeyStore } from "../core/in-memory-passkey-store.ts";
+export { InMemoryPasskeyRepository } from "../core/in-memory-passkey-store.ts";
 export * from "../core/types.ts";

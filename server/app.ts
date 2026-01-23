@@ -1,5 +1,5 @@
-import { DenoKvPasskeyStore } from "./deno-kv-passkey-store.ts";
-import { DenoKvSessionStore } from "./deno-kv-session-store.ts";
+import { DenoKvPasskeyRepository } from "./deno-kv-passkey-store.ts";
+import { DenoKvSessionRepository } from "./deno-kv-session-store.ts";
 import { Secret } from "./secret.ts";
 import { serveBundled } from "./serveBundled.ts";
 import { getKvInstance } from "./kvInstance.ts";
@@ -24,8 +24,8 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 
 const kv = await getKvInstance();
-const credentialStore = new DenoKvPasskeyStore(kv);
-const sessionStore = new DenoKvSessionStore(kv);
+const credentialStore = new DenoKvPasskeyRepository(kv);
+const sessionStore = new DenoKvSessionRepository(kv);
 const pushService = await PushService.create(kv);
 
 const allowedOrigins = [
@@ -48,7 +48,7 @@ const signingKey = await Secret<string>("signing_key", () => {
 }, 1000 * 60 * 60 * 24); // 1 day expiration
 
 const app = new Hono();
-const { router, middleware } = createPasskeyMiddleware({
+const router = createPasskeyMiddleware({
   rpID,
   rpName,
   storage: credentialStore,
@@ -61,7 +61,6 @@ const dpopSessionMiddleware = createDpopSessionMiddleware({
 
 app.use("*", cors({ origin: allowedOrigins }));
 app.use(dpopSessionMiddleware);
-app.use(middleware);
 app.route("/webauthn", router);
 
 app.get("/session", (c) => {
@@ -80,6 +79,55 @@ app.post("/session/logout", (c) => {
   setNoStore(c);
   c.set("session", {});
   return c.json({ success: true });
+});
+
+app.get("/credentials", async (c) => {
+  setNoStore(c);
+  const userId = c.get("userId");
+  if (!userId) throw new HTTPException(401, { message: "Sign-in required" });
+  const credentials = await credentialStore.getCredentialsByUserId(userId);
+  return c.json({ userId, credentials });
+});
+
+app.delete("/credentials/:credentialId", async (c) => {
+  setNoStore(c);
+  const userId = c.get("userId");
+  if (!userId) throw new HTTPException(401, { message: "Sign-in required" });
+  const credentialId = c.req.param("credentialId");
+  if (!credentialId) {
+    throw new HTTPException(400, { message: "Missing credential identifier" });
+  }
+  const credential = await credentialStore.getCredentialById(credentialId);
+  if (!credential || credential.userId !== userId) {
+    throw new HTTPException(404, { message: "Credential not found" });
+  }
+  await credentialStore.deleteCredential(credentialId);
+  return c.json({ success: true });
+});
+
+app.patch("/credentials/:credentialId", async (c) => {
+  setNoStore(c);
+  const userId = c.get("userId");
+  if (!userId) throw new HTTPException(401, { message: "Sign-in required" });
+  const credentialId = c.req.param("credentialId");
+  if (!credentialId) {
+    throw new HTTPException(400, { message: "Missing credential identifier" });
+  }
+  const body = await c.req.json<{ nickname?: string }>();
+  const nickname = body.nickname?.trim();
+  if (!nickname) {
+    throw new HTTPException(400, { message: "nickname is required" });
+  }
+  const credential = await credentialStore.getCredentialById(credentialId);
+  if (!credential || credential.userId !== userId) {
+    throw new HTTPException(404, { message: "Credential not found" });
+  }
+  if (credential.nickname !== nickname) {
+    credential.nickname = nickname;
+    credential.updatedAt = Date.now();
+    await credentialStore.updateCredential(credential);
+  }
+  return c.json({ credential });
 });
 
 app.delete("/account", async (c) => {

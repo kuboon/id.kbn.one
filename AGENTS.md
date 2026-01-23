@@ -41,7 +41,7 @@ mise use python
 mise exec -- python path/to/script.py
 ```
 
-# run `deno fmt && deno lint && && deno check && deno test -P` after your jobs
+# run `deno task test` after your jobs
 
 If returns error, fix them.
 

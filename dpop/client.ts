@@ -1,6 +1,6 @@
 import { DpopJwtPayload } from "./types.ts";
 import { base64UrlEncode, normalizeHtu, normalizeMethod } from "./common.ts";
-import type { KeyStore } from "./client_keystore.ts";
+import type { KeyRepository } from "./client_keystore.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -49,7 +49,7 @@ const createDpopProof = async (
 };
 
 export interface InitOptions {
-  keyStore: KeyStore;
+  keyStore: KeyRepository;
   fetch?: typeof fetch;
 }
 
@@ -69,7 +69,7 @@ export const init = async (opts: InitOptions) => {
     await opts.keyStore.saveKeyPair(keyPair_);
   }
   const keyPair = keyPair_;
-  const apiCall = async (input: RequestInfo, init?: RequestInit) => {
+  const fetchDpop = async (input: RequestInfo, init?: RequestInit) => {
     const method = (init && init.method) ??
       (typeof input === "string" ? "GET" : (input as Request).method);
     const url = typeof input === "string" ? input : (input as Request).url;
@@ -85,5 +85,5 @@ export const init = async (opts: InitOptions) => {
     return useFetch(input, merged);
   };
 
-  return { apiCall };
+  return { fetchDpop };
 };

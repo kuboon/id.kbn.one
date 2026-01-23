@@ -1,3 +1,9 @@
 {
-  "deno.enable": true
+  "deno.enable": true,
+  "chat.tools.terminal.autoApprove": {
+    "/^mise exec -- deno task test$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
+  }
 }

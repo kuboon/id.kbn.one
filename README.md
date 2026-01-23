@@ -63,8 +63,6 @@ for more details, see `server/config.ts`.
 
 - `RP_ID` (relying party id, e.g. `localhost`)
 - `RP_NAME` (relying party display name, e.g. `My ID Provider`)
-- `RP_ORIGIN` (origin used when running behind a proxy, e.g.
-  `http://localhost:8000`)
 - `IDP_ORIGIN` (the origin of the ID provider, e.g. `http://localhost:8000`)
 - `ORIGINS` (a comma-separated list of allowed origins for Passkeys & CORS, e.g.
   `http://localhost:8000,http://example.com`)
@@ -103,7 +101,6 @@ values with environment variables when needed:
 
 - `RP_ID` (relying party id)
 - `RP_NAME` (relying party display name)
-- `RP_ORIGIN` (origin used when running behind a proxy)
 
 Open the browser at http://localhost:8000 to try registering and authenticating
 passkeys using the UI in `server/static/index.html`.
@@ -124,9 +121,9 @@ deno task --cwd server dev
 
 Notes:
 
-- The `@scope/passkeys` package includes an `InMemoryPasskeyStore` intended for
-  local development only. Replace it with a persistent storage implementation
-  for production.
+- The `@scope/passkeys` package includes an `InMemoryPasskeyRepository` intended
+  for local development only. Replace it with a persistent storage
+  implementation for production.
 - `dpop/` exports `createDpopProof` and `verifyDpopProof` helpers for working
   with DPoP-bound access tokens.
 

@@ -26,7 +26,7 @@ export interface PasskeyCredential {
   updatedAt: number;
 }
 
-export interface PasskeyStorage {
+export interface PasskeyRepository {
   getUserById(userId: string): Promise<boolean>;
   createUser(userId: string): Promise<void>;
   deleteUser?(userId: string): Promise<void>;
@@ -114,7 +114,7 @@ export interface PasskeyWebAuthnOverrides {
 export interface PasskeyMiddlewareOptions {
   rpID: string;
   rpName: string;
-  storage: PasskeyStorage;
+  storage: PasskeyRepository;
   secret: string;
   mountPath?: string;
   registrationOptions?: RegistrationOptionsOverrides;

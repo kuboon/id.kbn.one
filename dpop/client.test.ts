@@ -1,5 +1,5 @@
 import { init } from "./client.ts";
-import { InMemoryKeyStore } from "./client_keystore.ts";
+import { InMemoryKeyRepository } from "./client_keystore.ts";
 
 function base64UrlDecodeToString(input: string): string {
   let s = input.replace(/-/g, "+").replace(/_/g, "/");
@@ -18,8 +18,8 @@ Deno.test("apiCall attaches DPoP header and preserves other headers", async () =
     return Promise.resolve(new Response("ok", { status: 200 }));
   };
 
-  const keyStore = new InMemoryKeyStore();
-  const { apiCall } = await init({
+  const keyStore = new InMemoryKeyRepository();
+  const { fetchDpop: apiCall } = await init({
     keyStore,
     fetch: fakeFetch as typeof fetch,
   });

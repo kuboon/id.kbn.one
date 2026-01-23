@@ -1,7 +1,7 @@
 import { getKvInstance } from "./kvInstance.ts";
 import type {
   PasskeyCredential,
-  PasskeyStorage,
+  PasskeyRepository,
 } from "../passkeys/src/hono-middleware/mod.ts";
 
 const USER_KEY_PREFIX = ["user"] as const;
@@ -28,12 +28,12 @@ const listUserCredentials = (
     prefix: [...USER_CREDENTIAL_KEY_PREFIX, userId] as Deno.KvKey,
   });
 
-export class DenoKvPasskeyStore implements PasskeyStorage {
+export class DenoKvPasskeyRepository implements PasskeyRepository {
   constructor(private readonly kv: Deno.Kv) {}
 
-  static async create(): Promise<DenoKvPasskeyStore> {
+  static async create(): Promise<DenoKvPasskeyRepository> {
     const kv = await getKvInstance();
-    return new DenoKvPasskeyStore(kv);
+    return new DenoKvPasskeyRepository(kv);
   }
 
   async getUserById(userId: string): Promise<boolean> {
