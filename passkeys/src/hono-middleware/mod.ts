@@ -7,8 +7,8 @@ import type {
   PasskeyUser,
   RegistrationOptionsRequestBody,
   RegistrationVerifyRequestBody,
-} from "./types.ts";
-import { generateCredentialNickname } from "./generate-credential-nickname.ts";
+} from "../core/types.ts";
+import { generateCredentialNickname } from "../core/generate-credential-nickname.ts";
 
 import {
   generateAuthenticationOptions,
@@ -469,5 +469,5 @@ export const createPasskeyMiddleware = (
 
 export type PasskeyMiddleware = ReturnType<typeof createPasskeyMiddleware>;
 
-export { InMemoryPasskeyStore } from "./in-memory-passkey-store.ts";
-export * from "./types.ts";
+export { InMemoryPasskeyStore } from "../core/in-memory-passkey-store.ts";
+export * from "../core/types.ts";

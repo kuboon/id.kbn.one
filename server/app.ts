@@ -16,7 +16,7 @@ import {
   createPasskeyMiddleware,
   type PasskeyUser,
   SESSION_COOKIE_NAME,
-} from "@scope/passkeys";
+} from "../passkeys/src/hono-middleware/mod.ts";
 
 import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/deno";

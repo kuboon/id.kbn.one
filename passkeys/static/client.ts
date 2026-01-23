@@ -3,7 +3,7 @@ import {
   startRegistration,
 } from "@simplewebauthn/browser";
 
-import type { PasskeyCredential } from "../src/types.ts";
+import type { PasskeyCredential } from "../src/core/types.ts";
 
 const DEFAULT_MOUNT_PATH = "/webauthn";
 const PASSKEY_ORIGIN = "{{PASSKEY_ORIGIN}}";

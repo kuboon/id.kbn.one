@@ -13,13 +13,13 @@ function base64UrlDecodeToString(input: string): string {
 
 Deno.test("apiCall attaches DPoP header and preserves other headers", async () => {
   const recorded: Array<{ input: RequestInfo; init?: RequestInit }> = [];
-  const fakeFetch = async (input: RequestInfo, init?: RequestInit) => {
+  const fakeFetch = (input: RequestInfo, init?: RequestInit) => {
     recorded.push({ input, init });
-    return new Response("ok", { status: 200 });
+    return Promise.resolve(new Response("ok", { status: 200 }));
   };
 
   const keyStore = new InMemoryKeyStore();
-  const { apiCall } = await init({ keyStore, fetch: fakeFetch as any });
+  const { apiCall } = await init({ keyStore, fetch: fakeFetch as typeof fetch });
 
   const url = "https://example.com/some/path?x=1";
   const res = await apiCall(url, { method: "post", headers: { "X-Test": "1" } });

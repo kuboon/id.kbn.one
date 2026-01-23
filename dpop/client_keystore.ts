@@ -6,10 +6,12 @@ export interface KeyStore {
 export class InMemoryKeyStore implements KeyStore {
   private store = new Map<string, CryptoKeyPair>();
 
+  // deno-lint-ignore require-await
   async getKeyPair(): Promise<CryptoKeyPair | undefined> {
     return this.store.get("default");
   }
 
+  // deno-lint-ignore require-await
   async saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
     this.store.set("default", keyPair);
   }
