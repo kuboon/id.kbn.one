@@ -1,20 +1,13 @@
 {
+  "exports": {
+    ".": "./core/mod.ts",
+    "./hono-middleware": "./hono-middleware/hono-middleware.ts"
+  },
   "compilerOptions": {
     "strict": true,
     "lib": ["deno.ns", "deno.unstable", "dom"]
   },
   "imports": {
     "@std/encoding": "jsr:@std/encoding@1.0.10"
-  },
-  "tasks": {
-    "check": "deno check mod.ts",
-    "fmt": "deno fmt",
-    "lint": "deno lint"
-  },
-  "fmt": {
-    "include": ["mod.ts", "mod.test.ts"]
-  },
-  "lint": {
-    "include": ["mod.ts", "mod.test.ts"]
   }
 }

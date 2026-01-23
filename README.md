@@ -2,6 +2,46 @@
 
 [![Deploy on Deno](https://deno.com/button)](https://console.deno.com/new?clone=kuboon/id.kbn.one)
 
+## アーキテクチャ
+
+- sp.example.com: service provider
+- idp.example.com: ID provider (This repo)
+
+### 未ログイン遷移
+
+- sp.example.com のブラウザ上で DPoP 鍵作成
+  - dpop_fetch `GET idp.example.com/session`
+- idp.example.com サーバは Unauthorized を返す
+- sp.example.com のブラウザ上で form 要素を作成して click し、 POST遷移する
+  - 遷移先は `POST idp.example.com/session`
+  - htm, htu は ↑ で DPoP string を生成
+  - POST body に `DPOP=xxx,redirect=/profile` を付与する。
+- idp.example.com は DPOP を検証したのち、
+  - session-sp に以下の内容を保存
+    - `Origin` ヘッダ
+    - redirect (Origin を含まない, デフォルトは '/')
+  - 以下の Javascript を含む http response を返す
+    - ブラウザ上で DPoP 鍵生成 (以降 session-idp)
+    - dpop_fetch `POST /authenticate (body: {session: "session-sp"})`
+      - サーバは session-idp を生成し、 session-sp が認証待ちであることを記録
+    - session-idp が未ログインなので失敗し、ログイン画面へ遷移
+- idp.example.com 上で Passkeys ログイン認証を実施
+  - Passkeys 認証完了したら session-idp は user-1 でログイン済とマークする
+  - session-sp が認証待ちであることを検出
+  - session-sp は user-1 でログイン済とマークする
+  - session-sp から redirect と origin を読み出し、合成してブラウザへ送る
+- ブラウザを遷移
+- sp.example.com で dpop_fetch `GET idp.example.com/session`
+- idp.example.com は user-1 の情報を返す
+
+### ログイン済遷移
+
+- idp へ POST redirect して dpop_fetch
+  `POST /authenticate (body: {session: "session-sp"})`
+  - session-sp は user-1 でログイン済とマークする
+  - session-sp から redirect と origin を読み出し、合成してブラウザへレスポンス
+  - ブラウザは直ちに redirect back
+
 ## Prerequisites
 
 Install deno
