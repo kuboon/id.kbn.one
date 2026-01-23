@@ -2,22 +2,14 @@ import { getKvInstance } from "./kvInstance.ts";
 import type {
   PasskeyCredential,
   PasskeyStorage,
-  PasskeyUser,
 } from "../passkeys/src/hono-middleware/mod.ts";
 
 const USER_KEY_PREFIX = ["user"] as const;
-const USERNAME_KEY_PREFIX = ["username"] as const;
 const CREDENTIAL_KEY_PREFIX = ["credential"] as const;
 const USER_CREDENTIAL_KEY_PREFIX = ["user_credentials"] as const;
 
-const normalizeUsername = (username: string): string =>
-  username.trim().toLowerCase();
-
 const userKey = (userId: string): Deno.KvKey =>
   [...USER_KEY_PREFIX, userId] as Deno.KvKey;
-
-const usernameKey = (username: string): Deno.KvKey =>
-  [...USERNAME_KEY_PREFIX, normalizeUsername(username)] as Deno.KvKey;
 
 const credentialKey = (credentialId: string): Deno.KvKey =>
   [...CREDENTIAL_KEY_PREFIX, credentialId] as Deno.KvKey;
@@ -44,64 +36,18 @@ export class DenoKvPasskeyStore implements PasskeyStorage {
     return new DenoKvPasskeyStore(kv);
   }
 
-  async getUserByUsername(username: string): Promise<PasskeyUser | null> {
-    const normalized = normalizeUsername(username);
-    if (!normalized) {
-      return null;
-    }
-    const idEntry = await this.kv.get<string>(
-      usernameKey(normalized),
-    );
-    return idEntry.value ? await this.getUserById(idEntry.value) : null;
+  async getUserById(userId: string): Promise<boolean> {
+    const entry = await this.kv.get<true>(userKey(userId));
+    return entry.value === true;
   }
 
-  async getUserById(userId: string): Promise<PasskeyUser | null> {
-    const entry = await this.kv.get<PasskeyUser>(userKey(userId));
-    return entry.value ?? null;
-  }
-
-  async createUser(user: PasskeyUser): Promise<void> {
-    const normalized = normalizeUsername(user.username);
-    if (!normalized) {
-      throw new Error("Username is required");
-    }
+  async createUser(userId: string): Promise<void> {
     const result = await this.kv.atomic()
-      .check({ key: userKey(user.id), versionstamp: null })
-      .check({ key: usernameKey(user.username), versionstamp: null })
-      .set(userKey(user.id), user)
-      .set(usernameKey(user.username), user.id)
+      .check({ key: userKey(userId), versionstamp: null })
+      .set(userKey(userId), true)
       .commit();
     if (!result.ok) {
       throw new Error("User already exists");
-    }
-  }
-
-  async updateUser(user: PasskeyUser): Promise<void> {
-    const existing = await this.kv.get<PasskeyUser>(userKey(user.id));
-    if (!existing.value) {
-      throw new Error("User does not exist");
-    }
-    const normalized = normalizeUsername(user.username);
-    if (!normalized) {
-      throw new Error("Username is required");
-    }
-    const currentNormalized = normalizeUsername(existing.value.username);
-    if (normalized !== currentNormalized) {
-      const usernameOwner = await this.kv.get<string>(
-        usernameKey(user.username),
-      );
-      if (usernameOwner.value && usernameOwner.value !== user.id) {
-        throw new Error("Username already taken");
-      }
-    }
-    const tx = this.kv.atomic().check(existing).set(userKey(user.id), user);
-    if (normalized !== currentNormalized) {
-      tx.delete(usernameKey(existing.value.username));
-      tx.set(usernameKey(user.username), user.id);
-    }
-    const result = await tx.commit();
-    if (!result.ok) {
-      throw new Error("Unable to update user");
     }
   }
 
@@ -125,7 +71,7 @@ export class DenoKvPasskeyStore implements PasskeyStorage {
   }
 
   async saveCredential(credential: PasskeyCredential): Promise<void> {
-    const userEntry = await this.kv.get<PasskeyUser>(
+    const userEntry = await this.kv.get<true>(
       userKey(credential.userId),
     );
     if (!userEntry.value) {
@@ -153,7 +99,7 @@ export class DenoKvPasskeyStore implements PasskeyStorage {
     if (!existing.value) {
       throw new Error("Credential does not exist");
     }
-    const userEntry = await this.kv.get<PasskeyUser>(
+    const userEntry = await this.kv.get<true>(
       userKey(credential.userId),
     );
     if (!userEntry.value) {
@@ -191,14 +137,13 @@ export class DenoKvPasskeyStore implements PasskeyStorage {
   }
 
   async deleteUser(userId: string): Promise<void> {
-    const existing = await this.kv.get<PasskeyUser>(userKey(userId));
+    const existing = await this.kv.get<true>(userKey(userId));
     if (!existing.value) {
       return;
     }
     const result = await this.kv.atomic()
       .check(existing)
       .delete(userKey(userId))
-      .delete(usernameKey(existing.value.username))
       .commit();
     if (!result.ok) {
       throw new Error("Unable to delete user");

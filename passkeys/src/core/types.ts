@@ -13,11 +13,6 @@ import type {
   VerifyRegistrationResponseOpts,
 } from "@simplewebauthn/server";
 
-export interface PasskeyUser {
-  id: string;
-  username: string;
-}
-
 export interface PasskeyCredential {
   id: string;
   userId: string;
@@ -32,16 +27,14 @@ export interface PasskeyCredential {
 }
 
 export interface PasskeyStorage {
-  getUserByUsername(username: string): Promise<PasskeyUser | null>;
-  getUserById(userId: string): Promise<PasskeyUser | null>;
-  createUser(user: PasskeyUser): Promise<void>;
-  updateUser(user: PasskeyUser): Promise<void>;
+  getUserById(userId: string): Promise<boolean>;
+  createUser(userId: string): Promise<void>;
+  deleteUser?(userId: string): Promise<void>;
   getCredentialById(credentialId: string): Promise<PasskeyCredential | null>;
   getCredentialsByUserId(userId: string): Promise<PasskeyCredential[]>;
   saveCredential(credential: PasskeyCredential): Promise<void>;
   updateCredential(credential: PasskeyCredential): Promise<void>;
   deleteCredential(credentialId: string): Promise<void>;
-  deleteUser?(userId: string): Promise<void>;
 }
 
 export type ChallengeType = "registration" | "authentication";
@@ -52,27 +45,32 @@ export interface PasskeyStoredChallenge {
 }
 
 export interface RegistrationOptionsRequestBody {
-  username: string;
+  userId: string;
 }
 
 export interface RegistrationVerifyRequestBody {
-  username: string;
+  userId: string;
   credential: RegistrationResponseJSON;
 }
 
 export interface AuthenticationOptionsRequestBody {
-  username: string;
+  userId?: string;
 }
 
 export interface AuthenticationVerifyRequestBody {
-  username: string;
+  userId?: string;
   credential: AuthenticationResponseJSON;
 }
 
 export type RegistrationOptionsOverrides = Partial<
   Omit<
     GenerateRegistrationOptionsOpts,
-    "rpID" | "rpName" | "userName" | "userDisplayName" | "excludeCredentials"
+    | "rpID"
+    | "rpName"
+    | "userID"
+    | "userName"
+    | "userDisplayName"
+    | "excludeCredentials"
   >
 >;
 

@@ -1,36 +1,15 @@
-import type {
-  PasskeyCredential,
-  PasskeyStorage,
-  PasskeyUser,
-} from "./types.ts";
+import type { PasskeyCredential, PasskeyStorage } from "./types.ts";
 
 export class InMemoryPasskeyStore implements PasskeyStorage {
-  private readonly users = new Map<string, PasskeyUser>();
-  private readonly usersByUsername = new Map<string, string>();
+  private readonly users = new Set<string>();
   private readonly credentials = new Map<string, PasskeyCredential>();
 
-  getUserByUsername(username: string): Promise<PasskeyUser | null> {
-    const key = username.toLowerCase();
-    const userId = this.usersByUsername.get(key);
-    return userId ? this.getUserById(userId) : Promise.resolve(null);
+  getUserById(userId: string): Promise<boolean> {
+    return Promise.resolve(this.users.has(userId));
   }
 
-  getUserById(userId: string): Promise<PasskeyUser | null> {
-    return Promise.resolve(this.users.get(userId) ?? null);
-  }
-
-  createUser(user: PasskeyUser): Promise<void> {
-    this.users.set(user.id, { ...user });
-    this.usersByUsername.set(user.username.toLowerCase(), user.id);
-    return Promise.resolve();
-  }
-
-  updateUser(user: PasskeyUser): Promise<void> {
-    if (!this.users.has(user.id)) {
-      throw new Error("User does not exist");
-    }
-    this.users.set(user.id, { ...user });
-    this.usersByUsername.set(user.username.toLowerCase(), user.id);
+  createUser(userId: string): Promise<void> {
+    this.users.add(userId);
     return Promise.resolve();
   }
 
@@ -65,12 +44,7 @@ export class InMemoryPasskeyStore implements PasskeyStorage {
   }
 
   deleteUser(userId: string): Promise<void> {
-    const existing = this.users.get(userId);
-    if (!existing) {
-      return Promise.resolve();
-    }
     this.users.delete(userId);
-    this.usersByUsername.delete(existing.username.toLowerCase());
     for (const [id, credential] of this.credentials.entries()) {
       if (credential.userId === userId) {
         this.credentials.delete(id);

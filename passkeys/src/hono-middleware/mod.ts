@@ -2,8 +2,6 @@ import type {
   AuthenticationVerifyRequestBody,
   PasskeyCredential,
   PasskeyMiddlewareOptions,
-  PasskeyStorage,
-  PasskeyUser,
   RegistrationOptionsRequestBody,
   RegistrationVerifyRequestBody,
 } from "../core/types.ts";
@@ -29,7 +27,8 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 declare module "hono" {
   interface ContextVariableMap {
-    user: PasskeyUser | null;
+    userId: string | null;
+    session?: Record<string, unknown>;
   }
 }
 
@@ -38,8 +37,6 @@ const encodeBase64Url = (input: ArrayBuffer) =>
 
 const decodeBase64Url = (input: string) =>
   new Uint8Array(base64.toArrayBuffer(input, true));
-
-export const SESSION_COOKIE_NAME = "passkey_session";
 
 const jsonError = (status: ContentfulStatusCode, message: string) =>
   new HTTPException(status, { message });
@@ -56,17 +53,6 @@ const getErrorDetails = (
     ? record.message
     : undefined;
   return { code, message };
-};
-
-const ensureUser = (
-  storage: PasskeyStorage,
-  username: string,
-): Promise<PasskeyUser | null> => {
-  const normalized = username.trim();
-  if (!normalized) {
-    return Promise.resolve(null);
-  }
-  return storage.getUserByUsername(normalized);
 };
 
 const getRequestUrl = (c: Context): URL => {
@@ -101,15 +87,11 @@ export const createPasskeyMiddleware = (
     ...options.webauthn,
   };
 
-  const loadSessionUser = (c: Context): Promise<PasskeyUser | null> => {
+  const loadSessionUser = (c: Context): Promise<string | null> => {
     const session = c.get("session");
     const userId = session?.userId;
     if (!userId || typeof userId !== "string") return Promise.resolve(null);
-    try {
-      return storage.getUserById(userId);
-    } catch {
-      return Promise.resolve(null);
-    }
+    return storage.getUserById(userId).then((exists) => exists ? userId : null);
   };
 
   const ensureJsonBody = async <T>(c: Context) => {
@@ -120,14 +102,6 @@ export const createPasskeyMiddleware = (
     }
   };
 
-  const ensureUserOrThrow = async (username: string) => {
-    const user = await ensureUser(storage, username);
-    if (!user) {
-      throw jsonError(404, "User not found");
-    }
-    return user;
-  };
-
   const setNoStore = (c: Context) => {
     c.header("Cache-Control", "no-store");
   };
@@ -135,22 +109,22 @@ export const createPasskeyMiddleware = (
   const router = new Hono();
   router.get("/credentials", async (c) => {
     c.header("Cache-Control", "no-store");
-    const user = c.get("user");
-    if (!user) throw jsonError(401, "Sign-in required");
-    const credentials = await storage.getCredentialsByUserId(user.id);
-    return c.json({ user, credentials });
+    const userId = c.get("userId");
+    if (!userId) throw jsonError(401, "Sign-in required");
+    const credentials = await storage.getCredentialsByUserId(userId);
+    return c.json({ userId, credentials });
   });
 
   router.delete("/credentials/:credentialId", async (c) => {
     c.header("Cache-Control", "no-store");
-    const user = c.get("user");
-    if (!user) throw jsonError(401, "Sign-in required");
+    const userId = c.get("userId");
+    if (!userId) throw jsonError(401, "Sign-in required");
     const credentialId = c.req.param("credentialId");
     if (!credentialId) {
       throw jsonError(400, "Missing credential identifier");
     }
     const credential = await storage.getCredentialById(credentialId);
-    if (!credential || credential.userId !== user.id) {
+    if (!credential || credential.userId !== userId) {
       throw jsonError(404, "Credential not found");
     }
     await storage.deleteCredential(credentialId);
@@ -159,8 +133,8 @@ export const createPasskeyMiddleware = (
 
   router.patch("/credentials/:credentialId", async (c) => {
     setNoStore(c);
-    const user = c.get("user");
-    if (!user) throw jsonError(401, "Sign-in required");
+    const userId = c.get("userId");
+    if (!userId) throw jsonError(401, "Sign-in required");
     const credentialId = c.req.param("credentialId");
     if (!credentialId) {
       throw jsonError(400, "Missing credential identifier");
@@ -171,7 +145,7 @@ export const createPasskeyMiddleware = (
       throw jsonError(400, "nickname is required");
     }
     const credential = await storage.getCredentialById(credentialId);
-    if (!credential || credential.userId !== user.id) {
+    if (!credential || credential.userId !== userId) {
       throw jsonError(404, "Credential not found");
     }
     if (credential.nickname !== nickname) {
@@ -185,43 +159,31 @@ export const createPasskeyMiddleware = (
   router.post("/register/options", async (c) => {
     setNoStore(c);
     const body = await ensureJsonBody<RegistrationOptionsRequestBody>(c);
-    const username = body.username?.trim();
-    if (!username) {
-      throw jsonError(400, "username is required");
+    const userId = body.userId?.trim();
+    if (!userId) {
+      throw jsonError(400, "userId is required");
     }
-    let user = await ensureUser(storage, username);
-    if (!user) {
-      // Do not collect or store a separate displayName; use username instead
-      user = {
-        id: crypto.randomUUID(),
-        username,
-      } satisfies PasskeyUser;
+    const userExists = await storage.getUserById(userId);
+    if (!userExists) {
       try {
-        await storage.createUser(user);
+        await storage.createUser(userId);
       } catch (error: unknown) {
         const { code, message } = getErrorDetails(error);
-        if (code === "USER_EXISTS" || message?.includes("exists")) {
-          user = await ensureUser(storage, username);
-          if (!user) {
-            throw jsonError(
-              500,
-              "Failed to fetch existing user after duplicate creation error",
-            );
-          }
-        } else {
+        if (!(code === "USER_EXISTS" || message?.includes("exists"))) {
           throw error;
         }
       }
     }
 
     const requestUrl = getRequestUrl(c);
-    const existingCredentials = await storage.getCredentialsByUserId(user.id);
+    const existingCredentials = await storage.getCredentialsByUserId(userId);
+    const userIdBuffer = new TextEncoder().encode(userId);
     const optionsInput: GenerateRegistrationOptionsOpts = {
       rpName,
       rpID: requestUrl.hostname,
-      userName: user.username,
-      // userDisplayName intentionally set to username to avoid storing extra data
-      userDisplayName: user.username,
+      userID: userIdBuffer,
+      userName: userId,
+      userDisplayName: userId,
       excludeCredentials: existingCredentials.map((credential) => ({
         id: credential.id,
         transports: credential.transports,
@@ -244,12 +206,15 @@ export const createPasskeyMiddleware = (
   router.post("/register/verify", async (c) => {
     setNoStore(c);
     const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
-    const username = body.username?.trim();
-    if (!username) {
-      throw jsonError(400, "username is required");
+    const userId = body.userId?.trim();
+    if (!userId) {
+      throw jsonError(400, "userId is required");
     }
-    const user = await ensureUserOrThrow(username);
-    const existingCredentials = await storage.getCredentialsByUserId(user.id);
+    const userExists = await storage.getUserById(userId);
+    if (!userExists) {
+      throw jsonError(404, "User not found");
+    }
+    const existingCredentials = await storage.getCredentialsByUserId(userId);
     const session = c.get("session");
     const storedChallenge = session?.challenge;
     const storedOrigin = session?.origin;
@@ -302,7 +267,7 @@ export const createPasskeyMiddleware = (
     const now = Date.now();
     const storedCredential: PasskeyCredential = {
       id: credentialId,
-      userId: user.id,
+      userId: userId,
       nickname,
       publicKey: credentialPublicKey,
       counter: registrationCredential.counter,
@@ -320,7 +285,7 @@ export const createPasskeyMiddleware = (
     const currentSession = c.get("session") || {};
     c.set("session", {
       ...currentSession,
-      userId: user.id,
+      userId: userId,
       challenge: undefined,
       origin: undefined,
     });
@@ -432,8 +397,8 @@ export const createPasskeyMiddleware = (
   });
 
   const middleware = createMiddleware(async (c, next) => {
-    const user = await loadSessionUser(c);
-    c.set("user", user);
+    const userId = await loadSessionUser(c);
+    c.set("userId", userId);
     return next();
   });
   return { router, middleware };

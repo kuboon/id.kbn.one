@@ -4,7 +4,6 @@ import {
   type PushSubscriptionPayload,
   type StoredPushSubscription,
 } from "./service.ts";
-import type { PasskeyUser } from "../../passkeys/src/hono-middleware/mod.ts";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
@@ -179,7 +178,7 @@ const serializePushSubscription = (
 interface PushRouterDependencies {
   pushService: PushService;
   pushContact: string;
-  ensureAuthenticatedUser: (c: Context) => PasskeyUser;
+  ensureAuthenticatedUser: (c: Context) => string;
   setNoStore: (c: Context) => void;
 }
 
@@ -206,8 +205,8 @@ export const createPushRouter = ({
 
   router.get("/subscriptions", async (c) => {
     setNoStore(c);
-    const user = await ensureAuthenticatedUser(c);
-    const subscriptions = await pushService.listSubscriptions(user.id);
+    const userId = ensureAuthenticatedUser(c);
+    const subscriptions = await pushService.listSubscriptions(userId);
     return c.json({
       subscriptions: subscriptions.map(serializePushSubscription),
     });
@@ -215,11 +214,11 @@ export const createPushRouter = ({
 
   router.post("/subscriptions", async (c) => {
     setNoStore(c);
-    const user = await ensureAuthenticatedUser(c);
+    const userId = ensureAuthenticatedUser(c);
     const { subscription, metadata } = await parsePushSubscriptionRequest(c);
     try {
       const stored = await pushService.upsertSubscription(
-        user.id,
+        userId,
         subscription,
         metadata,
       );
@@ -235,14 +234,14 @@ export const createPushRouter = ({
 
   router.delete("/subscriptions/:id", async (c) => {
     setNoStore(c);
-    const user = await ensureAuthenticatedUser(c);
+    const userId = ensureAuthenticatedUser(c);
     const id = c.req.param("id");
     if (!id || !id.trim()) {
       throw new HTTPException(400, {
         message: "subscription id is required",
       });
     }
-    const deleted = await pushService.deleteSubscription(user.id, id.trim());
+    const deleted = await pushService.deleteSubscription(userId, id.trim());
     if (!deleted) {
       throw new HTTPException(404, { message: "Subscription not found" });
     }
@@ -251,7 +250,7 @@ export const createPushRouter = ({
 
   router.patch("/subscriptions/:id", async (c) => {
     setNoStore(c);
-    const user = await ensureAuthenticatedUser(c);
+    const userId = ensureAuthenticatedUser(c);
     const id = c.req.param("id");
     if (!id || !id.trim()) {
       throw new HTTPException(400, {
@@ -261,7 +260,7 @@ export const createPushRouter = ({
     const metadata = await parsePushMetadataUpdateRequest(c);
     try {
       const updated = await pushService.updateSubscriptionMetadata(
-        user.id,
+        userId,
         id.trim(),
         metadata,
       );
@@ -282,11 +281,11 @@ export const createPushRouter = ({
 
   router.post("/notifications/test", async (c) => {
     setNoStore(c);
-    const user = await ensureAuthenticatedUser(c);
+    const userId = ensureAuthenticatedUser(c);
     const { subscriptionId } = await parsePushTestRequest(c);
     try {
       const result = await pushService.sendTestNotification(
-        user.id,
+        userId,
         subscriptionId,
       );
       return c.json({

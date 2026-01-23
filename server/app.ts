@@ -16,14 +16,11 @@ import { createDpopSessionMiddleware } from "./dpop-session-middleware.ts";
 
 import {
   createPasskeyMiddleware,
-  type PasskeyUser,
-  SESSION_COOKIE_NAME,
 } from "../passkeys/src/hono-middleware/mod.ts";
 
 import { type Context, Hono } from "hono";
 import { serveStatic } from "hono/deno";
 import { cors } from "hono/cors";
-import { deleteCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 
 const kv = await getKvInstance();
@@ -40,39 +37,10 @@ const setNoStore = (c: Context) => {
   c.header("Cache-Control", "no-store");
 };
 
-const ensureAuthenticatedUser = (c: Context): PasskeyUser => {
-  const user = c.get("user");
-  if (!user) throw new HTTPException(401, { message: "Sign-in required" });
-  return user;
-};
-
-type AccountUpdatePayload = {
-  username?: string;
-};
-
-const parseAccountUpdate = async (
-  c: Context,
-): Promise<AccountUpdatePayload> => {
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new HTTPException(400, { message: "Invalid JSON payload" });
-  }
-
-  if (!body || typeof body !== "object") {
-    throw new HTTPException(400, { message: "Invalid request body" });
-  }
-
-  const { username } = body as { username?: unknown };
-  if (username === undefined) {
-    return {};
-  }
-  if (typeof username !== "string" || !username.trim()) {
-    throw new HTTPException(400, { message: "Username cannot be empty" });
-  }
-
-  return { username: username.trim() };
+const ensureAuthenticatedUser = (c: Context): string => {
+  const userId = c.get("userId");
+  if (!userId) throw new HTTPException(401, { message: "Sign-in required" });
+  return userId;
 };
 
 const signingKey = await Secret<string>("signing_key", () => {
@@ -98,7 +66,7 @@ app.route("/webauthn", router);
 
 app.get("/session", (c) => {
   setNoStore(c);
-  return c.json({ user: c.get("user") });
+  return c.json({ userId: c.get("userId") });
 });
 
 app.get("/.well-known/webauthn", (c) => {
@@ -110,51 +78,26 @@ app.get("/.well-known/webauthn", (c) => {
 
 app.post("/session/logout", (c) => {
   setNoStore(c);
-  deleteCookie(c, SESSION_COOKIE_NAME);
+  c.set("session", {});
   return c.json({ success: true });
-});
-
-app.patch("/account", async (c) => {
-  setNoStore(c);
-  const currentUser = ensureAuthenticatedUser(c);
-  const { username } = await parseAccountUpdate(c);
-
-  if (username === undefined) {
-    return c.json({ user: currentUser });
-  }
-
-  if (username.toLowerCase() === currentUser.username.toLowerCase()) {
-    return c.json({ user: currentUser });
-  }
-
-  const existing = await credentialStore.getUserByUsername(username);
-  if (existing && existing.id !== currentUser.id) {
-    throw new HTTPException(409, {
-      message: "That username is already taken.",
-    });
-  }
-
-  const updatedUser: PasskeyUser = { ...currentUser, username };
-  await credentialStore.updateUser(updatedUser);
-  return c.json({ user: updatedUser });
 });
 
 app.delete("/account", async (c) => {
   setNoStore(c);
-  const user = await ensureAuthenticatedUser(c);
+  const userId = ensureAuthenticatedUser(c);
   if (typeof credentialStore.deleteUser !== "function") {
     throw new HTTPException(405, {
       message: "Account deletion is not supported by this storage adapter.",
     });
   }
   if (typeof credentialStore.deleteCredential === "function") {
-    const credentials = await credentialStore.getCredentialsByUserId(user.id);
+    const credentials = await credentialStore.getCredentialsByUserId(userId);
     for (const credential of credentials) {
       await credentialStore.deleteCredential(credential.id);
     }
   }
-  await credentialStore.deleteUser(user.id);
-  deleteCookie(c, "session");
+  await credentialStore.deleteUser(userId);
+  c.set("session", {});
   return c.json({ success: true });
 });
 
