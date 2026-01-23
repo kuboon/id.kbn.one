@@ -41,7 +41,7 @@ export class IndexedDbKeyStore implements KeyStore {
       const tx = db.transaction("keys", "readonly");
       const store = tx.objectStore("keys");
       const req = store.get("default");
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         const val = req.result;
         if (!val) return resolve(undefined);
         try {

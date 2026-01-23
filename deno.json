@@ -1,6 +1,7 @@
 {
   "nodeModulesDir": "auto",
   "tasks": {
+    "test": "deno fmt && deno lint && deno check && deno test -P",
     "serve": "deno serve --env -P server/deno-server.ts"
   },
   "workspace": [

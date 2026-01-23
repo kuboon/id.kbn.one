@@ -13,7 +13,7 @@ Deno.test("client and server together validate DPoP proof", async () => {
     recorded.push({ req });
 
     const result = await verifyDpopProofFromRequest(req, {
-      checkReplay: async () => true,
+      checkReplay: () => true,
     });
     if (!result.valid) {
       return new Response(result.error ?? "invalid", { status: 401 });
@@ -22,7 +22,10 @@ Deno.test("client and server together validate DPoP proof", async () => {
   };
 
   const keyStore = new InMemoryKeyStore();
-  const { apiCall } = await init({ keyStore, fetch: fakeFetch as any });
+  const { apiCall } = await init({
+    keyStore,
+    fetch: fakeFetch as typeof fetch,
+  });
 
   const url = "https://example.test/endpoint?x=1";
   const res = await apiCall(url, {
