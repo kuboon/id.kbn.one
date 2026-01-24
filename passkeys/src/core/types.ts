@@ -39,11 +39,6 @@ export interface PasskeyRepository {
 
 export type ChallengeType = "registration" | "authentication";
 
-export interface PasskeyStoredChallenge {
-  challenge: string;
-  origin: string;
-}
-
 export interface RegistrationOptionsRequestBody {
   userId: string;
 }

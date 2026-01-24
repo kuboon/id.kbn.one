@@ -71,227 +71,221 @@ export const createPasskeysRouter = (
     }
   };
 
-  const setNoStore = (c: Context) => {
-    c.header("Cache-Control", "no-store");
-  };
-
   const router = new Hono<
     { Variables: { session?: Record<string, unknown> } }
-  >().post("/register/options", async (c) => {
-    setNoStore(c);
-    let userId = getUserId(c);
-    if (!userId) {
-      userId = new Date().toISOString();
-      await storage.createUser(userId);
-    }
-
-    const requestUrl = getRequestUrl(c);
-    const existingCredentials = await storage.getCredentialsByUserId(userId);
-    const userIdBuffer = new TextEncoder().encode(userId);
-    const optionsInput: GenerateRegistrationOptionsOpts = {
-      rpName,
-      rpID: requestUrl.hostname,
-      userID: userIdBuffer,
-      userName: userId,
-      userDisplayName: userId,
-      excludeCredentials: existingCredentials.map((credential) => ({
-        id: credential.id,
-        transports: credential.transports,
-      })),
-      ...registrationOptions,
-    };
-
-    const optionsResult = await webauthn.generateRegistrationOptions(
-      optionsInput,
-    );
-    const session = c.get("session") || {};
-    c.set("session", {
-      ...session,
-      userId,
-      challenge: optionsResult.challenge,
-      origin: requestUrl.origin,
-    });
-    return c.json(optionsResult);
-  }).post("/register/verify", async (c) => {
-    setNoStore(c);
-    const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
-    const session = c.get("session");
-    if (!session) throw jsonError(400, "No session found for user");
-    const expectedChallenge = session.challenge;
-    const expectedOrigin = session.origin;
-    const userId = session.userId;
-    if (
-      typeof expectedChallenge !== "string" ||
-      typeof expectedOrigin !== "string" ||
-      typeof userId !== "string"
-    ) {
-      throw jsonError(400, "Incomplete session for user");
-    }
-
-    const verification = await webauthn.verifyRegistrationResponse({
-      response: body.credential,
-      expectedChallenge,
-      expectedOrigin,
-      expectedRPID: new URL(expectedOrigin).hostname,
-      ...verifyRegistrationOptions,
-    });
-
-    const { registrationInfo } = verification;
-    if (!registrationInfo) {
-      throw jsonError(400, "Registration could not be verified");
-    }
-    const registrationCredential = registrationInfo.credential;
-    const credentialId = registrationCredential.id;
-    const credentialPublicKey = encodeBase64Url(
-      registrationCredential.publicKey.buffer,
-    );
-    const credentialAaguid = (() => {
-      const fromCredential = (registrationCredential as { aaguid?: unknown })
-        .aaguid;
-      if (typeof fromCredential === "string" && fromCredential.trim()) {
-        return fromCredential;
+  >()
+    .use("*", (c, next) => {
+      c.header("Cache-Control", "no-store");
+      return next();
+    })
+    .post("/register/options", async (c) => {
+      let userId = getUserId(c);
+      if (!userId) {
+        userId = new Date().toISOString();
+        await storage.createUser(userId);
       }
-      const fromInfo = (registrationInfo as { aaguid?: unknown }).aaguid;
-      return typeof fromInfo === "string" ? fromInfo : null;
-    })();
-    const existingCredentials = await storage.getCredentialsByUserId(userId);
-    const transports = registrationCredential.transports ??
-      body.credential.response.transports;
-    const nickname = generateCredentialNickname({
-      aaguid: credentialAaguid,
-      deviceType: registrationInfo.credentialDeviceType,
-      backedUp: registrationInfo.credentialBackedUp,
-      transports,
-      existingCredentials,
-      userAgent: c.req.header("user-agent"),
-    });
 
-    const now = Date.now();
-    const storedCredential: PasskeyCredential = {
-      id: credentialId,
-      userId: userId,
-      nickname,
-      publicKey: credentialPublicKey,
-      counter: registrationCredential.counter,
-      transports,
-      deviceType: registrationInfo.credentialDeviceType,
-      backedUp: registrationInfo.credentialBackedUp,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await storage.saveCredential(storedCredential);
-
-    // Mark the user as authenticated in the session so they are logged in
-    // immediately after registering a passkey.
-    const currentSession = c.get("session") || {};
-    c.set("session", {
-      ...currentSession,
-      userId: userId,
-      challenge: undefined,
-      origin: undefined,
-    });
-
-    return c.json({
-      verified: verification.verified,
-      credential: storedCredential,
-    });
-  }).post("/authenticate/options", async (c) => {
-    setNoStore(c);
-    const requestUrl = getRequestUrl(c);
-
-    const optionsInput = {
-      rpID: requestUrl.hostname,
-      userVerification: "preferred",
-      ...authenticationOptions,
-    } satisfies GenerateAuthenticationOptionsOpts;
-
-    const optionsResult = await webauthn.generateAuthenticationOptions(
-      optionsInput,
-    );
-    const session = c.get("session") || {};
-    c.set("session", {
-      ...session,
-      challenge: optionsResult.challenge,
-      origin: requestUrl.origin,
-    });
-
-    return c.json(optionsResult);
-  }).post("/authenticate/verify", async (c) => {
-    setNoStore(c);
-    const rawBody = (await ensureJsonBody<unknown>(c)) as Record<
-      string,
-      unknown
-    >;
-    const body = (rawBody as unknown) as
-      & Partial<AuthenticationVerifyRequestBody>
-      & {
-        challenge?: string;
-        origin?: string;
+      const requestUrl = getRequestUrl(c);
+      const existingCredentials = await storage.getCredentialsByUserId(userId);
+      const userIdBuffer = new TextEncoder().encode(userId);
+      const optionsInput: GenerateRegistrationOptionsOpts = {
+        rpName,
+        rpID: requestUrl.hostname,
+        userID: userIdBuffer,
+        userName: userId,
+        userDisplayName: userId,
+        excludeCredentials: existingCredentials.map((credential) => ({
+          id: credential.id,
+          transports: credential.transports,
+        })),
+        ...registrationOptions,
       };
-    if (!body.credential) throw jsonError(400, "credential is required");
 
-    const storedCredential = await storage.getCredentialById(
-      body.credential.id,
-    );
-    if (!storedCredential) throw jsonError(401, "Credential not found");
+      const optionsResult = await webauthn.generateRegistrationOptions(
+        optionsInput,
+      );
+      const session = c.get("session") || {};
+      c.set("session", {
+        ...session,
+        userId,
+        challenge: optionsResult.challenge,
+        origin: requestUrl.origin,
+      });
+      return c.json(optionsResult);
+    }).post("/register/verify", async (c) => {
+      const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
+      const session = c.get("session");
+      if (!session) throw jsonError(400, "No session found for user");
+      const expectedChallenge = session.challenge;
+      const expectedOrigin = session.origin;
+      const userId = session.userId;
+      if (
+        typeof expectedChallenge !== "string" ||
+        typeof expectedOrigin !== "string" ||
+        typeof userId !== "string"
+      ) {
+        throw jsonError(400, "Incomplete session for user");
+      }
 
-    const session = c.get("session");
-    const storedChallenge = session?.challenge;
-    const storedOrigin = session?.origin;
-    if (!storedChallenge || typeof storedChallenge !== "string") {
-      throw jsonError(400, "No authentication challenge for user");
-    }
-    if (!storedOrigin || typeof storedOrigin !== "string") {
-      throw jsonError(400, "No origin for challenge");
-    }
+      const verification = await webauthn.verifyRegistrationResponse({
+        response: body.credential,
+        expectedChallenge,
+        expectedOrigin,
+        expectedRPID: new URL(expectedOrigin).hostname,
+        ...verifyRegistrationOptions,
+      });
 
-    const expectedChallenge = storedChallenge;
-    const expectedOrigin = storedOrigin;
+      const { registrationInfo } = verification;
+      if (!registrationInfo) {
+        throw jsonError(400, "Registration could not be verified");
+      }
+      const registrationCredential = registrationInfo.credential;
+      const credentialId = registrationCredential.id;
+      const credentialPublicKey = encodeBase64Url(
+        registrationCredential.publicKey.buffer,
+      );
+      const credentialAaguid = (() => {
+        const fromCredential = (registrationCredential as { aaguid?: unknown })
+          .aaguid;
+        if (typeof fromCredential === "string" && fromCredential.trim()) {
+          return fromCredential;
+        }
+        const fromInfo = (registrationInfo as { aaguid?: unknown }).aaguid;
+        return typeof fromInfo === "string" ? fromInfo : null;
+      })();
+      const existingCredentials = await storage.getCredentialsByUserId(userId);
+      const transports = registrationCredential.transports ??
+        body.credential.response.transports;
+      const nickname = generateCredentialNickname({
+        aaguid: credentialAaguid,
+        deviceType: registrationInfo.credentialDeviceType,
+        backedUp: registrationInfo.credentialBackedUp,
+        transports,
+        existingCredentials,
+        userAgent: c.req.header("user-agent"),
+      });
 
-    const verification = await webauthn.verifyAuthenticationResponse({
-      response: body.credential,
-      expectedChallenge,
-      expectedOrigin,
-      expectedRPID: new URL(expectedOrigin).hostname,
-      credential: {
-        id: storedCredential.id,
-        publicKey: decodeBase64Url(storedCredential.publicKey),
-        counter: storedCredential.counter,
-        transports: storedCredential.transports,
-      },
-      ...verifyAuthenticationOptions,
+      const now = Date.now();
+      const storedCredential: PasskeyCredential = {
+        id: credentialId,
+        userId: userId,
+        nickname,
+        publicKey: credentialPublicKey,
+        counter: registrationCredential.counter,
+        transports,
+        deviceType: registrationInfo.credentialDeviceType,
+        backedUp: registrationInfo.credentialBackedUp,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await storage.saveCredential(storedCredential);
+
+      // Mark the user as authenticated in the session so they are logged in
+      // immediately after registering a passkey.
+      const currentSession = c.get("session") || {};
+      c.set("session", {
+        ...currentSession,
+        userId: userId,
+        challenge: undefined,
+        origin: undefined,
+      });
+
+      return c.json({
+        verified: verification.verified,
+        credential: storedCredential,
+      });
+    }).post("/authenticate/options", async (c) => {
+      const requestUrl = getRequestUrl(c);
+
+      const optionsInput = {
+        rpID: requestUrl.hostname,
+        userVerification: "preferred",
+        ...authenticationOptions,
+      } satisfies GenerateAuthenticationOptionsOpts;
+
+      const optionsResult = await webauthn.generateAuthenticationOptions(
+        optionsInput,
+      );
+      const session = c.get("session") || {};
+      c.set("session", {
+        ...session,
+        challenge: optionsResult.challenge,
+        origin: requestUrl.origin,
+      });
+
+      return c.json(optionsResult);
+    }).post("/authenticate/verify", async (c) => {
+      const rawBody = (await ensureJsonBody<unknown>(c)) as Record<
+        string,
+        unknown
+      >;
+      const body = (rawBody as unknown) as
+        & Partial<AuthenticationVerifyRequestBody>
+        & {
+          challenge?: string;
+          origin?: string;
+        };
+      if (!body.credential) throw jsonError(400, "credential is required");
+
+      const storedCredential = await storage.getCredentialById(
+        body.credential.id,
+      );
+      if (!storedCredential) throw jsonError(401, "Credential not found");
+
+      const session = c.get("session");
+      const storedChallenge = session?.challenge;
+      const storedOrigin = session?.origin;
+      if (!storedChallenge || typeof storedChallenge !== "string") {
+        throw jsonError(400, "No authentication challenge for user");
+      }
+      if (!storedOrigin || typeof storedOrigin !== "string") {
+        throw jsonError(400, "No origin for challenge");
+      }
+
+      const expectedChallenge = storedChallenge;
+      const expectedOrigin = storedOrigin;
+
+      const verification = await webauthn.verifyAuthenticationResponse({
+        response: body.credential,
+        expectedChallenge,
+        expectedOrigin,
+        expectedRPID: new URL(expectedOrigin).hostname,
+        credential: {
+          id: storedCredential.id,
+          publicKey: decodeBase64Url(storedCredential.publicKey),
+          counter: storedCredential.counter,
+          transports: storedCredential.transports,
+        },
+        ...verifyAuthenticationOptions,
+      });
+
+      const { authenticationInfo } = verification;
+      if (!authenticationInfo) {
+        throw jsonError(400, "Authentication could not be verified");
+      }
+
+      storedCredential.counter = authenticationInfo.newCounter;
+      storedCredential.updatedAt = Date.now();
+      storedCredential.backedUp = authenticationInfo.credentialBackedUp;
+      storedCredential.deviceType = authenticationInfo.credentialDeviceType;
+      await storage.updateCredential(storedCredential);
+
+      const currentSession = c.get("session") || {};
+      c.set("session", {
+        ...currentSession,
+        userId: storedCredential.userId,
+        challenge: undefined,
+        origin: undefined,
+      });
+
+      return c.json({
+        verified: verification.verified,
+        credential: storedCredential,
+      });
     });
-
-    const { authenticationInfo } = verification;
-    if (!authenticationInfo) {
-      throw jsonError(400, "Authentication could not be verified");
-    }
-
-    storedCredential.counter = authenticationInfo.newCounter;
-    storedCredential.updatedAt = Date.now();
-    storedCredential.backedUp = authenticationInfo.credentialBackedUp;
-    storedCredential.deviceType = authenticationInfo.credentialDeviceType;
-    await storage.updateCredential(storedCredential);
-
-    const currentSession = c.get("session") || {};
-    c.set("session", {
-      ...currentSession,
-      userId: storedCredential.userId,
-      challenge: undefined,
-      origin: undefined,
-    });
-
-    return c.json({
-      verified: verification.verified,
-      credential: storedCredential,
-    });
-  });
 
   return router;
 };
 
-export type PasskeyMiddleware = ReturnType<typeof createPasskeysRouter>;
-
-export { InMemoryPasskeyRepository } from "../core/in-memory-passkey-store.ts";
 export * from "../core/types.ts";

@@ -4,7 +4,6 @@ import type { VerifyDpopProofOptions } from "@scope/dpop/types.ts";
 import { verifyDpopProofFromRequest } from "@scope/dpop";
 
 import { createMiddleware } from "hono/factory";
-import { HTTPException } from "hono/http-exception";
 import { equal } from "@std/assert";
 
 export interface DpopSessionMiddlewareOptions extends VerifyDpopProofOptions {
@@ -22,12 +21,6 @@ export const createDpopSessionMiddleware = (
     async (c, next) => {
       const dpop = await verifyDpopProofFromRequest(c.req.raw, dpopOptions);
       if (!dpop.valid) {
-        const acceptsJson = c.req.header("accept")?.includes(
-          "application/json",
-        );
-        if (acceptsJson) {
-          throw new HTTPException(401, { message: "Invalid DPoP proof" });
-        }
         return next();
       }
 

@@ -40,10 +40,24 @@ const ensureAuthenticatedUser = (c: Context): string => {
 };
 
 const app = new Hono()
-  .use("*", cors({ origin: allowedOrigins }))
+  .use(cors({ origin: allowedOrigins }))
   .use(createDpopSessionMiddleware({
     sessionStore: sessionRepository,
   }))
+  .post("/session/logout", (c) => {
+    setNoStore(c);
+    c.set("session", undefined);
+    return c.json({ success: true });
+  })
+  .use((c, next) => {
+    const acceptsJson = c.req.header("accept")?.includes(
+      "application/json",
+    );
+    if (acceptsJson && !c.var.sessionKey) {
+      throw new HTTPException(401, { message: "Invalid DPoP proof" });
+    }
+    return next();
+  })
   .route(
     "/webauthn",
     createPasskeysRouter({
@@ -60,13 +74,7 @@ const app = new Hono()
     return c.json({ origins: relatedOrigins });
   })
   .get("/session", (c) => {
-    setNoStore(c);
     return c.json({ userId: c.var.session?.userId || null });
-  })
-  .post("/session/logout", (c) => {
-    setNoStore(c);
-    c.set("session", undefined);
-    return c.json({ success: true });
   })
   .route(
     "/credentials",
