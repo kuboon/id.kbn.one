@@ -1,4 +1,3 @@
-import { idpOrigin } from "../../server/config.ts";
 import { fromFileUrl } from "@std/path";
 
 const resolvePath = (relativePath: string) =>
@@ -10,8 +9,7 @@ const result = await Deno.bundle({
   sourcemap: "linked",
   minify: true,
   write: false,
-})
-
+});
 
 if (!result.success) {
   console.error("Bundle failed:");
@@ -22,7 +20,7 @@ if (!result.success) {
 }
 
 for (const outputFile of result.outputFiles || []) {
-  const content = outputFile.text()
+  const content = outputFile.text();
   await Deno.writeTextFile(outputFile.path, content);
 }
 

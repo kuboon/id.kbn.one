@@ -1,6 +1,9 @@
-import { DpopJwtPayload } from "./types.ts";
+import type { DpopJwtPayload } from "./types.ts";
 import { base64UrlEncode, normalizeHtu, normalizeMethod } from "./common.ts";
-import type { KeyRepository } from "./client_keystore.ts";
+import {
+  IndexedDbKeyRepository,
+  type KeyRepository,
+} from "./client_keystore.ts";
 
 const textEncoder = new TextEncoder();
 
@@ -49,7 +52,7 @@ const createDpopProof = async (
 };
 
 export interface InitOptions {
-  keyStore: KeyRepository;
+  keyStore?: KeyRepository;
   fetch?: typeof fetch;
 }
 
@@ -60,7 +63,24 @@ function generateKeyPair(): Promise<CryptoKeyPair> {
     ["sign", "verify"],
   );
 }
-export const init = async (opts: InitOptions) => {
+function getMethodUrl(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): { method: string; url: string } {
+  const method = (init && init.method) ??
+    (input instanceof Request ? input.method : "GET");
+  if (typeof input === "string") {
+    if (input.includes("://")) {
+      return { method, url: input };
+    }
+    const origin = globalThis.location?.origin ?? "http://test.localhost";
+    return { method, url: origin + input };
+  }
+  const url = input instanceof URL ? input.toString() : input.url;
+  return { method, url };
+}
+export const init = async (opts: InitOptions = {}) => {
+  opts.keyStore ??= new IndexedDbKeyRepository();
   const useFetch = opts.fetch ?? fetch.bind(globalThis);
 
   let keyPair_ = await opts.keyStore.getKeyPair();
@@ -69,11 +89,16 @@ export const init = async (opts: InitOptions) => {
     await opts.keyStore.saveKeyPair(keyPair_);
   }
   const keyPair = keyPair_;
-  const fetchDpop = async (input: RequestInfo, init?: RequestInit) => {
-    const method = (init && init.method) ??
-      (typeof input === "string" ? "GET" : (input as Request).method);
-    const url = typeof input === "string" ? input : (input as Request).url;
-    const proof = await createDpopProof(keyPair, method, url);
+  const fetchDpop: typeof fetch = async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const { method, url } = getMethodUrl(input, init);
+    const proof = await createDpopProof(
+      keyPair,
+      method,
+      url,
+    );
 
     const headers = new Headers(
       init?.headers ??

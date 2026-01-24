@@ -2,7 +2,6 @@ import type {
   AuthenticationVerifyRequestBody,
   PasskeyCredential,
   PasskeyMiddlewareOptions,
-  RegistrationOptionsRequestBody,
   RegistrationVerifyRequestBody,
 } from "../core/types.ts";
 import { generateCredentialNickname } from "../core/generate-credential-nickname.ts";
@@ -24,13 +23,6 @@ import { serveStatic } from "hono/deno";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
-declare module "hono" {
-  interface ContextVariableMap {
-    userId: string | null;
-    session?: Record<string, unknown>;
-  }
-}
-
 const encodeBase64Url = (input: ArrayBuffer) =>
   base64.fromArrayBuffer(input, true);
 
@@ -39,20 +31,6 @@ const decodeBase64Url = (input: string) =>
 
 const jsonError = (status: ContentfulStatusCode, message: string) =>
   new HTTPException(status, { message });
-
-const getErrorDetails = (
-  error: unknown,
-): { code?: string; message?: string } => {
-  if (typeof error !== "object" || error === null) {
-    return {};
-  }
-  const record = error as Record<string, unknown>;
-  const code = typeof record.code === "string" ? record.code : undefined;
-  const message = typeof record.message === "string"
-    ? record.message
-    : undefined;
-  return { code, message };
-};
 
 const getRequestUrl = (c: Context): URL => {
   const headerOrigin = c.req.header("origin")?.trim();
@@ -66,13 +44,14 @@ const getRequestUrl = (c: Context): URL => {
   }
 };
 
-export const createPasskeyMiddleware = (
+export const createPasskeysRouter = (
   options: PasskeyMiddlewareOptions,
 ) => {
   const {
     rpName,
     storage,
     secret: _secret,
+    getUserId,
     registrationOptions,
     authenticationOptions,
     verifyRegistrationOptions,
@@ -98,24 +77,15 @@ export const createPasskeyMiddleware = (
     c.header("Cache-Control", "no-store");
   };
 
-  const router = new Hono();
+  const router = new Hono<
+    { Variables: { session?: Record<string, unknown> } }
+  >();
   router.post("/register/options", async (c) => {
     setNoStore(c);
-    const body = await ensureJsonBody<RegistrationOptionsRequestBody>(c);
-    const userId = body.userId?.trim();
+    let userId = getUserId(c);
     if (!userId) {
-      throw jsonError(400, "userId is required");
-    }
-    const userExists = await storage.getUserById(userId);
-    if (!userExists) {
-      try {
-        await storage.createUser(userId);
-      } catch (error: unknown) {
-        const { code, message } = getErrorDetails(error);
-        if (!(code === "USER_EXISTS" || message?.includes("exists"))) {
-          throw error;
-        }
-      }
+      userId = new Date().toISOString();
+      await storage.createUser(userId);
     }
 
     const requestUrl = getRequestUrl(c);
@@ -140,6 +110,7 @@ export const createPasskeyMiddleware = (
     const session = c.get("session") || {};
     c.set("session", {
       ...session,
+      userId,
       challenge: optionsResult.challenge,
       origin: requestUrl.origin,
     });
@@ -149,26 +120,18 @@ export const createPasskeyMiddleware = (
   router.post("/register/verify", async (c) => {
     setNoStore(c);
     const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
-    const userId = body.userId?.trim();
-    if (!userId) {
-      throw jsonError(400, "userId is required");
-    }
-    const userExists = await storage.getUserById(userId);
-    if (!userExists) {
-      throw jsonError(404, "User not found");
-    }
-    const existingCredentials = await storage.getCredentialsByUserId(userId);
     const session = c.get("session");
-    const storedChallenge = session?.challenge;
-    const storedOrigin = session?.origin;
-    if (!storedChallenge || typeof storedChallenge !== "string") {
-      throw jsonError(400, "No registration challenge for user");
+    if (!session) throw jsonError(400, "No session found for user");
+    const expectedChallenge = session.challenge;
+    const expectedOrigin = session.origin;
+    const userId = session.userId;
+    if (
+      typeof expectedChallenge !== "string" ||
+      typeof expectedOrigin !== "string" ||
+      typeof userId !== "string"
+    ) {
+      throw jsonError(400, "Incomplete session for user");
     }
-    if (!storedOrigin || typeof storedOrigin !== "string") {
-      throw jsonError(400, "No origin for challenge");
-    }
-    const expectedChallenge = storedChallenge;
-    const expectedOrigin = storedOrigin;
 
     const verification = await webauthn.verifyRegistrationResponse({
       response: body.credential,
@@ -196,6 +159,7 @@ export const createPasskeyMiddleware = (
       const fromInfo = (registrationInfo as { aaguid?: unknown }).aaguid;
       return typeof fromInfo === "string" ? fromInfo : null;
     })();
+    const existingCredentials = await storage.getCredentialsByUserId(userId);
     const transports = registrationCredential.transports ??
       body.credential.response.transports;
     const nickname = generateCredentialNickname({
@@ -342,7 +306,7 @@ export const createPasskeyMiddleware = (
   return router;
 };
 
-export type PasskeyMiddleware = ReturnType<typeof createPasskeyMiddleware>;
+export type PasskeyMiddleware = ReturnType<typeof createPasskeysRouter>;
 
 export { InMemoryPasskeyRepository } from "../core/in-memory-passkey-store.ts";
 export * from "../core/types.ts";

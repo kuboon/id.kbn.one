@@ -1,5 +1,4 @@
 node_modules/
 .mise
-*.js
 *.js.map
 _data/

@@ -49,7 +49,6 @@ export interface RegistrationOptionsRequestBody {
 }
 
 export interface RegistrationVerifyRequestBody {
-  userId: string;
   credential: RegistrationResponseJSON;
 }
 
@@ -117,6 +116,9 @@ export interface PasskeyMiddlewareOptions {
   storage: PasskeyRepository;
   secret: string;
   mountPath?: string;
+  getUserId: (
+    c: { var: { session?: { userId?: string } } },
+  ) => string | undefined;
   registrationOptions?: RegistrationOptionsOverrides;
   authenticationOptions?: AuthenticationOptionsOverrides;
   verifyRegistrationOptions?: VerifyRegistrationOverrides;

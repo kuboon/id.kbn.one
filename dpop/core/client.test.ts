@@ -12,21 +12,24 @@ function base64UrlDecodeToString(input: string): string {
 }
 
 Deno.test("apiCall attaches DPoP header and preserves other headers", async () => {
-  const recorded: Array<{ input: RequestInfo; init?: RequestInit }> = [];
-  const fakeFetch = (input: RequestInfo, init?: RequestInit) => {
+  const recorded: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+  const fakeFetch: typeof fetch = (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
     recorded.push({ input, init });
     return Promise.resolve(new Response("ok", { status: 200 }));
   };
 
   const keyStore = new InMemoryKeyRepository();
-  const { fetchDpop: apiCall } = await init({
+  const { fetchDpop } = await init({
     keyStore,
-    fetch: fakeFetch as typeof fetch,
+    fetch: fakeFetch,
   });
 
   const url = "https://example.com/some/path?x=1";
-  const res = await apiCall(url, {
-    method: "post",
+  const res = await fetchDpop(url, {
+    method: "POST",
     headers: { "X-Test": "1" },
   });
   if (!res || !(res instanceof Response)) {

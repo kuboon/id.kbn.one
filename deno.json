@@ -2,10 +2,11 @@
   "nodeModulesDir": "auto",
   "tasks": {
     "test": "deno fmt && deno lint && deno check && deno test -P",
-    "serve": "deno serve --env -P server/deno-server.ts"
+    "dev": "deno task --cwd=main dev",
+    "serve": "deno task --cwd=main serve"
   },
   "workspace": [
-    "server",
+    "main",
     "passkeys",
     "dpop"
   ],
@@ -31,6 +32,13 @@
       "net": ["updates.push.services.mozilla.com"],
       "read": ["."],
       "write": ["./_data"]
+    }
+  },
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-slow-types"
+      ]
     }
   }
 }

@@ -1,8 +1,9 @@
-import {
+import type {
   DpopJwtPayload,
+  DpopProofRequest,
   VerifyDpopProofOptions,
   VerifyDpopProofResult,
-} from "./types.ts";
+} from "../core/types.ts";
 import { normalizeHtu, normalizeMethod } from "./common.ts";
 import { decodeBase64Url } from "@std/encoding/base64url";
 
@@ -32,9 +33,10 @@ const isValidPublicJwk = (jwk: unknown): jwk is JsonWebKey => {
 };
 
 export const verifyDpopProof = async (
-  options: VerifyDpopProofOptions,
+  request: DpopProofRequest,
+  options: VerifyDpopProofOptions = {},
 ): Promise<VerifyDpopProofResult> => {
-  const parts = options.proof.split(".");
+  const parts = request.proof.split(".");
   if (parts.length !== 3) {
     return { valid: false, error: "invalid-format" };
   }
@@ -58,14 +60,14 @@ export const verifyDpopProof = async (
     return { valid: false, error: "invalid-jwk" };
   }
 
-  const expectedMethod = normalizeMethod(options.method);
+  const expectedMethod = normalizeMethod(request.method);
   if (payload.htm?.toUpperCase() !== expectedMethod) {
     return { valid: false, error: "method-mismatch" };
   }
 
   let expectedHtu: string;
   try {
-    expectedHtu = normalizeHtu(options.url);
+    expectedHtu = normalizeHtu(request.url);
   } catch {
     return { valid: false, error: "invalid-url" };
   }
@@ -131,6 +133,7 @@ export const verifyDpopProof = async (
 
   return {
     valid: true,
+    parts: parts as [string, string, string],
     payload: {
       htm: payload.htm,
       htu: payload.htu,
@@ -145,17 +148,19 @@ export const verifyDpopProof = async (
 
 export const verifyDpopProofFromRequest = async (
   req: Request,
-  options: Omit<VerifyDpopProofOptions, "proof" | "method" | "url"> = {},
+  options: VerifyDpopProofOptions = {},
 ): Promise<VerifyDpopProofResult> => {
   const header = req.headers.get("dpop") ?? req.headers.get("DPoP");
   if (!header) {
     return { valid: false, error: "missing-dpop-header" };
   }
 
-  return await verifyDpopProof({
-    proof: header,
-    method: req.method,
-    url: req.url,
-    ...options,
-  });
+  return await verifyDpopProof(
+    {
+      proof: header,
+      method: req.method,
+      url: req.url,
+    },
+    options,
+  );
 };

@@ -1,4 +1,4 @@
-import { app } from "./app.ts";
+import { app } from "./hono.ts";
 
 export default { fetch: app.fetch };
 

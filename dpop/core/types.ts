@@ -15,16 +15,20 @@ export interface DpopJwtPayload {
   readonly ath?: string;
 }
 
-export interface CreateDpopProofOptions {
-  readonly keyPair: CryptoKeyPair;
+export interface DpopHttpRequest {
   readonly method: string;
   readonly url: string;
 }
 
-export interface VerifyDpopProofOptions {
+export interface DpopProofRequest extends DpopHttpRequest {
   readonly proof: string;
-  readonly method: string;
-  readonly url: string;
+}
+
+export interface CreateDpopProofRequest extends DpopHttpRequest {
+  readonly keyPair: CryptoKeyPair;
+}
+
+export interface VerifyDpopProofOptions {
   /** Maximum allowed age (seconds) for the `iat` claim. Defaults to 300s. */
   readonly maxAgeSeconds?: number;
   /**
@@ -43,6 +47,7 @@ export interface VerifyDpopProofOptions {
 
 export type VerifyDpopProofResult = {
   valid: true;
+  readonly parts: readonly [string, string, string];
   readonly payload: DpopJwtPayload;
   readonly jwk: JsonWebKey;
 } | {

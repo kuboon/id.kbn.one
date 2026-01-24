@@ -12,6 +12,7 @@ designed so the package can be published to both npm and [JSR](https://jsr.io/)
 as-is.
 
 ## Installation
+
 WIP
 
 ## Usage
@@ -67,10 +68,10 @@ with while still avoiding server-side storage.
 
 ### Storage
 
-`@scope/passkeys` ships with `InMemoryPasskeyRepository` for quick
-experiments. For production use you should implement the `PasskeyRepository`
-interface with your own persistence layer and session handling. Challenge data
-is automatically signed and stored in Hono's signed cookies using a secret.
+`@scope/passkeys` ships with `InMemoryPasskeyRepository` for quick experiments.
+For production use you should implement the `PasskeyRepository` interface with
+your own persistence layer and session handling. Challenge data is automatically
+signed and stored in Hono's signed cookies using a secret.
 
 ### Client bundle caching
 

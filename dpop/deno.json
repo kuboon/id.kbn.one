@@ -1,7 +1,10 @@
 {
+  "name": "@scope/dpop",
+  "version": "0.1.0",
   "exports": {
-    ".": "./core/mod.ts",
-    "./hono-middleware": "./hono-middleware/hono-middleware.ts"
+    ".": "./core/server.ts",
+    "./types.ts": "./core/types.ts",
+    "./client.ts": "./core/client.ts"
   },
   "compilerOptions": {
     "strict": true,

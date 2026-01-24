@@ -1,8 +1,8 @@
-import { getKvInstance } from "./kvInstance.ts";
+import { getKvInstance } from "../kvInstance.ts";
 import type {
   PasskeyCredential,
   PasskeyRepository,
-} from "../passkeys/src/hono-middleware/mod.ts";
+} from "@scope/passkeys/hono-middleware";
 
 const USER_KEY_PREFIX = ["user"] as const;
 const CREDENTIAL_KEY_PREFIX = ["credential"] as const;

@@ -1,6 +1,6 @@
 import { MiddlewareHandler } from "hono/types";
-import { contentType } from "@std/media-types";
 import { HTTPException } from "hono/http-exception";
+import { contentType } from "@std/media-types";
 
 type BundleOptions = {
   root: string;

@@ -60,9 +60,6 @@ export interface RegisterParams {
   username: string;
 }
 
-export interface AuthenticateParams {
-}
-
 export interface DeleteParams {
   credentialId: string;
 }
@@ -131,21 +128,17 @@ export const createClient = (options: CreateClientOptions = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl: FetchLike = options.fetch ?? fetch;
 
-  const ensureUsername = (username: string) => username.trim();
   const buildUrl = (mountPath: string, endpoint: string) => {
-    return`${mountPath}${endpoint}`;
+    return `${mountPath}${endpoint}`;
   };
 
-
   return {
-    async register(params: RegisterParams): Promise<RegisterResult> {
-      const username = ensureUsername(params.username);
+    async register(): Promise<RegisterResult> {
       const optionsJSON = await fetchJson(
         fetchImpl,
         buildUrl(mountPath, "/register/options"),
         {
           method: "POST",
-          body: JSON.stringify({ username }),
         },
       );
       const attestationResponse = await startRegistration(
@@ -158,7 +151,6 @@ export const createClient = (options: CreateClientOptions = {}) => {
         {
           method: "POST",
           body: JSON.stringify({
-            username,
             credential: attestationResponse,
           }),
         },
@@ -167,14 +159,11 @@ export const createClient = (options: CreateClientOptions = {}) => {
       return verification as RegisterResult;
     },
 
-    async authenticate(
-      params: AuthenticateParams = {},
-    ): Promise<AuthenticateResult> {
-
+    async authenticate(): Promise<AuthenticateResult> {
       const optionsJSON = await fetchJson(
         fetchImpl,
         buildUrl(mountPath, "/authenticate/options"),
-        { method: "POST", },
+        { method: "POST" },
       );
 
       const assertionResponse = await startAuthentication(

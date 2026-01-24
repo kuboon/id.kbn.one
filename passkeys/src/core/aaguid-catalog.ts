@@ -1,4 +1,4 @@
-import { AAGUID_CATALOG } from "../core/aaguid-data.ts";
+import { AAGUID_CATALOG } from "./aaguid-data.ts";
 
 const normaliseAaguid = (value: string) => value.trim().toLowerCase();
 

@@ -1,7 +1,10 @@
 {
   "name": "@scope/passkeys",
   "version": "0.1.0",
-  "exports": {"." : "./src/mod.ts", "./static/client.ts": "./static/client.ts"},
+  "exports": {
+    "./hono-middleware": "./src/hono-middleware/mod.ts",
+    "./static/client.ts": "./static/client.ts"
+  },
   "tasks": {
     "build": "deno run -A scripts/build_client.ts"
   },
@@ -20,11 +23,5 @@
   "compilerOptions": {
     "strict": true,
     "lib": ["deno.ns", "deno.unstable", "dom"]
-  },
-  "fmt": {
-    "include": ["src/**/*.ts"]
-  },
-  "lint": {
-    "include": ["src/**/*.ts"]
   }
 }

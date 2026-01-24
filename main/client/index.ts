@@ -1,6 +1,8 @@
 import { createClient } from "@scope/passkeys/static/client.ts";
+import { init } from "@scope/dpop/client.ts";
+const { fetchDpop } = await init();
 
-const client = createClient();
+const client = createClient({ fetch: fetchDpop });
 
 const guestForm = document.getElementById("guest-form")!;
 const conditionalStatus = document.getElementById(
@@ -45,9 +47,7 @@ const setStatus = (
 
 const getSession = async () => {
   try {
-    const response = await fetch("/session", {
-      credentials: "include",
-    });
+    const response = await fetchDpop("/session");
     if (!response.ok) {
       return null;
     }
@@ -59,10 +59,11 @@ const getSession = async () => {
 
 const redirectToDashboard = async () => {
   const session = await getSession();
-  if (session?.user) {
+  if (session?.userId) {
     globalThis.location.href = "/me";
     return true;
   }
+  console.error("session: ", session);
   throw new Error(
     "サインインできませんでした。もう一度お試しください。",
   );
@@ -124,14 +125,6 @@ const checkConditionalMediation = async () => {
   }
 };
 
-const generateRandomUsername = () => {
-  const hex = () =>
-    Math.floor(Math.random() * 0xffff)
-      .toString(16)
-      .padStart(4, "0");
-  return `kbn-${Date.now().toString(36)}-${hex()}`;
-};
-
 guestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (guestForm.dataset.loading === "true") {
@@ -148,6 +141,7 @@ guestForm.addEventListener("submit", async (event) => {
   try {
     await authenticateWithPasskey();
   } catch (error) {
+    console.error("Authentication failed:", error);
     const message =
       typeof error === "object" && error !== null && "message" in error
         ? error.message
@@ -167,12 +161,11 @@ createAccountButton.addEventListener("click", async () => {
   if (createAccountButton.dataset.loading === "true") {
     return;
   }
-  const username = generateRandomUsername();
   createAccountButton.dataset.loading = "true";
   createAccountButton.disabled = true;
   try {
     setStatus("セキュリティキーの操作を待機しています…");
-    await client.register({ username });
+    await client.register();
     await redirectToDashboard();
     setStatus("アカウントを作成しました。", "success", {
       autoHide: true,
@@ -213,7 +206,7 @@ createAccountButton.addEventListener("click", async () => {
 const initialize = async () => {
   await checkConditionalMediation();
   const session = await getSession();
-  if (session?.user) {
+  if (session?.userId) {
     globalThis.location.href = "/me";
     return;
   }

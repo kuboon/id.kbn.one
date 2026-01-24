@@ -1,6 +1,8 @@
 import { createClient } from "@scope/passkeys/static/client.ts";
+import { init } from "@scope/dpop/client.ts";
+const { fetchDpop } = await init();
 
-const client = createClient();
+const client = createClient({ fetch: fetchDpop });
 
 const statusEl = document.getElementById("status")!;
 const accountView = document.getElementById("account-view")!;
@@ -69,7 +71,7 @@ type User = {
 
 type Credential = {
   id: string;
-  nickname?: string;
+  nickname: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -461,11 +463,9 @@ const clearAccount = () => {
   setAccount(null);
 };
 
-const getSession = async (): Promise<{ user: User } | null> => {
+const getSession = async (): Promise<{ userId: string } | null> => {
   try {
-    const response = await fetch("/session", {
-      credentials: "include",
-    });
+    const response = await fetchDpop("/session");
     if (!response.ok) {
       return null;
     }
@@ -499,9 +499,7 @@ const extractErrorMessage = async (response: Response): Promise<string> => {
 };
 
 const fetchAccount = async (): Promise<Account> => {
-  const response = await fetch("/webauthn/credentials", {
-    credentials: "include",
-  });
+  const response = await fetchDpop("/credentials");
   if (response.status === 401) {
     throw new Error("サインインが必要です。");
   }
@@ -509,11 +507,11 @@ const fetchAccount = async (): Promise<Account> => {
     throw new Error(await extractErrorMessage(response));
   }
   const data = await response.json();
-  if (!data || typeof data !== "object" || !data.user) {
+  if (!data || typeof data !== "object" || !data.userId) {
     throw new Error("アカウントが見つかりません。");
   }
   const credentials = Array.isArray(data.credentials) ? data.credentials : [];
-  return { user: data.user, credentials };
+  return { user: { id: data.userId, username: data.userId }, credentials };
 };
 
 const loadAccount = async (): Promise<Account> => {
@@ -567,9 +565,7 @@ const fetchVapidKey = async (): Promise<string> => {
   if (state.push.vapidPublicKey) {
     return state.push.vapidPublicKey;
   }
-  const response = await fetch("/push/vapid-key", {
-    credentials: "include",
-  });
+  const response = await fetchDpop("/push/vapid-key");
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response));
   }
@@ -610,9 +606,7 @@ const loadPushSubscriptions = async (initial = false) => {
     return;
   }
   try {
-    const response = await fetch("/push/subscriptions", {
-      credentials: "include",
-    });
+    const response = await fetchDpop("/push/subscriptions");
     if (!response.ok) {
       throw new Error(await extractErrorMessage(response));
     }
@@ -695,9 +689,8 @@ const subscribeCurrentDevice = async () => {
         userVisibleOnly: true,
         applicationServerKey: await fetchVapidKey(),
       });
-    const response = await fetch("/push/subscriptions", {
+    const response = await fetchDpop("/push/subscriptions", {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         subscription: subscription.toJSON(),
@@ -737,11 +730,10 @@ const removeSubscription = async (id: string) => {
     return;
   }
   try {
-    const response = await fetch(
+    const response = await fetchDpop(
       `/push/subscriptions/${encodeURIComponent(id)}`,
       {
         method: "DELETE",
-        credentials: "include",
       },
     );
     if (!response.ok) {
@@ -779,9 +771,8 @@ const sendTestNotification = async (id: string, button?: HTMLButtonElement) => {
     button.disabled = true;
   }
   try {
-    const response = await fetch("/push/notifications/test", {
+    const response = await fetchDpop("/push/notifications/test", {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subscriptionId: id }),
     });
@@ -831,9 +822,8 @@ logoutButton.addEventListener("click", async () => {
   logoutButton.dataset.loading = "true";
   logoutButton.disabled = true;
   try {
-    const response = await fetch("/session/logout", {
+    const response = await fetchDpop("/session/logout", {
       method: "POST",
-      credentials: "include",
     });
     if (!response.ok) {
       throw new Error(await extractErrorMessage(response));
@@ -873,9 +863,8 @@ deleteAccountButton.addEventListener("click", async () => {
   deleteAccountButton.dataset.loading = "true";
   deleteAccountButton.disabled = true;
   try {
-    const response = await fetch("/account", {
+    const response = await fetchDpop("/account", {
       method: "DELETE",
-      credentials: "include",
     });
     if (!response.ok) {
       throw new Error(await extractErrorMessage(response));
@@ -910,9 +899,7 @@ addPasskeyButton.addEventListener("click", async () => {
   addPasskeyButton.disabled = true;
   try {
     setStatus("セキュリティキーの操作を待機しています…");
-    const result = await client.register({
-      username: state.account.user.username,
-    });
+    const result = await client.register();
     const nickname = result?.credential?.nickname?.trim();
     setStatus(
       nickname
@@ -922,7 +909,7 @@ addPasskeyButton.addEventListener("click", async () => {
     );
     await refreshAccount();
   } catch (error) {
-    let message = "パスキーの設定に失敗しました。";
+    let message = "パスキーの追加に失敗しました。";
     let statusType: "info" | "error" | "success" = "error";
     if (error instanceof DOMException) {
       switch (error.name) {
@@ -940,7 +927,7 @@ addPasskeyButton.addEventListener("click", async () => {
           break;
         default:
           if (error.message?.trim()) {
-            message = `パスキーの設定に失敗しました: ${error.message}`;
+            message = `パスキーの追加に失敗しました: ${error.message}`;
           }
           break;
       }
@@ -1068,11 +1055,10 @@ pushDeviceForm.addEventListener("submit", async (event) => {
   pushDeviceForm.dataset.loading = "true";
   pushDeviceDialogSubmit.disabled = true;
   try {
-    const response = await fetch(
+    const response = await fetchDpop(
       `/push/subscriptions/${encodeURIComponent(subscriptionId)}`,
       {
         method: "PATCH",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           metadata: { deviceName: normalizedName },
@@ -1135,10 +1121,13 @@ credentialForm.addEventListener("submit", async (event) => {
   credentialForm.dataset.loading = "true";
   credentialDialogSubmit.disabled = true;
   try {
-    const updated = await client.update({
-      credentialId,
-      nickname: normalizedNickname,
-    });
+    const updated = await fetchDpop(`/credentials/${encodeURIComponent(credentialId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nickname: normalizedNickname,
+      }),
+    }).then(x => x.json());
     const nickname = updated.nickname?.trim() ||
       normalizedNickname;
     setStatus(
@@ -1218,10 +1207,11 @@ credentialsList.addEventListener("click", async (event) => {
   button.disabled = true;
   try {
     setStatus("パスキーを削除しています…");
-    await client.delete({
-      credentialId,
-    });
-    setStatus("パスキーを削除しました。", "success");
+    // await client.delete({
+    //   credentialId,
+    // });
+    // setStatus("パスキーを削除しました。", "success");
+    setStatus("パスキーの削除機能は現在利用できません。", "error");
     await refreshAccount();
   } catch (error) {
     setStatus(
@@ -1266,9 +1256,8 @@ profileForm.addEventListener("submit", async (event) => {
   profileForm.dataset.loading = "true";
   profileSubmitButton.disabled = true;
   try {
-    const response = await fetch("/account", {
+    const response = await fetchDpop("/account", {
       method: "PATCH",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -1301,7 +1290,7 @@ profileForm.addEventListener("submit", async (event) => {
 const initialise = async () => {
   setStatus("アカウント情報を読み込んでいます…");
   const session = await getSession();
-  if (!session?.user) {
+  if (!session?.userId) {
     globalThis.location.href = "/";
     return;
   }
