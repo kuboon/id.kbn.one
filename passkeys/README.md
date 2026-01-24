@@ -11,37 +11,18 @@ and a JSON API for bootstrapping and verifying passkey ceremonies. It is
 designed so the package can be published to both npm and [JSR](https://jsr.io/)
 as-is.
 
-## Installation
-
-WIP
-
-## Usage
-
-```ts
-import { Hono } from "hono";
-import {
-  createPasskeyMiddleware,
-  InMemoryPasskeyRepository,
-} from "@scope/passkeys";
-
 const app = new Hono();
 
-// Use an appropriate PasskeyRepository implementation for your server
-const storage = new InMemoryPasskeyRepository();
+// Use an appropriate PasskeyRepository implementation for your server const
+storage = new InMemoryPasskeyRepository();
 
-app.use(
-  createPasskeyMiddleware({
-    rpID: "example.com",
-    rpName: "Example Passkeys Demo",
-    storage,
-    // Optional: customise the mount path (defaults to '/webauthn')
-    path: "/webauthn",
-  }),
-);
+app.use( createPasskeyMiddleware({ rpID: "example.com", rpName: "Example
+Passkeys Demo", storage, // Optional: customise the mount path (defaults to
+'/webauthn') path: "/webauthn", }), );
 
 app.get("/", (c) => c.text("Hello passkeys!"));
-```
 
+````
 The middleware exposes the following endpoints relative to the configured `path`
 (default `/webauthn`):
 
@@ -66,13 +47,6 @@ the generated challenge inside an HMAC-signed cookie. The cookie is verified and
 cleared during the `/verify` steps to ensure the challenge cannot be tampered
 with while still avoiding server-side storage.
 
-### Storage
-
-`@scope/passkeys` ships with `InMemoryPasskeyRepository` for quick experiments.
-For production use you should implement the `PasskeyRepository` interface with
-your own persistence layer and session handling. Challenge data is automatically
-signed and stored in Hono's signed cookies using a secret.
-
 ### Client bundle caching
 
 `client.js` is read from disk on first request and cached in-memory for
@@ -87,4 +61,4 @@ development:
 ```bash
 cd ../server
 deno task dev
-```
+````

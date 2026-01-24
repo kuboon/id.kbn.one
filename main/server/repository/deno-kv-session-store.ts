@@ -17,7 +17,7 @@ export class DenoKvSessionRepository implements SessionRepository {
     if (updated === null) {
       await this.kv.delete(this.kvKey(sessionKey));
     } else {
-      const expireIn = 60 * 60 * 24 * 7; // 7 days
+      const expireIn = 1000 * 60 * 60 * 24 * 7; // 7 days
       await this.kv.set(this.kvKey(sessionKey), updated, { expireIn });
     }
   }

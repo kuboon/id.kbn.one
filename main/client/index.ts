@@ -162,7 +162,8 @@ createAccountButton.addEventListener("click", async () => {
     return;
   }
 
-  const userId = prompt("パスキーに登録するユーザー名を入力してください:")?.trim();
+  const userId = prompt("パスキーに登録するユーザー名を入力してください:")
+    ?.trim();
   if (!userId) {
     setStatus("ユーザー名が入力されませんでした。", "info");
     return;
