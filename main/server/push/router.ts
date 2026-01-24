@@ -1,11 +1,18 @@
 import {
   PushService,
   type PushSubscriptionMetadata,
-  type PushSubscriptionPayload,
   type StoredPushSubscription,
 } from "./service.ts";
+
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { sValidator } from "@hono/standard-validator";
+import {
+  pushSubscriptionBodySchema,
+  subscriptionIdParamSchema,
+  testNotificationBodySchema,
+  updateMetadataBodySchema,
+} from "./schemas.ts";
 
 const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
   if (!metadata || typeof metadata !== "object") {
@@ -48,121 +55,6 @@ const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
   return result;
 };
 
-const parsePushSubscriptionPayload = (
-  value: unknown,
-): PushSubscriptionPayload => {
-  if (!value || typeof value !== "object") {
-    throw new HTTPException(400, { message: "subscription is required" });
-  }
-  const raw = value as {
-    endpoint?: unknown;
-    expirationTime?: unknown;
-    keys?: unknown;
-  };
-  if (typeof raw.endpoint !== "string" || !raw.endpoint.trim()) {
-    throw new HTTPException(400, {
-      message: "subscription endpoint is required",
-    });
-  }
-  if (!raw.keys || typeof raw.keys !== "object") {
-    throw new HTTPException(400, {
-      message: "subscription keys are required",
-    });
-  }
-  const keysRecord = raw.keys as { auth?: unknown; p256dh?: unknown };
-  if (typeof keysRecord.auth !== "string" || !keysRecord.auth) {
-    throw new HTTPException(400, {
-      message: "subscription auth key is required",
-    });
-  }
-  if (typeof keysRecord.p256dh !== "string" || !keysRecord.p256dh) {
-    throw new HTTPException(400, {
-      message: "subscription p256dh key is required",
-    });
-  }
-  return {
-    endpoint: raw.endpoint.trim(),
-    expirationTime: typeof raw.expirationTime === "number"
-      ? raw.expirationTime
-      : null,
-    keys: {
-      auth: keysRecord.auth,
-      p256dh: keysRecord.p256dh,
-    },
-  };
-};
-
-const parsePushSubscriptionRequest = async (
-  c: Context,
-): Promise<{
-  subscription: PushSubscriptionPayload;
-  metadata: PushSubscriptionMetadata;
-}> => {
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new HTTPException(400, { message: "Invalid JSON payload" });
-  }
-  if (!body || typeof body !== "object") {
-    throw new HTTPException(400, { message: "Invalid request body" });
-  }
-  const record = body as {
-    subscription?: unknown;
-    metadata?: unknown;
-  };
-  if (!record.subscription) {
-    throw new HTTPException(400, {
-      message: "subscription is required",
-    });
-  }
-  return {
-    subscription: parsePushSubscriptionPayload(record.subscription),
-    metadata: sanitizeMetadata(record.metadata),
-  };
-};
-
-const parsePushMetadataUpdateRequest = async (
-  c: Context,
-): Promise<PushSubscriptionMetadata> => {
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new HTTPException(400, { message: "Invalid JSON payload" });
-  }
-  if (!body || typeof body !== "object") {
-    throw new HTTPException(400, { message: "Invalid request body" });
-  }
-  const { metadata } = body as { metadata?: unknown };
-  const sanitized = sanitizeMetadata(metadata);
-  if (!Object.keys(sanitized).length) {
-    throw new HTTPException(400, { message: "metadata is required" });
-  }
-  return sanitized;
-};
-
-const parsePushTestRequest = async (
-  c: Context,
-): Promise<{ subscriptionId: string }> => {
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new HTTPException(400, { message: "Invalid JSON payload" });
-  }
-  if (!body || typeof body !== "object") {
-    throw new HTTPException(400, { message: "Invalid request body" });
-  }
-  const { subscriptionId } = body as { subscriptionId?: unknown };
-  if (typeof subscriptionId !== "string" || !subscriptionId.trim()) {
-    throw new HTTPException(400, {
-      message: "subscriptionId is required",
-    });
-  }
-  return { subscriptionId: subscriptionId.trim() };
-};
-
 const serializePushSubscription = (
   subscription: StoredPushSubscription,
 ) => ({
@@ -192,115 +84,114 @@ export const createPushRouter = ({
     throw new Error("pushService must be an instance of PushService");
   }
 
-  const router = new Hono();
-
-  router.get("/vapid-key", async (c) => {
+  const router = new Hono().get("/vapid-key", async (c) => {
     setNoStore(c);
     await ensureAuthenticatedUser(c);
     return c.json({
       publicKey: pushService.getPublicKey(),
       contact: pushContact,
     });
-  });
-
-  router.get("/subscriptions", async (c) => {
+  }).get("/subscriptions", async (c) => {
     setNoStore(c);
     const userId = ensureAuthenticatedUser(c);
     const subscriptions = await pushService.listSubscriptions(userId);
     return c.json({
       subscriptions: subscriptions.map(serializePushSubscription),
     });
-  });
-
-  router.post("/subscriptions", async (c) => {
-    setNoStore(c);
-    const userId = ensureAuthenticatedUser(c);
-    const { subscription, metadata } = await parsePushSubscriptionRequest(c);
-    try {
-      const stored = await pushService.upsertSubscription(
-        userId,
-        subscription,
-        metadata,
-      );
-      return c.json({ subscription: serializePushSubscription(stored) });
-    } catch (error) {
-      throw new HTTPException(400, {
-        message: error instanceof Error
-          ? error.message
-          : "Failed to save subscription",
-      });
-    }
-  });
-
-  router.delete("/subscriptions/:id", async (c) => {
-    setNoStore(c);
-    const userId = ensureAuthenticatedUser(c);
-    const id = c.req.param("id");
-    if (!id || !id.trim()) {
-      throw new HTTPException(400, {
-        message: "subscription id is required",
-      });
-    }
-    const deleted = await pushService.deleteSubscription(userId, id.trim());
-    if (!deleted) {
-      throw new HTTPException(404, { message: "Subscription not found" });
-    }
-    return c.json({ success: true });
-  });
-
-  router.patch("/subscriptions/:id", async (c) => {
-    setNoStore(c);
-    const userId = ensureAuthenticatedUser(c);
-    const id = c.req.param("id");
-    if (!id || !id.trim()) {
-      throw new HTTPException(400, {
-        message: "subscription id is required",
-      });
-    }
-    const metadata = await parsePushMetadataUpdateRequest(c);
-    try {
-      const updated = await pushService.updateSubscriptionMetadata(
-        userId,
-        id.trim(),
-        metadata,
-      );
-      return c.json({ subscription: serializePushSubscription(updated) });
-    } catch (error) {
-      if (
-        error instanceof Error && error.message === "Subscription not found"
-      ) {
-        throw new HTTPException(404, { message: error.message });
+  }).post(
+    "/subscriptions",
+    sValidator("json", pushSubscriptionBodySchema),
+    async (c) => {
+      setNoStore(c);
+      const userId = ensureAuthenticatedUser(c);
+      const { subscription, metadata } = c.req.valid("json");
+      try {
+        const stored = await pushService.upsertSubscription(
+          userId,
+          subscription,
+          sanitizeMetadata(metadata),
+        );
+        return c.json({ subscription: serializePushSubscription(stored) });
+      } catch (error) {
+        throw new HTTPException(400, {
+          message: error instanceof Error
+            ? error.message
+            : "Failed to save subscription",
+        });
       }
-      throw new HTTPException(400, {
-        message: error instanceof Error
-          ? error.message
-          : "Failed to update subscription",
-      });
-    }
-  });
-
-  router.post("/notifications/test", async (c) => {
-    setNoStore(c);
-    const userId = ensureAuthenticatedUser(c);
-    const { subscriptionId } = await parsePushTestRequest(c);
-    try {
-      const result = await pushService.sendTestNotification(
-        userId,
-        subscriptionId,
-      );
-      return c.json({
-        subscription: serializePushSubscription(result.subscription),
-        removed: result.removed ?? false,
-        warnings: result.warnings ?? [],
-      });
-    } catch (error) {
-      throw new HTTPException(400, {
-        message: error instanceof Error
-          ? error.message
-          : "Failed to send notification",
-      });
-    }
-  });
+    },
+  ).delete(
+    "/subscriptions/:id",
+    sValidator("param", subscriptionIdParamSchema),
+    async (c) => {
+      setNoStore(c);
+      const userId = ensureAuthenticatedUser(c);
+      const { id } = c.req.valid("param");
+      const deleted = await pushService.deleteSubscription(userId, id);
+      if (!deleted) {
+        throw new HTTPException(404, { message: "Subscription not found" });
+      }
+      return c.json({ success: true });
+    },
+  ).patch(
+    "/subscriptions/:id",
+    sValidator("param", subscriptionIdParamSchema),
+    sValidator("json", updateMetadataBodySchema),
+    async (c) => {
+      setNoStore(c);
+      const userId = ensureAuthenticatedUser(c);
+      const { id } = c.req.valid("param");
+      const { metadata } = c.req.valid("json");
+      const sanitized = sanitizeMetadata(metadata);
+      if (!Object.keys(sanitized).length) {
+        throw new HTTPException(400, { message: "metadata is required" });
+      }
+      try {
+        const updated = await pushService.updateSubscriptionMetadata(
+          userId,
+          id,
+          sanitized,
+        );
+        return c.json({ subscription: serializePushSubscription(updated) });
+      } catch (error) {
+        if (
+          error instanceof Error && error.message === "Subscription not found"
+        ) {
+          throw new HTTPException(404, { message: error.message });
+        }
+        throw new HTTPException(400, {
+          message: error instanceof Error
+            ? error.message
+            : "Failed to update subscription",
+        });
+      }
+    },
+  ).post(
+    "/notifications/test",
+    sValidator("json", testNotificationBodySchema),
+    async (c) => {
+      setNoStore(c);
+      const userId = ensureAuthenticatedUser(c);
+      const { subscriptionId } = c.req.valid("json");
+      try {
+        const result = await pushService.sendTestNotification(
+          userId,
+          subscriptionId,
+        );
+        return c.json({
+          subscription: serializePushSubscription(result.subscription),
+          removed: result.removed ?? false,
+          warnings: result.warnings ?? [],
+        });
+      } catch (error) {
+        throw new HTTPException(400, {
+          message: error instanceof Error
+            ? error.message
+            : "Failed to send notification",
+        });
+      }
+    },
+  );
 
   return router;
 };

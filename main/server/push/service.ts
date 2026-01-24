@@ -11,6 +11,7 @@ import {
   type PushSubscription as WebPushSubscription,
   Urgency,
 } from "@negrel/webpush";
+import type { PushSubscriptionPayload } from "./schemas.ts";
 
 const encoder = new TextEncoder();
 
@@ -38,15 +39,6 @@ interface StoredVapidKeysRecord {
   keys: Awaited<ReturnType<typeof exportVapidKeys>>;
   createdAt: number;
   updatedAt: number;
-}
-
-export interface PushSubscriptionPayload {
-  endpoint: string;
-  expirationTime: number | null;
-  keys: {
-    auth: string;
-    p256dh: string;
-  };
 }
 
 export interface PushSubscriptionMetadata {

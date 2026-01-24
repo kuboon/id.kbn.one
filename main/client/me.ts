@@ -1121,13 +1121,16 @@ credentialForm.addEventListener("submit", async (event) => {
   credentialForm.dataset.loading = "true";
   credentialDialogSubmit.disabled = true;
   try {
-    const updated = await fetchDpop(`/credentials/${encodeURIComponent(credentialId)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nickname: normalizedNickname,
-      }),
-    }).then(x => x.json());
+    const updated = await fetchDpop(
+      `/credentials/${encodeURIComponent(credentialId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: normalizedNickname,
+        }),
+      },
+    ).then((x) => x.json());
     const nickname = updated.nickname?.trim() ||
       normalizedNickname;
     setStatus(

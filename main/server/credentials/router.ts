@@ -3,6 +3,11 @@ import type { DenoKvPasskeyRepository } from "../repository/deno-kv-passkey-stor
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { Context } from "hono";
+import { sValidator } from "@hono/standard-validator";
+import {
+  credentialIdParamSchema,
+  updateNicknameBodySchema,
+} from "./schemas.ts";
 
 export type CredentialsRouterOptions = {
   credentialStore: DenoKvPasskeyRepository;
@@ -14,57 +19,51 @@ export function createCredentialsRouter(
   { credentialStore, ensureAuthenticatedUser, setNoStore }:
     CredentialsRouterOptions,
 ) {
-  const app = new Hono();
-
-  app.get("/", async (c) => {
-    setNoStore(c);
-    const userId = ensureAuthenticatedUser(c);
-    const credentials = await credentialStore.getCredentialsByUserId(userId);
-    return c.json({ userId, credentials });
-  });
-
-  app.delete("/:credentialId", async (c) => {
-    setNoStore(c);
-    const userId = ensureAuthenticatedUser(c);
-    const credentialId = c.req.param("credentialId");
-    if (!credentialId) {
-      throw new HTTPException(400, {
-        message: "Missing credential identifier",
-      });
-    }
-    const credential = await credentialStore.getCredentialById(credentialId);
-    if (!credential || credential.userId !== userId) {
-      throw new HTTPException(404, { message: "Credential not found" });
-    }
-    await credentialStore.deleteCredential(credentialId);
-    return c.json({ success: true });
-  });
-
-  app.patch("/:credentialId", async (c) => {
-    setNoStore(c);
-    const userId = ensureAuthenticatedUser(c);
-    const credentialId = c.req.param("credentialId");
-    if (!credentialId) {
-      throw new HTTPException(400, {
-        message: "Missing credential identifier",
-      });
-    }
-    const body = await c.req.json<{ nickname?: string }>();
-    const nickname = body.nickname?.trim();
-    if (!nickname) {
-      throw new HTTPException(400, { message: "nickname is required" });
-    }
-    const credential = await credentialStore.getCredentialById(credentialId);
-    if (!credential || credential.userId !== userId) {
-      throw new HTTPException(404, { message: "Credential not found" });
-    }
-    if (credential.nickname !== nickname) {
-      credential.nickname = nickname;
-      credential.updatedAt = Date.now();
-      await credentialStore.updateCredential(credential);
-    }
-    return c.json({ credential });
-  });
+  const app = new Hono() //.basePath("/credentials")
+    .get("/", async (c) => {
+      setNoStore(c);
+      const userId = ensureAuthenticatedUser(c);
+      const credentials = await credentialStore.getCredentialsByUserId(userId);
+      return c.json({ userId, credentials });
+    }).delete(
+      "/:credentialId",
+      sValidator("param", credentialIdParamSchema),
+      async (c) => {
+        setNoStore(c);
+        const userId = ensureAuthenticatedUser(c);
+        const { credentialId } = c.req.valid("param");
+        const credential = await credentialStore.getCredentialById(
+          credentialId,
+        );
+        if (!credential || credential.userId !== userId) {
+          throw new HTTPException(404, { message: "Credential not found" });
+        }
+        await credentialStore.deleteCredential(credentialId);
+        return c.json({ success: true });
+      },
+    ).patch(
+      "/:credentialId",
+      sValidator("param", credentialIdParamSchema),
+      sValidator("json", updateNicknameBodySchema),
+      async (c) => {
+        setNoStore(c);
+        const userId = ensureAuthenticatedUser(c);
+        const { credentialId } = c.req.valid("param");
+        const { nickname } = c.req.valid("json");
+        const credential = await credentialStore.getCredentialById(
+          credentialId,
+        );
+        if (!credential || credential.userId !== userId) {
+          throw new HTTPException(404, { message: "Credential not found" });
+        }
+        if (credential.nickname !== nickname) {
+          credential.nickname = nickname;
+          credential.updatedAt = Date.now();
+          await credentialStore.updateCredential(credential);
+        }
+        return c.json({ credential });
+      },
+    );
 
   return app;
 }

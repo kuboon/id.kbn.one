@@ -12,8 +12,10 @@
   ],
   "imports": {
     "@hexagon/base64": "npm:@hexagon/base64@2.0.4",
+    "@hono/standard-validator": "jsr:@hono/standard-validator@^0.2.2",
     "@std/assert": "jsr:@std/assert@^1.0.17",
-    "hono": "jsr:@hono/hono@4.10.4"
+    "arktype": "npm:arktype@^2.1.29",
+    "hono": "jsr:@hono/hono@4.11.5"
   },
   "unstable": ["kv", "bundle"],
   "deploy": {
