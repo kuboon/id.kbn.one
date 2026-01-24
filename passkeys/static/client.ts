@@ -97,9 +97,9 @@ const fetchJson = async <T = unknown>(
     let details: unknown = null;
     try {
       if (hasJsonContentType(response)) {
-        details = await response.clone().json();
+        details = await response.json();
       } else {
-        const text = await response.clone().text();
+        const text = await response.text();
         details = text.trim() ? text : null;
       }
     } catch {
@@ -173,18 +173,40 @@ export const createClient = (options: CreateClientOptions = {}) => {
         { optionsJSON } as Parameters<typeof startAuthentication>[0],
       );
 
-      const verification = await fetchJson(
-        fetchImpl,
-        buildUrl(mountPath, "/authenticate/verify"),
-        {
-          method: "POST",
-          body: JSON.stringify({
-            credential: assertionResponse,
-          }),
-        },
-      );
+      try {
+        const verification = await fetchJson(
+          fetchImpl,
+          buildUrl(mountPath, "/authenticate/verify"),
+          {
+            method: "POST",
+            body: JSON.stringify({
+              credential: assertionResponse,
+            }),
+          },
+        );
 
-      return verification as AuthenticateResult;
+        return verification as AuthenticateResult;
+      } catch (error) {
+        if (
+          error instanceof PasskeyClientError &&
+          error.status === 401 &&
+          "PublicKeyCredential" in globalThis &&
+          "signalUnknownCredential" in PublicKeyCredential
+        ) {
+          const rpId = typeof error.details === "object" && error.details &&
+            "rpId" in error.details && typeof error.details.rpId === "string" &&
+            error.details.rpId;
+          if (rpId) {
+            await (PublicKeyCredential.signalUnknownCredential as (
+              options: { rpId: string; credentialId: string },
+            ) => Promise<void>)({
+              rpId,
+              credentialId: assertionResponse.id,
+            });
+          }
+        }
+        throw error;
+      }
     },
   };
 };

@@ -225,7 +225,8 @@ export const createPasskeysRouter = (
       });
 
       return c.json(optionsResult);
-    }).post("/authenticate/verify", async (c) => {
+    })
+    .post("/authenticate/verify", async (c) => {
       const rawBody = (await ensureJsonBody<unknown>(c)) as Record<
         string,
         unknown
@@ -237,11 +238,6 @@ export const createPasskeysRouter = (
           origin?: string;
         };
       if (!body.credential) throw jsonError(400, "credential is required");
-
-      const storedCredential = await storage.getCredentialById(
-        body.credential.id,
-      );
-      if (!storedCredential) throw jsonError(401, "Credential not found");
 
       const session = c.get("session");
       const storedChallenge = session?.challenge;
@@ -255,12 +251,22 @@ export const createPasskeysRouter = (
 
       const expectedChallenge = storedChallenge;
       const expectedOrigin = storedOrigin;
+      const expectedRPID = new URL(expectedOrigin).hostname;
+
+      const storedCredential = await storage.getCredentialById(
+        body.credential.id,
+      );
+      if (!storedCredential) {
+        const message = "Credential not found";
+        const res = Response.json({ message, rpId: expectedRPID });
+        throw new HTTPException(401, { message, res });
+      }
 
       const verification = await webauthn.verifyAuthenticationResponse({
         response: body.credential,
         expectedChallenge,
         expectedOrigin,
-        expectedRPID: new URL(expectedOrigin).hostname,
+        expectedRPID,
         credential: {
           id: storedCredential.id,
           publicKey: decodeBase64Url(storedCredential.publicKey),
