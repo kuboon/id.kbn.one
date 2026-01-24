@@ -57,7 +57,7 @@ export interface CreateClientOptions {
 }
 
 export interface RegisterParams {
-  username: string;
+  userId: string;
 }
 
 export interface DeleteParams {
@@ -133,12 +133,15 @@ export const createClient = (options: CreateClientOptions = {}) => {
   };
 
   return {
-    async register(): Promise<RegisterResult> {
+    async register(params?: RegisterParams): Promise<RegisterResult> {
       const optionsJSON = await fetchJson(
         fetchImpl,
         buildUrl(mountPath, "/register/options"),
         {
           method: "POST",
+          body: JSON.stringify({
+            userId: params?.userId,
+          }),
         },
       );
       const attestationResponse = await startRegistration(

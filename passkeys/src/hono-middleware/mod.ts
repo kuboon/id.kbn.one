@@ -21,6 +21,8 @@ import { base64 } from "@hexagon/base64";
 import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { type } from "arktype";
+import { sValidator } from "@hono/standard-validator";
 
 const encodeBase64Url = (input: ArrayBuffer) =>
   base64.fromArrayBuffer(input, true);
@@ -78,41 +80,49 @@ export const createPasskeysRouter = (
       c.header("Cache-Control", "no-store");
       return next();
     })
-    .post("/register/options", async (c) => {
-      let userId = getUserId(c);
-      if (!userId) {
-        userId = new Date().toISOString();
-        await storage.createUser(userId);
-      }
+    .post(
+      "/register/options",
+      sValidator("json", type({ "userId?": "string" })),
+      async (c) => {
+        const sessionUserId = getUserId(c);
+        const { userId: newUserId } = c.req.valid("json");
+        if (!sessionUserId) {
+          if (!newUserId) throw jsonError(400, "userId is required");
+          await storage.createUser(newUserId);
+        }
+        const userId = sessionUserId || newUserId!;
+        const requestUrl = getRequestUrl(c);
+        const existingCredentials = await storage.getCredentialsByUserId(
+          userId,
+        );
+        const userIdBuffer = new TextEncoder().encode(userId);
+        const optionsInput: GenerateRegistrationOptionsOpts = {
+          rpName,
+          rpID: requestUrl.hostname,
+          userID: userIdBuffer,
+          userName: userId,
+          userDisplayName: userId,
+          excludeCredentials: existingCredentials.map((credential) => ({
+            id: credential.id,
+            transports: credential.transports,
+          })),
+          ...registrationOptions,
+        };
 
-      const requestUrl = getRequestUrl(c);
-      const existingCredentials = await storage.getCredentialsByUserId(userId);
-      const userIdBuffer = new TextEncoder().encode(userId);
-      const optionsInput: GenerateRegistrationOptionsOpts = {
-        rpName,
-        rpID: requestUrl.hostname,
-        userID: userIdBuffer,
-        userName: userId,
-        userDisplayName: userId,
-        excludeCredentials: existingCredentials.map((credential) => ({
-          id: credential.id,
-          transports: credential.transports,
-        })),
-        ...registrationOptions,
-      };
-
-      const optionsResult = await webauthn.generateRegistrationOptions(
-        optionsInput,
-      );
-      const session = c.get("session") || {};
-      c.set("session", {
-        ...session,
-        userId,
-        challenge: optionsResult.challenge,
-        origin: requestUrl.origin,
-      });
-      return c.json(optionsResult);
-    }).post("/register/verify", async (c) => {
+        const optionsResult = await webauthn.generateRegistrationOptions(
+          optionsInput,
+        );
+        const session = c.get("session") || {};
+        c.set("session", {
+          ...session,
+          userId,
+          challenge: optionsResult.challenge,
+          origin: requestUrl.origin,
+        });
+        return c.json(optionsResult);
+      },
+    )
+    .post("/register/verify", async (c) => {
       const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
       const session = c.get("session");
       if (!session) throw jsonError(400, "No session found for user");

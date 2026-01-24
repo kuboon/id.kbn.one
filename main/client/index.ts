@@ -161,11 +161,18 @@ createAccountButton.addEventListener("click", async () => {
   if (createAccountButton.dataset.loading === "true") {
     return;
   }
+
+  const userId = prompt("パスキーに登録するユーザー名を入力してください:")?.trim();
+  if (!userId) {
+    setStatus("ユーザー名が入力されませんでした。", "info");
+    return;
+  }
+
   createAccountButton.dataset.loading = "true";
   createAccountButton.disabled = true;
   try {
     setStatus("セキュリティキーの操作を待機しています…");
-    await client.register();
+    await client.register({ userId });
     await redirectToDashboard();
     setStatus("アカウントを作成しました。", "success", {
       autoHide: true,
