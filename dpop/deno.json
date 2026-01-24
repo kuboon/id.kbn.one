@@ -2,9 +2,9 @@
   "name": "@scope/dpop",
   "version": "0.1.0",
   "exports": {
-    ".": "./core/server.ts",
-    "./types.ts": "./core/types.ts",
-    "./client.ts": "./core/client.ts"
+    ".": "./server/mod.ts",
+    "./types.ts": "./types.ts",
+    "./client.ts": "./client/mod.ts"
   },
   "compilerOptions": {
     "strict": true,

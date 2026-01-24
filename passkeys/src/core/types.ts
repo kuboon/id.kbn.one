@@ -114,7 +114,6 @@ export interface PasskeyMiddlewareOptions {
   rpID: string;
   rpName: string;
   storage: PasskeyRepository;
-  secret: string;
   mountPath?: string;
   getUserId: (
     c: { var: { session?: { userId?: string } } },

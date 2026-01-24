@@ -36,21 +36,15 @@
           <header class="section-header">
             <h2>プロフィール情報</h2>
           </header>
-          <form id="profile-form" class="stack">
-            <label class="field" for="account-username">
-              <span>ユーザー名</span>
-              <input
-                id="account-username"
-                type="text"
-                name="username"
-                autocomplete="username"
-                required
-              />
-            </label>
-            <div class="button-row align-start">
-              <button type="submit" class="primary">変更を保存</button>
-            </div>
-          </form>
+          <label class="field" for="account-username">
+            <span>ユーザー名</span>
+            <input
+              id="account-username"
+              type="text"
+              name="username"
+              readonly
+            />
+          </label>
         </div>
 
         <div class="card">

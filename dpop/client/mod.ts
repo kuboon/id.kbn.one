@@ -1,5 +1,5 @@
-import type { DpopJwtPayload } from "./types.ts";
-import { base64UrlEncode, normalizeHtu, normalizeMethod } from "./common.ts";
+import type { DpopJwtPayload } from "../types.ts";
+import { base64UrlEncode, normalizeHtu, normalizeMethod } from "../common.ts";
 import {
   IndexedDbKeyRepository,
   type KeyRepository,

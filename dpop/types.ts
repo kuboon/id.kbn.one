@@ -1,11 +1,3 @@
-export interface GenerateDpopKeyPairOptions {
-  /**
-   * Whether the generated keys should be extractable. Defaults to `true` so the
-   * public key can be embedded in the DPoP proof header.
-   */
-  extractable?: boolean;
-}
-
 export interface DpopJwtPayload {
   readonly htm: string;
   readonly htu: string;
@@ -14,20 +6,6 @@ export interface DpopJwtPayload {
   readonly nonce?: string;
   readonly ath?: string;
 }
-
-export interface DpopHttpRequest {
-  readonly method: string;
-  readonly url: string;
-}
-
-export interface DpopProofRequest extends DpopHttpRequest {
-  readonly proof: string;
-}
-
-export interface CreateDpopProofRequest extends DpopHttpRequest {
-  readonly keyPair: CryptoKeyPair;
-}
-
 export interface VerifyDpopProofOptions {
   /** Maximum allowed age (seconds) for the `iat` claim. Defaults to 300s. */
   readonly maxAgeSeconds?: number;
@@ -44,13 +22,3 @@ export interface VerifyDpopProofOptions {
    */
   readonly now?: number;
 }
-
-export type VerifyDpopProofResult = {
-  valid: true;
-  readonly parts: readonly [string, string, string];
-  readonly payload: DpopJwtPayload;
-  readonly jwk: JsonWebKey;
-} | {
-  valid: false;
-  readonly error: string;
-};

@@ -1,6 +1,6 @@
-import { init } from "./client.ts";
-import { InMemoryKeyRepository } from "./client_keystore.ts";
-import { verifyDpopProofFromRequest } from "./server.ts";
+import { init } from "../client/mod.ts";
+import { InMemoryKeyRepository } from "../client/client_keystore.ts";
+import { verifyDpopProofFromRequest } from "./mod.ts";
 
 Deno.test("client and server together validate DPoP proof", async () => {
   const recorded: Array<{ req: Request }> = [];

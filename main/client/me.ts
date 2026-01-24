@@ -10,13 +10,9 @@ const logoutButton = document.getElementById("logout") as HTMLButtonElement;
 const deleteAccountButton = document.getElementById(
   "delete-account",
 ) as HTMLButtonElement;
-const profileForm = document.getElementById("profile-form")! as HTMLFormElement;
 const accountUsernameInput = document.getElementById(
   "account-username",
 )! as HTMLInputElement;
-const profileSubmitButton = profileForm.querySelector(
-  'button[type="submit"]',
-)! as HTMLButtonElement;
 const addPasskeyButton = document.getElementById(
   "add-passkey",
 )! as HTMLButtonElement;
@@ -130,29 +126,6 @@ const state: State = {
 
 let statusHideTimeout = 0;
 let statusAnimationFrame = 0;
-
-const normalizeUsername = (value: string | undefined): string =>
-  typeof value === "string" ? value.trim() : "";
-const getAccountUsername = (): string =>
-  normalizeUsername(state.account?.user?.username ?? "");
-const getInputUsername = (): string =>
-  normalizeUsername(accountUsernameInput.value);
-const updateProfileSubmitState = () => {
-  if (profileForm.dataset.loading === "true") {
-    profileSubmitButton.disabled = true;
-    return;
-  }
-  if (!state.account) {
-    profileSubmitButton.disabled = true;
-    return;
-  }
-  const inputUsername = getInputUsername();
-  if (!inputUsername) {
-    profileSubmitButton.disabled = true;
-    return;
-  }
-  profileSubmitButton.disabled = inputUsername === getAccountUsername();
-};
 
 const setStatus = (
   message: string,
@@ -432,7 +405,6 @@ const renderAccount = () => {
     state.push.currentId = null;
     renderPushSubscriptions([]);
     updateView();
-    updateProfileSubmitState();
     return;
   }
   const { user, credentials } = account;
@@ -440,7 +412,6 @@ const renderAccount = () => {
   renderCredentials(credentials);
   renderPushSubscriptions(state.push.subscriptions);
   updateView();
-  updateProfileSubmitState();
 };
 
 const setAccount = (account: Account | null) => {
@@ -1229,68 +1200,7 @@ credentialsList.addEventListener("click", async (event) => {
   }
 });
 
-accountUsernameInput.addEventListener("input", () => {
-  updateProfileSubmitState();
-});
-
-updateProfileSubmitState();
-
-profileForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (!state.account) {
-    setStatus(
-      "プロフィールを更新する前にサインインしてください。",
-      "error",
-    );
-    return;
-  }
-  if (profileForm.dataset.loading === "true") {
-    return;
-  }
-  const username = accountUsernameInput.value.trim();
-  const payload: { username?: string } = {};
-  if (username && username !== state.account.user.username) {
-    payload.username = username;
-  }
-  if (Object.keys(payload).length === 0) {
-    setStatus("保存する変更がありません。", "info");
-    return;
-  }
-  profileForm.dataset.loading = "true";
-  profileSubmitButton.disabled = true;
-  try {
-    const response = await fetchDpop("/account", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      throw new Error(await extractErrorMessage(response));
-    }
-    const data = await response.json();
-    if (!data || typeof data !== "object" || !data.user) {
-      throw new Error("サーバーから予期しない応答がありました。");
-    }
-    state.account = {
-      user: data.user,
-      credentials: state.credentials,
-    };
-    renderAccount();
-    setStatus("プロフィールを更新しました。", "success");
-  } catch (error) {
-    setStatus(
-      error instanceof Error && error.message
-        ? `プロフィールの保存に失敗しました: ${error.message}`
-        : "プロフィールの保存に失敗しました。",
-      "error",
-    );
-  } finally {
-    profileForm.dataset.loading = "false";
-    updateProfileSubmitState();
-  }
-});
-
-const initialise = async () => {
+const initialize = async () => {
   setStatus("アカウント情報を読み込んでいます…");
   const session = await getSession();
   if (!session?.userId) {
@@ -1312,7 +1222,7 @@ const initialise = async () => {
   }
 };
 
-await initialise();
+await initialize();
 
 statusEl.addEventListener("click", () => {
   if (statusHideTimeout) {

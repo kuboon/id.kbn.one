@@ -6,7 +6,6 @@
     "./static/client.ts": "./static/client.ts"
   },
   "tasks": {
-    "build": "deno run -A scripts/build_client.ts"
   },
   "imports": {
     "@std/path": "jsr:@std/path@^1.1.3",

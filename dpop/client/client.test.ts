@@ -1,4 +1,4 @@
-import { init } from "./client.ts";
+import { init } from "./mod.ts";
 import { InMemoryKeyRepository } from "./client_keystore.ts";
 
 function base64UrlDecodeToString(input: string): string {

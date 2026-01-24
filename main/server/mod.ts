@@ -1,6 +1,5 @@
 import { DenoKvPasskeyRepository } from "./repository/deno-kv-passkey-store.ts";
 import { DenoKvSessionRepository } from "./repository/deno-kv-session-store.ts";
-import { Secret } from "./secret.ts";
 import { getKvInstance } from "./kvInstance.ts";
 import { PushService } from "./push/service.ts";
 import { createPushRouter } from "./push/router.ts";
@@ -19,11 +18,10 @@ import { createPasskeysRouter } from "@scope/passkeys/hono-middleware";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
-import { SessionData } from "./repository/types.ts";
 
 const kv = await getKvInstance();
-const credentialStore = new DenoKvPasskeyRepository(kv);
-const sessionStore = new DenoKvSessionRepository(kv);
+const credentialRepository = new DenoKvPasskeyRepository(kv);
+const sessionRepository = new DenoKvSessionRepository(kv);
 const pushService = await PushService.create(kv);
 
 const allowedOrigins = [
@@ -41,81 +39,71 @@ const ensureAuthenticatedUser = (c: Context): string => {
   return userId;
 };
 
-const signingKey = await Secret<string>("signing_key", () => {
-  return crypto.randomUUID();
-}, 1000 * 60 * 60 * 24); // 1 day expiration
-
-const app = new Hono<{ Variables: { session?: SessionData } }>();
-const router = createPasskeysRouter({
-  rpID,
-  rpName,
-  storage: credentialStore,
-  secret: await signingKey.get(),
-  getUserId: (c) => c.var.session?.userId,
-});
-
-const dpopSessionMiddleware = createDpopSessionMiddleware({
-  sessionStore,
-});
-
-app.use("*", cors({ origin: allowedOrigins }));
-app.use(dpopSessionMiddleware);
-app.route("/webauthn", router);
-
-app.get("/session", (c) => {
-  setNoStore(c);
-  return c.json({ userId: c.var.session?.userId || null });
-});
-
-app.get("/.well-known/webauthn", (c) => {
-  if (relatedOrigins.length > 0) {
-    c.header("Cache-Control", "public, max-age=86400");
-  }
-  return c.json({ origins: relatedOrigins });
-});
-
-app.post("/session/logout", (c) => {
-  setNoStore(c);
-  c.set("session", undefined);
-  return c.json({ success: true });
-});
-
-app.route(
-  "/credentials",
-  createCredentialsRouter({
-    credentialStore,
-    ensureAuthenticatedUser,
-    setNoStore,
-  }),
-);
-
-app.delete("/account", async (c) => {
-  setNoStore(c);
-  const userId = ensureAuthenticatedUser(c);
-  if (typeof credentialStore.deleteUser !== "function") {
-    throw new HTTPException(405, {
-      message: "Account deletion is not supported by this storage adapter.",
-    });
-  }
-  if (typeof credentialStore.deleteCredential === "function") {
-    const credentials = await credentialStore.getCredentialsByUserId(userId);
-    for (const credential of credentials) {
-      await credentialStore.deleteCredential(credential.id);
+const app = new Hono()
+  .use("*", cors({ origin: allowedOrigins }))
+  .use(createDpopSessionMiddleware({
+    sessionStore: sessionRepository,
+  }))
+  .route(
+    "/webauthn",
+    createPasskeysRouter({
+      rpID,
+      rpName,
+      storage: credentialRepository,
+      getUserId: (c) => c.var.session?.userId,
+    }),
+  )
+  .get("/.well-known/webauthn", (c) => {
+    if (relatedOrigins.length > 0) {
+      c.header("Cache-Control", "public, max-age=86400");
     }
-  }
-  await credentialStore.deleteUser(userId);
-  c.set("session", undefined);
-  return c.json({ success: true });
-});
-
-app.route(
-  "/push",
-  createPushRouter({
-    pushService,
-    pushContact,
-    ensureAuthenticatedUser,
-    setNoStore,
-  }),
-);
+    return c.json({ origins: relatedOrigins });
+  })
+  .get("/session", (c) => {
+    setNoStore(c);
+    return c.json({ userId: c.var.session?.userId || null });
+  })
+  .post("/session/logout", (c) => {
+    setNoStore(c);
+    c.set("session", undefined);
+    return c.json({ success: true });
+  })
+  .route(
+    "/credentials",
+    createCredentialsRouter({
+      credentialStore: credentialRepository,
+      ensureAuthenticatedUser,
+      setNoStore,
+    }),
+  )
+  .delete("/account", async (c) => {
+    setNoStore(c);
+    const userId = ensureAuthenticatedUser(c);
+    if (typeof credentialRepository.deleteUser !== "function") {
+      throw new HTTPException(405, {
+        message: "Account deletion is not supported by this storage adapter.",
+      });
+    }
+    if (typeof credentialRepository.deleteCredential === "function") {
+      const credentials = await credentialRepository.getCredentialsByUserId(
+        userId,
+      );
+      for (const credential of credentials) {
+        await credentialRepository.deleteCredential(credential.id);
+      }
+    }
+    await credentialRepository.deleteUser(userId);
+    c.set("session", undefined);
+    return c.json({ success: true });
+  })
+  .route(
+    "/push",
+    createPushRouter({
+      pushService,
+      pushContact,
+      ensureAuthenticatedUser,
+      setNoStore,
+    }),
+  );
 
 export { app };

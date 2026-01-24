@@ -19,7 +19,6 @@ import type {
 import { base64 } from "@hexagon/base64";
 
 import { type Context, Hono } from "hono";
-import { serveStatic } from "hono/deno";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
@@ -50,7 +49,6 @@ export const createPasskeysRouter = (
   const {
     rpName,
     storage,
-    secret: _secret,
     getUserId,
     registrationOptions,
     authenticationOptions,
@@ -79,8 +77,7 @@ export const createPasskeysRouter = (
 
   const router = new Hono<
     { Variables: { session?: Record<string, unknown> } }
-  >();
-  router.post("/register/options", async (c) => {
+  >().post("/register/options", async (c) => {
     setNoStore(c);
     let userId = getUserId(c);
     if (!userId) {
@@ -115,9 +112,7 @@ export const createPasskeysRouter = (
       origin: requestUrl.origin,
     });
     return c.json(optionsResult);
-  });
-
-  router.post("/register/verify", async (c) => {
+  }).post("/register/verify", async (c) => {
     setNoStore(c);
     const body = await ensureJsonBody<RegistrationVerifyRequestBody>(c);
     const session = c.get("session");
@@ -201,9 +196,7 @@ export const createPasskeysRouter = (
       verified: verification.verified,
       credential: storedCredential,
     });
-  });
-
-  router.post("/authenticate/options", async (c) => {
+  }).post("/authenticate/options", async (c) => {
     setNoStore(c);
     const requestUrl = getRequestUrl(c);
 
@@ -224,9 +217,7 @@ export const createPasskeysRouter = (
     });
 
     return c.json(optionsResult);
-  });
-
-  router.post("/authenticate/verify", async (c) => {
+  }).post("/authenticate/verify", async (c) => {
     setNoStore(c);
     const rawBody = (await ensureJsonBody<unknown>(c)) as Record<
       string,
@@ -295,12 +286,6 @@ export const createPasskeysRouter = (
       verified: verification.verified,
       credential: storedCredential,
     });
-  });
-
-  router.get("*", serveStatic({ root: import.meta.resolve("./static") }));
-
-  router.all("*", (c) => {
-    throw jsonError(404, "Endpoint not found for " + c.req.url);
   });
 
   return router;

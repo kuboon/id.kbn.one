@@ -1,10 +1,6 @@
-import type {
-  DpopJwtPayload,
-  DpopProofRequest,
-  VerifyDpopProofOptions,
-  VerifyDpopProofResult,
-} from "../core/types.ts";
-import { normalizeHtu, normalizeMethod } from "./common.ts";
+import type { DpopProofRequest, VerifyDpopProofResult } from "./types.ts";
+import type { DpopJwtPayload, VerifyDpopProofOptions } from "../types.ts";
+import { normalizeHtu, normalizeMethod } from "../common.ts";
 import { decodeBase64Url } from "@std/encoding/base64url";
 
 const textEncoder = new TextEncoder();
