@@ -87,20 +87,7 @@ const app = new Hono()
   .delete("/account", async (c) => {
     setNoStore(c);
     const userId = ensureAuthenticatedUser(c);
-    if (typeof credentialRepository.deleteUser !== "function") {
-      throw new HTTPException(405, {
-        message: "Account deletion is not supported by this storage adapter.",
-      });
-    }
-    if (typeof credentialRepository.deleteCredential === "function") {
-      const credentials = await credentialRepository.getCredentialsByUserId(
-        userId,
-      );
-      for (const credential of credentials) {
-        await credentialRepository.deleteCredential(credential.id);
-      }
-    }
-    await credentialRepository.deleteUser(userId);
+    await credentialRepository.deleteCredentialsByUserId(userId);
     c.set("session", undefined);
     return c.json({ success: true });
   })

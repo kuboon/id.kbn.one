@@ -4,28 +4,24 @@ import type {
   PasskeyRepository,
 } from "@scope/passkeys/hono-middleware";
 
-const USER_KEY_PREFIX = ["user"] as const;
-const CREDENTIAL_KEY_PREFIX = ["credential"] as const;
-const USER_CREDENTIAL_KEY_PREFIX = ["user_credentials"] as const;
-
-const userKey = (userId: string): Deno.KvKey =>
-  [...USER_KEY_PREFIX, userId] as Deno.KvKey;
-
-const credentialKey = (credentialId: string): Deno.KvKey =>
-  [...CREDENTIAL_KEY_PREFIX, credentialId] as Deno.KvKey;
+const credentialKey = (
+  credentialId: string,
+): Deno.KvKey => ["credential", credentialId];
 
 const userCredentialKey = (
   userId: string,
-  credentialId: string,
+  credentialId?: string,
 ): Deno.KvKey =>
-  [...USER_CREDENTIAL_KEY_PREFIX, userId, credentialId] as Deno.KvKey;
+  credentialId
+    ? ["user_credentials", userId, credentialId]
+    : ["user_credentials", userId];
 
 const listUserCredentials = (
   kv: Deno.Kv,
   userId: string,
 ): Deno.KvListIterator<PasskeyCredential> =>
   kv.list<PasskeyCredential>({
-    prefix: [...USER_CREDENTIAL_KEY_PREFIX, userId] as Deno.KvKey,
+    prefix: userCredentialKey(userId),
   });
 
 export class DenoKvPasskeyRepository implements PasskeyRepository {
@@ -34,21 +30,6 @@ export class DenoKvPasskeyRepository implements PasskeyRepository {
   static async create(): Promise<DenoKvPasskeyRepository> {
     const kv = await getKvInstance();
     return new DenoKvPasskeyRepository(kv);
-  }
-
-  async getUserById(userId: string): Promise<boolean> {
-    const entry = await this.kv.get<true>(userKey(userId));
-    return entry.value === true;
-  }
-
-  async createUser(userId: string): Promise<void> {
-    const result = await this.kv.atomic()
-      .check({ key: userKey(userId), versionstamp: null })
-      .set(userKey(userId), true)
-      .commit();
-    if (!result.ok) {
-      throw new Error("User already exists");
-    }
   }
 
   async getCredentialById(
@@ -70,15 +51,8 @@ export class DenoKvPasskeyRepository implements PasskeyRepository {
     return credentials;
   }
 
-  async saveCredential(credential: PasskeyCredential): Promise<void> {
-    const userEntry = await this.kv.get<true>(
-      userKey(credential.userId),
-    );
-    if (!userEntry.value) {
-      throw new Error("User does not exist");
-    }
+  async addCredential(credential: PasskeyCredential): Promise<void> {
     const tx = this.kv.atomic()
-      .check(userEntry)
       .check({ key: credentialKey(credential.id), versionstamp: null })
       .check({
         key: userCredentialKey(credential.userId, credential.id),
@@ -99,15 +73,8 @@ export class DenoKvPasskeyRepository implements PasskeyRepository {
     if (!existing.value) {
       throw new Error("Credential does not exist");
     }
-    const userEntry = await this.kv.get<true>(
-      userKey(credential.userId),
-    );
-    if (!userEntry.value) {
-      throw new Error("User does not exist");
-    }
     const tx = this.kv.atomic()
       .check(existing)
-      .check(userEntry)
       .set(credentialKey(credential.id), credential)
       .set(userCredentialKey(credential.userId, credential.id), credential);
     if (existing.value.userId !== credential.userId) {
@@ -136,18 +103,7 @@ export class DenoKvPasskeyRepository implements PasskeyRepository {
     }
   }
 
-  async deleteUser(userId: string): Promise<void> {
-    const existing = await this.kv.get<true>(userKey(userId));
-    if (!existing.value) {
-      return;
-    }
-    const result = await this.kv.atomic()
-      .check(existing)
-      .delete(userKey(userId))
-      .commit();
-    if (!result.ok) {
-      throw new Error("Unable to delete user");
-    }
+  async deleteCredentialsByUserId(userId: string): Promise<void> {
     for await (const entry of listUserCredentials(this.kv, userId)) {
       if (!entry.value) {
         continue;

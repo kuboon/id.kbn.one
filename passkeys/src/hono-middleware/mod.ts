@@ -86,22 +86,21 @@ export const createPasskeysRouter = (
       async (c) => {
         const sessionUserId = getUserId(c);
         const { userId: newUserId } = c.req.valid("json");
-        if (!sessionUserId) {
-          if (!newUserId) throw jsonError(400, "userId is required");
-          await storage.createUser(newUserId);
+        if (!sessionUserId && !newUserId) {
+          throw jsonError(400, "userId is required");
         }
-        const userId = sessionUserId || newUserId!;
+        const userName = sessionUserId || newUserId!;
         const requestUrl = getRequestUrl(c);
         const existingCredentials = await storage.getCredentialsByUserId(
-          userId,
+          userName,
         );
-        const userIdBuffer = new TextEncoder().encode(userId);
+        const userID = new TextEncoder().encode(userName);
         const optionsInput: GenerateRegistrationOptionsOpts = {
           rpName,
           rpID: requestUrl.hostname,
-          userID: userIdBuffer,
-          userName: userId,
-          userDisplayName: userId,
+          userID,
+          userName,
+          userDisplayName: userName,
           excludeCredentials: existingCredentials.map((credential) => ({
             id: credential.id,
             transports: credential.transports,
@@ -115,7 +114,7 @@ export const createPasskeysRouter = (
         const session = c.get("session") || {};
         c.set("session", {
           ...session,
-          userId,
+          userId: userName,
           challenge: optionsResult.challenge,
           origin: requestUrl.origin,
         });
@@ -189,7 +188,7 @@ export const createPasskeysRouter = (
         updatedAt: now,
       };
 
-      await storage.saveCredential(storedCredential);
+      await storage.addCredential(storedCredential);
 
       // Mark the user as authenticated in the session so they are logged in
       // immediately after registering a passkey.
@@ -303,5 +302,8 @@ export const createPasskeysRouter = (
 
   return router;
 };
+
+const routerForType = createPasskeysRouter({} as PasskeyMiddlewareOptions);
+export type PasskeyAppType = typeof routerForType;
 
 export * from "../core/types.ts";

@@ -27,14 +27,12 @@ export interface PasskeyCredential {
 }
 
 export interface PasskeyRepository {
-  getUserById(userId: string): Promise<boolean>;
-  createUser(userId: string): Promise<void>;
-  deleteUser?(userId: string): Promise<void>;
   getCredentialById(credentialId: string): Promise<PasskeyCredential | null>;
   getCredentialsByUserId(userId: string): Promise<PasskeyCredential[]>;
-  saveCredential(credential: PasskeyCredential): Promise<void>;
+  addCredential(credential: PasskeyCredential): Promise<void>;
   updateCredential(credential: PasskeyCredential): Promise<void>;
   deleteCredential(credentialId: string): Promise<void>;
+  deleteCredentialsByUserId(userId: string): Promise<void>;
 }
 
 export type ChallengeType = "registration" | "authentication";

@@ -1,17 +1,7 @@
 import type { PasskeyCredential, PasskeyRepository } from "./types.ts";
 
 export class InMemoryPasskeyRepository implements PasskeyRepository {
-  private readonly users = new Set<string>();
   private readonly credentials = new Map<string, PasskeyCredential>();
-
-  getUserById(userId: string): Promise<boolean> {
-    return Promise.resolve(this.users.has(userId));
-  }
-
-  createUser(userId: string): Promise<void> {
-    this.users.add(userId);
-    return Promise.resolve();
-  }
 
   getCredentialById(credentialId: string): Promise<PasskeyCredential | null> {
     return Promise.resolve(this.credentials.get(credentialId) ?? null);
@@ -25,7 +15,7 @@ export class InMemoryPasskeyRepository implements PasskeyRepository {
     );
   }
 
-  saveCredential(credential: PasskeyCredential): Promise<void> {
+  addCredential(credential: PasskeyCredential): Promise<void> {
     this.credentials.set(credential.id, { ...credential });
     return Promise.resolve();
   }
@@ -43,8 +33,7 @@ export class InMemoryPasskeyRepository implements PasskeyRepository {
     return Promise.resolve();
   }
 
-  deleteUser(userId: string): Promise<void> {
-    this.users.delete(userId);
+  deleteCredentialsByUserId(userId: string): Promise<void> {
     for (const [id, credential] of this.credentials.entries()) {
       if (credential.userId === userId) {
         this.credentials.delete(id);

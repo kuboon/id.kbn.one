@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "deno",
+      "command": "task",
+      "args": [
+        "test"
+      ],
+      "problemMatcher": {
+        "owner": "deno",
+        "source": "deno",
+        "applyTo": "allDocuments",
+        "fileLocation": "absolute",
+        "pattern": {
+          // file:///workspaces/project/main.ts:10:5 の形式にマッチさせる
+          "regexp": "^.*file:///([^:]+):(\\d+):(\\d+).*",
+          "file": 1,
+          "line": 2,
+          "column": 3
+        }
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "label": "deno task test",
+      "detail": "$ deno fmt && deno lint && deno check && deno test -P"
+    }
+  ]
+}
