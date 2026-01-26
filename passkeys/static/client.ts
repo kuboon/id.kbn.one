@@ -3,10 +3,9 @@ import {
   startRegistration,
 } from "@simplewebauthn/browser";
 
-import type { PasskeyCredential } from "../src/types.ts";
+import type { PasskeyCredential } from "../src/core/types.ts";
 
 const DEFAULT_MOUNT_PATH = "/webauthn";
-const PASSKEY_ORIGIN = "{{PASSKEY_ORIGIN}}";
 
 const normalizeMountPath = (path: string | undefined) => {
   if (!path || path === "/") {
@@ -58,10 +57,7 @@ export interface CreateClientOptions {
 }
 
 export interface RegisterParams {
-  username: string;
-}
-
-export interface AuthenticateParams {
+  userId: string;
 }
 
 export interface DeleteParams {
@@ -83,12 +79,6 @@ export interface AuthenticateResult {
   credential: PasskeyCredential;
 }
 
-const buildUrl = (mountPath: string, endpoint: string) => {
-  const path = `${mountPath}${endpoint}`;
-  if (!PASSKEY_ORIGIN) return path;
-  return new URL(path, PASSKEY_ORIGIN).toString();
-};
-
 const fetchJson = async <T = unknown>(
   fetchImpl: FetchLike,
   input: string,
@@ -107,9 +97,9 @@ const fetchJson = async <T = unknown>(
     let details: unknown = null;
     try {
       if (hasJsonContentType(response)) {
-        details = await response.clone().json();
+        details = await response.json();
       } else {
-        const text = await response.clone().text();
+        const text = await response.text();
         details = text.trim() ? text : null;
       }
     } catch {
@@ -138,17 +128,20 @@ export const createClient = (options: CreateClientOptions = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl: FetchLike = options.fetch ?? fetch;
 
-  const ensureUsername = (username: string) => username.trim();
+  const buildUrl = (mountPath: string, endpoint: string) => {
+    return `${mountPath}${endpoint}`;
+  };
 
   return {
-    async register(params: RegisterParams): Promise<RegisterResult> {
-      const username = ensureUsername(params.username);
+    async register(params?: RegisterParams): Promise<RegisterResult> {
       const optionsJSON = await fetchJson(
         fetchImpl,
         buildUrl(mountPath, "/register/options"),
         {
           method: "POST",
-          body: JSON.stringify({ username }),
+          body: JSON.stringify({
+            userId: params?.userId,
+          }),
         },
       );
       const attestationResponse = await startRegistration(
@@ -161,7 +154,6 @@ export const createClient = (options: CreateClientOptions = {}) => {
         {
           method: "POST",
           body: JSON.stringify({
-            username,
             credential: attestationResponse,
           }),
         },
@@ -170,85 +162,51 @@ export const createClient = (options: CreateClientOptions = {}) => {
       return verification as RegisterResult;
     },
 
-    async authenticate(
-      params: AuthenticateParams = {},
-    ): Promise<AuthenticateResult> {
-
+    async authenticate(): Promise<AuthenticateResult> {
       const optionsJSON = await fetchJson(
         fetchImpl,
         buildUrl(mountPath, "/authenticate/options"),
-        { method: "POST", },
+        { method: "POST" },
       );
 
       const assertionResponse = await startAuthentication(
         { optionsJSON } as Parameters<typeof startAuthentication>[0],
       );
 
-      const verification = await fetchJson(
-        fetchImpl,
-        buildUrl(mountPath, "/authenticate/verify"),
-        {
-          method: "POST",
-          body: JSON.stringify({
-            credential: assertionResponse,
-          }),
-        },
-      );
+      try {
+        const verification = await fetchJson(
+          fetchImpl,
+          buildUrl(mountPath, "/authenticate/verify"),
+          {
+            method: "POST",
+            body: JSON.stringify({
+              credential: assertionResponse,
+            }),
+          },
+        );
 
-      return verification as AuthenticateResult;
-    },
-
-    async list(): Promise<PasskeyCredential[]> {
-      const url = buildUrl(mountPath, "/credentials");
-
-      const response = await fetchJson(fetchImpl, url);
-      const credentials =
-        (response && typeof response === "object" && "credentials" in response)
-          ? (response as { credentials?: PasskeyCredential[] }).credentials ??
-            []
-          : [];
-      return Array.isArray(credentials) ? credentials : [];
-    },
-
-    async delete(params: DeleteParams): Promise<void> {
-      const credentialId = params.credentialId;
-      const url = buildUrl(
-        mountPath,
-        `/credentials/${encodeURIComponent(credentialId)}`,
-      );
-
-      await fetchJson(fetchImpl, url, { method: "DELETE" });
-    },
-
-    async update(params: UpdateCredentialParams): Promise<PasskeyCredential> {
-      const credentialId = params.credentialId;
-      const url = buildUrl(
-        mountPath,
-        `/credentials/${encodeURIComponent(credentialId)}`,
-      );
-
-      const response = await fetchJson(
-        fetchImpl,
-        url,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ nickname: params.nickname }),
-        },
-      );
-
-      if (
-        response &&
-        typeof response === "object" &&
-        "credential" in response
-      ) {
-        return (response as { credential: PasskeyCredential }).credential;
+        return verification as AuthenticateResult;
+      } catch (error) {
+        if (
+          error instanceof PasskeyClientError &&
+          error.status === 401 &&
+          "PublicKeyCredential" in globalThis &&
+          "signalUnknownCredential" in PublicKeyCredential
+        ) {
+          const rpId = typeof error.details === "object" && error.details &&
+            "rpId" in error.details && typeof error.details.rpId === "string" &&
+            error.details.rpId;
+          if (rpId) {
+            await (PublicKeyCredential.signalUnknownCredential as (
+              options: { rpId: string; credentialId: string },
+            ) => Promise<void>)({
+              rpId,
+              credentialId: assertionResponse.id,
+            });
+          }
+        }
+        throw error;
       }
-
-      throw new PasskeyClientError(
-        "Unexpected response when updating credential",
-        500,
-        response,
-      );
     },
   };
 };

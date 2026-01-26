@@ -1,20 +1,16 @@
 {
+  "name": "@scope/dpop",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./server/mod.ts",
+    "./types.ts": "./types.ts",
+    "./client.ts": "./client/mod.ts"
+  },
   "compilerOptions": {
     "strict": true,
     "lib": ["deno.ns", "deno.unstable", "dom"]
   },
   "imports": {
     "@std/encoding": "jsr:@std/encoding@1.0.10"
-  },
-  "tasks": {
-    "check": "deno check mod.ts",
-    "fmt": "deno fmt",
-    "lint": "deno lint"
-  },
-  "fmt": {
-    "include": ["mod.ts", "mod.test.ts"]
-  },
-  "lint": {
-    "include": ["mod.ts", "mod.test.ts"]
   }
 }

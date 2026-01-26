@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "@negrel/webpush": "jsr:@negrel/webpush@0.5.0",
+    "@std/media-types": "jsr:@std/media-types@^1.1.0"
+  },
+  "tasks": {
+    "dev": "cd .. && deno serve -P --watch='main/client/*.*' main/deno-server.ts",
+    "serve": "cd .. && deno serve -P main/deno-server.ts"
+  },
+  "compilerOptions": {
+    "lib": ["deno.ns", "deno.unstable", "dom"]
+  }
+}
