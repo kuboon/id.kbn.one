@@ -12,6 +12,7 @@ import {
   rpName,
 } from "./config.ts";
 import { createDpopSessionMiddleware } from "./dpop-session-middleware.ts";
+import { opentelemetryMiddleware } from "./telemetry.ts";
 
 import { createPasskeysRouter } from "@scope/passkeys/hono-middleware";
 
@@ -40,6 +41,7 @@ const ensureAuthenticatedUser = (c: Context): string => {
 };
 
 const app = new Hono()
+  .use(opentelemetryMiddleware)
   .use(cors({ origin: allowedOrigins }))
   .use(createDpopSessionMiddleware({
     sessionStore: sessionRepository,

@@ -291,6 +291,9 @@
       "integrity": "sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag=="
     }
   },
+  "remote": {
+    "https://bunseki.kbn.one/exporter.server.js": "54da306f0b85d52514ccd0e0406aa40b14531b86b505407a353b8470a728e99a"
+  },
   "workspace": {
     "dependencies": [
       "jsr:@hono/hono@4.11.5",

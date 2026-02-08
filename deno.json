@@ -1,7 +1,7 @@
 {
   "nodeModulesDir": "auto",
   "tasks": {
-    "test": "deno fmt && deno lint && deno check && deno test -P",
+    "test": "deno fmt && deno lint && deno check --allow-import=bunseki.kbn.one,jsr.io && deno test -P",
     "dev": "deno task --cwd=main dev",
     "serve": "deno task --cwd=main serve"
   },
@@ -15,6 +15,7 @@
     "@hono/standard-validator": "jsr:@hono/standard-validator@^0.2.2",
     "@std/assert": "jsr:@std/assert@^1.0.17",
     "arktype": "npm:arktype@^2.1.29",
+    "bunseki/exporter": "https://bunseki.kbn.one/exporter.server.js",
     "hono": "jsr:@hono/hono@4.11.5"
   },
   "unstable": ["kv", "bundle"],
@@ -31,7 +32,8 @@
         "ORIGINS",
         "PUSH_CONTACT"
       ],
-      "net": ["updates.push.services.mozilla.com"],
+      "net": ["updates.push.services.mozilla.com", "bunseki.kbn.one"],
+      "import": ["bunseki.kbn.one:443", "jsr.io", "deno.land", "esm.sh"],
       "read": ["."],
       "write": ["./_data"]
     }
