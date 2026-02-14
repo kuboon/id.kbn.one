@@ -104,12 +104,23 @@ export class DenoKvPasskeyRepository implements PasskeyRepository {
   }
 
   async deleteCredentialsByUserId(userId: string): Promise<void> {
+    let atomic = this.kv.atomic();
+    let count = 0;
     for await (const entry of listUserCredentials(this.kv, userId)) {
       if (!entry.value) {
         continue;
       }
-      await this.kv.delete(entry.key);
-      await this.kv.delete(credentialKey(entry.value.id));
+      atomic.delete(entry.key);
+      atomic.delete(credentialKey(entry.value.id));
+      count++;
+      if (count >= 400) {
+        await atomic.commit();
+        atomic = this.kv.atomic();
+        count = 0;
+      }
+    }
+    if (count > 0) {
+      await atomic.commit();
     }
   }
 }
