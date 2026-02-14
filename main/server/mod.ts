@@ -1,5 +1,6 @@
 import { DenoKvPasskeyRepository } from "./repository/deno-kv-passkey-store.ts";
 import { DenoKvSessionRepository } from "./repository/deno-kv-session-store.ts";
+import { DenoKvJtiStore } from "./repository/deno-kv-jti-store.ts";
 import { getKvInstance } from "./kvInstance.ts";
 import { PushService } from "./push/service.ts";
 import { createPushRouter } from "./push/router.ts";
@@ -22,6 +23,7 @@ import { HTTPException } from "hono/http-exception";
 const kv = await getKvInstance();
 const credentialRepository = new DenoKvPasskeyRepository(kv);
 const sessionRepository = new DenoKvSessionRepository(kv);
+const jtiStore = new DenoKvJtiStore(kv);
 const pushService = await PushService.create(kv);
 
 const allowedOrigins = [
@@ -43,6 +45,7 @@ const app = new Hono()
   .use(cors({ origin: allowedOrigins }))
   .use(createDpopSessionMiddleware({
     sessionStore: sessionRepository,
+    checkReplay: (jti) => jtiStore.checkReplay(jti),
   }))
   .post("/session/logout", (c) => {
     setNoStore(c);

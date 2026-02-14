@@ -14,8 +14,8 @@ export interface VerifyDpopProofOptions {
    * current time. Defaults to 60s.
    */
   readonly clockSkewSeconds?: number;
-  /** Optional hook to reject replayed `jti` values. */
-  readonly checkReplay?: (jti: string) => boolean | Promise<boolean>;
+  /** Hook to reject replayed `jti` values. */
+  readonly checkReplay: (jti: string) => boolean | Promise<boolean>;
   /**
    * Allows providing a custom timestamp (in seconds) for deterministic tests.
    * Defaults to `Math.floor(Date.now() / 1000)`.

@@ -30,7 +30,7 @@ const isValidPublicJwk = (jwk: unknown): jwk is JsonWebKey => {
 
 export const verifyDpopProof = async (
   request: DpopProofRequest,
-  options: VerifyDpopProofOptions = {},
+  options: VerifyDpopProofOptions,
 ): Promise<VerifyDpopProofResult> => {
   const parts = request.proof.split(".");
   if (parts.length !== 3) {
@@ -90,13 +90,6 @@ export const verifyDpopProof = async (
     return { valid: false, error: "expired" };
   }
 
-  if (options.checkReplay) {
-    const ok = await options.checkReplay(payload.jti);
-    if (!ok) {
-      return { valid: false, error: "replay-detected" };
-    }
-  }
-
   let publicKey: CryptoKey;
   try {
     publicKey = await crypto.subtle.importKey(
@@ -127,6 +120,11 @@ export const verifyDpopProof = async (
     return { valid: false, error: "invalid-signature" };
   }
 
+  const ok = await options.checkReplay(payload.jti);
+  if (!ok) {
+    return { valid: false, error: "replay-detected" };
+  }
+
   return {
     valid: true,
     parts: parts as [string, string, string],
@@ -144,7 +142,7 @@ export const verifyDpopProof = async (
 
 export const verifyDpopProofFromRequest = async (
   req: Request,
-  options: VerifyDpopProofOptions = {},
+  options: VerifyDpopProofOptions,
 ): Promise<VerifyDpopProofResult> => {
   const header = req.headers.get("dpop") ?? req.headers.get("DPoP");
   if (!header) {
