@@ -19,6 +19,7 @@ export const createDpopSessionMiddleware = (
     Variables: { session?: SessionData; sessionKey?: string };
   }>(
     async (c, next) => {
+      // dpopOptions contains mandatory checkReplay
       const dpop = await verifyDpopProofFromRequest(c.req.raw, dpopOptions);
       if (!dpop.valid) {
         return next();
