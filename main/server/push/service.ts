@@ -235,9 +235,7 @@ export class PushService {
       subscriptions.push(value);
     }
 
-    return subscriptions.sort((a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+    return subscriptions.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   async deleteSubscription(
