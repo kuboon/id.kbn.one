@@ -106,9 +106,14 @@ export const verifyDpopProof = async (
     return { valid: false, error: "invalid-jwk" };
   }
 
-  const decodedSignature = base64UrlDecode(parts[2]);
-  const signatureBytes = new Uint8Array(decodedSignature.length);
-  signatureBytes.set(decodedSignature);
+  let signatureBytes: Uint8Array;
+  try {
+    const decodedSignature = base64UrlDecode(parts[2]);
+    signatureBytes = new Uint8Array(decodedSignature.length);
+    signatureBytes.set(decodedSignature);
+  } catch {
+    return { valid: false, error: "invalid-signature" };
+  }
   const signingInput = textEncoder.encode(`${parts[0]}.${parts[1]}`);
   const signatureValid = await crypto.subtle.verify(
     { name: "ECDSA", hash: "SHA-256" },

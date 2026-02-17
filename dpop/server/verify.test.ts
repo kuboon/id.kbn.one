@@ -260,3 +260,19 @@ Deno.test("verifyDpopProofFromRequest - missing header", async () => {
   assertEquals(result.valid, false);
   assertEquals(result.error, "missing-dpop-header");
 });
+
+Deno.test("verifyDpopProof - malformed signature base64", async () => {
+  const keyPair = await generateKeyPair();
+  const proof = await createTestProof(keyPair);
+  const parts = proof.split(".");
+  // Tamper with signature to make it invalid base64url
+  const invalidSignatureProof = `${parts[0]}.${parts[1]}.not-base64-!@#$`;
+
+  const result = await verifyDpopProof({
+    proof: invalidSignatureProof,
+    method: "GET",
+    url: "https://example.com/api",
+  });
+  assertEquals(result.valid, false);
+  assertEquals(result.error, "invalid-signature");
+});
