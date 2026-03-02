@@ -24,7 +24,7 @@ const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
       return undefined;
     }
     const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
+    return trimmed || undefined;
   };
 
   const result: PushSubscriptionMetadata = {};
