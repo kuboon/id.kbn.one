@@ -33,12 +33,12 @@ const decodeBase64Url = (input: string) =>
 const jsonError = (status: ContentfulStatusCode, message: string) =>
   new HTTPException(status, { message });
 
-const getRequestUrl = (c: Context): URL => {
-  const headerOrigin = c.req.header("origin")?.trim();
-  if (headerOrigin) {
-    return new URL(headerOrigin);
-  }
+export const getRequestUrl = (c: Context): URL => {
   try {
+    const headerOrigin = c.req.header("origin")?.trim();
+    if (headerOrigin) {
+      return new URL(headerOrigin);
+    }
     return new URL(c.req.url);
   } catch {
     throw jsonError(400, "Unable to determine request origin");
