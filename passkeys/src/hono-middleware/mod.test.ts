@@ -1,10 +1,12 @@
 import type { PasskeyAppType } from "./mod.ts";
-import { createPasskeysRouter } from "./mod.ts";
+import { createPasskeysRouter, getRequestUrl } from "./mod.ts";
 import type { PasskeyMiddlewareOptions } from "../core/types.ts";
 import { InMemoryPasskeyRepository } from "../core/in-memory-passkey-store.ts";
 
 import { hc } from "hono/client";
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertThrows } from "@std/assert";
+import { HTTPException } from "hono/http-exception";
+import type { Context } from "hono";
 
 const storage = new InMemoryPasskeyRepository();
 const options: PasskeyMiddlewareOptions = {
@@ -57,4 +59,61 @@ Deno.test("PasskeyAppType RPC - type safety check", () => {
 
   // Type check passes if this compiles
   assertEquals(true, true);
+});
+
+Deno.test("getRequestUrl - should throw 400 for invalid URL in request", () => {
+  const mockContext = {
+    req: {
+      header: () => undefined,
+      url: "invalid-url",
+    },
+  } as unknown as Context;
+
+  const error = assertThrows(
+    () => getRequestUrl(mockContext),
+    HTTPException,
+  );
+  assertEquals(error.status, 400);
+  assertEquals(error.message, "Unable to determine request origin");
+});
+
+Deno.test("getRequestUrl - should throw 400 for invalid Origin header", () => {
+  const mockContext = {
+    req: {
+      header: (name: string) => name === "origin" ? "invalid-origin" : undefined,
+      url: "http://localhost",
+    },
+  } as unknown as Context;
+
+  const error = assertThrows(
+    () => getRequestUrl(mockContext),
+    HTTPException,
+  );
+  assertEquals(error.status, 400);
+  assertEquals(error.message, "Unable to determine request origin");
+});
+
+Deno.test("getRequestUrl - should return URL from Origin header", () => {
+  const mockContext = {
+    req: {
+      header: (name: string) =>
+        name === "origin" ? "http://example.com" : undefined,
+      url: "http://localhost",
+    },
+  } as unknown as Context;
+
+  const url = getRequestUrl(mockContext);
+  assertEquals(url.origin, "http://example.com");
+});
+
+Deno.test("getRequestUrl - should return URL from request URL if Origin is missing", () => {
+  const mockContext = {
+    req: {
+      header: () => undefined,
+      url: "http://localhost/path",
+    },
+  } as unknown as Context;
+
+  const url = getRequestUrl(mockContext);
+  assertEquals(url.origin, "http://localhost");
 });
