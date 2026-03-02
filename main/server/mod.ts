@@ -18,6 +18,7 @@ import { createPasskeysRouter } from "@scope/passkeys/hono-middleware";
 
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
+import { secureHeaders } from "hono/secure-headers";
 import { HTTPException } from "hono/http-exception";
 
 const kv = await getKvInstance();
@@ -42,6 +43,7 @@ const ensureAuthenticatedUser = (c: Context): string => {
 };
 
 const app = new Hono()
+  .use(secureHeaders())
   .use(cors({ origin: allowedOrigins }))
   .use(createDpopSessionMiddleware({
     sessionStore: sessionRepository,
