@@ -80,7 +80,8 @@ Deno.test("getRequestUrl - should throw 400 for invalid URL in request", () => {
 Deno.test("getRequestUrl - should throw 400 for invalid Origin header", () => {
   const mockContext = {
     req: {
-      header: (name: string) => name === "origin" ? "invalid-origin" : undefined,
+      header: (name: string) =>
+        name === "origin" ? "invalid-origin" : undefined,
       url: "http://localhost",
     },
   } as unknown as Context;

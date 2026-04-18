@@ -2,7 +2,7 @@ import { getKvInstance } from "../kvInstance.ts";
 import type {
   PasskeyCredential,
   PasskeyRepository,
-} from "@scope/passkeys/hono-middleware";
+} from "@kuboon/passkeys/hono-middleware";
 
 const credentialKey = (
   credentialId: string,

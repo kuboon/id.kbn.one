@@ -14,7 +14,7 @@ import {
 } from "./config.ts";
 import { createDpopSessionMiddleware } from "./dpop-session-middleware.ts";
 
-import { createPasskeysRouter } from "@scope/passkeys/hono-middleware";
+import { createPasskeysRouter } from "@kuboon/passkeys/hono-middleware";
 
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";

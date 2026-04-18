@@ -18,6 +18,7 @@ export type VerifyDpopProofResult = {
   readonly parts: readonly [string, string, string];
   readonly payload: DpopJwtPayload;
   readonly jwk: JsonWebKey;
+  readonly error?: undefined;
 } | {
   valid: false;
   readonly error: string;

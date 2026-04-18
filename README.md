@@ -121,8 +121,8 @@ deno task --cwd server dev
 
 Notes:
 
-- The `@scope/passkeys` package includes an `InMemoryPasskeyRepository` intended
-  for local development only. Replace it with a persistent storage
+- The `@kuboon/passkeys` package includes an `InMemoryPasskeyRepository`
+  intended for local development only. Replace it with a persistent storage
   implementation for production.
 - `dpop/` exports `createDpopProof` and `verifyDpopProof` helpers for working
   with DPoP-bound access tokens.

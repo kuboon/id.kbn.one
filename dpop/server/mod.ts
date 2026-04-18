@@ -30,8 +30,17 @@ const isValidPublicJwk = (jwk: unknown): jwk is JsonWebKey => {
 
 export const verifyDpopProof = async (
   request: DpopProofRequest,
-  options: VerifyDpopProofOptions,
+  options_?: VerifyDpopProofOptions,
 ): Promise<VerifyDpopProofResult> => {
+  const options: Required<VerifyDpopProofOptions> = Object.assign(
+    {
+      maxAgeSeconds: 300,
+      clockSkewSeconds: 60,
+      checkReplay: () => true,
+      now: Math.floor(Date.now() / 1000),
+    },
+    options_ ?? {},
+  );
   const parts = request.proof.split(".");
   if (parts.length !== 3) {
     return { valid: false, error: "invalid-format" };
@@ -54,6 +63,43 @@ export const verifyDpopProof = async (
   }
   if (!isValidPublicJwk(header.jwk)) {
     return { valid: false, error: "invalid-jwk" };
+  }
+  // Import public key and verify signature before trusting payload fields
+  let publicKey: CryptoKey;
+  try {
+    publicKey = await crypto.subtle.importKey(
+      "jwk",
+      header.jwk,
+      {
+        name: "ECDSA",
+        namedCurve: "P-256",
+      },
+      false,
+      ["verify"],
+    );
+  } catch {
+    return { valid: false, error: "invalid-jwk" };
+  }
+  let signatureBuffer: ArrayBuffer;
+  try {
+    const decodedSignature = base64UrlDecode(parts[2]);
+    const u8 = new Uint8Array(decodedSignature);
+    signatureBuffer = u8.buffer.slice(
+      u8.byteOffset,
+      u8.byteOffset + u8.byteLength,
+    );
+  } catch {
+    return { valid: false, error: "invalid-signature" };
+  }
+  const signingInput = textEncoder.encode(`${parts[0]}.${parts[1]}`);
+  const signatureValid = await crypto.subtle.verify(
+    { name: "ECDSA", hash: "SHA-256" },
+    publicKey,
+    signatureBuffer,
+    signingInput,
+  );
+  if (!signatureValid) {
+    return { valid: false, error: "invalid-signature" };
   }
 
   const expectedMethod = normalizeMethod(request.method);
@@ -79,50 +125,15 @@ export const verifyDpopProof = async (
     return { valid: false, error: "invalid-iat" };
   }
 
-  const maxAge = options.maxAgeSeconds ?? 300;
-  const clockSkew = options.clockSkewSeconds ?? 60;
-  const now = options.now ?? Math.floor(Date.now() / 1000);
+  const maxAge = options.maxAgeSeconds;
+  const clockSkew = options.clockSkewSeconds;
+  const now = options.now;
 
   if (payload.iat > now + clockSkew) {
     return { valid: false, error: "future-iat" };
   }
   if (now - payload.iat > maxAge) {
     return { valid: false, error: "expired" };
-  }
-
-  let publicKey: CryptoKey;
-  try {
-    publicKey = await crypto.subtle.importKey(
-      "jwk",
-      header.jwk,
-      {
-        name: "ECDSA",
-        namedCurve: "P-256",
-      },
-      false,
-      ["verify"],
-    );
-  } catch {
-    return { valid: false, error: "invalid-jwk" };
-  }
-
-  let signatureBytes: Uint8Array;
-  try {
-    const decodedSignature = base64UrlDecode(parts[2]);
-    signatureBytes = new Uint8Array(decodedSignature.length);
-    signatureBytes.set(decodedSignature);
-  } catch {
-    return { valid: false, error: "invalid-signature" };
-  }
-  const signingInput = textEncoder.encode(`${parts[0]}.${parts[1]}`);
-  const signatureValid = await crypto.subtle.verify(
-    { name: "ECDSA", hash: "SHA-256" },
-    publicKey,
-    signatureBytes,
-    signingInput,
-  );
-  if (!signatureValid) {
-    return { valid: false, error: "invalid-signature" };
   }
 
   const ok = await options.checkReplay(payload.jti);
@@ -147,7 +158,7 @@ export const verifyDpopProof = async (
 
 export const verifyDpopProofFromRequest = async (
   req: Request,
-  options: VerifyDpopProofOptions,
+  options?: VerifyDpopProofOptions,
 ): Promise<VerifyDpopProofResult> => {
   const header = req.headers.get("dpop") ?? req.headers.get("DPoP");
   if (!header) {
@@ -163,3 +174,5 @@ export const verifyDpopProofFromRequest = async (
     options,
   );
 };
+
+// Verify signature before trusting payload fields

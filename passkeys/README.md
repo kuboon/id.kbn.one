@@ -1,4 +1,4 @@
-# @scope/passkeys
+# @kuboon/passkeys
 
 A reusable [Hono](https://hono.dev/) middleware that adds
 [passkey / WebAuthn](https://passkeys.dev/) registration and authentication
