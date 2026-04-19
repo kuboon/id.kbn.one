@@ -4,7 +4,7 @@
     "test": "deno fmt && deno lint && deno check && deno test -P",
     "dev": "deno task --cwd=main dev",
     "serve": "deno task --cwd=main serve",
-    "pre-deploy": "deno run -P main/server/repository/migrate-session-to-thumbprint.ts"
+    "pre-deploy": "echo \"nothing to do\""
   },
   "workspace": [
     "main",
