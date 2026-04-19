@@ -57,7 +57,7 @@ export interface StoredPushSubscription {
   id: string;
   userId: string;
   endpoint: string;
-  expirationTime: number | null;
+  expirationTime: number | undefined;
   keys: WebPushSubscription["keys"];
   createdAt: number;
   updatedAt: number;
@@ -131,45 +131,12 @@ export class PushService {
     return this.vapidPublicKey;
   }
 
-  private validateSubscriptionPayload(
-    payload: PushSubscriptionPayload,
-  ): PushSubscriptionPayload {
-    if (!payload || typeof payload !== "object") {
-      throw new Error("Invalid subscription payload");
-    }
-    if (!payload.endpoint || typeof payload.endpoint !== "string") {
-      throw new Error("Subscription endpoint is required");
-    }
-    const endpoint = payload.endpoint.trim();
-    if (!endpoint.startsWith("https://")) {
-      throw new Error("Subscription endpoint must be an HTTPS URL");
-    }
-    const { keys } = payload;
-    if (!keys || typeof keys !== "object") {
-      throw new Error("Subscription keys are required");
-    }
-    if (typeof keys.auth !== "string" || typeof keys.p256dh !== "string") {
-      throw new Error("Subscription keys are invalid");
-    }
-    return {
-      endpoint,
-      expirationTime: typeof payload.expirationTime === "number"
-        ? payload.expirationTime
-        : null,
-      keys: {
-        auth: keys.auth,
-        p256dh: keys.p256dh,
-      },
-    };
-  }
-
   async upsertSubscription(
     userId: string,
     subscription: PushSubscriptionPayload,
     metadata: PushSubscriptionMetadata = {},
   ): Promise<StoredPushSubscription> {
-    const normalized = this.validateSubscriptionPayload(subscription);
-    const id = await hashSubscriptionEndpoint(normalized.endpoint);
+    const id = await hashSubscriptionEndpoint(subscription.endpoint);
     const existingEntry = await this.kv.get<StoredPushSubscription>(
       subscriptionKey(id),
     );
@@ -179,9 +146,9 @@ export class PushService {
     const record: StoredPushSubscription = {
       id,
       userId,
-      endpoint: normalized.endpoint,
-      expirationTime: normalized.expirationTime,
-      keys: normalized.keys,
+      endpoint: subscription.endpoint,
+      expirationTime: subscription.expirationTime,
+      keys: subscription.keys,
       createdAt: previous?.createdAt ?? now,
       updatedAt: now,
       metadata: {
