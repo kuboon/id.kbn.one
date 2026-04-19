@@ -29,7 +29,7 @@
         "RP_ID",
         "RP_NAME",
         "IDP_ORIGIN",
-        "ORIGINS",
+        "AUTHORIZE_WHITELIST",
         "PUSH_CONTACT",
         "DENO_KV_ACCESS_TOKEN"
       ],

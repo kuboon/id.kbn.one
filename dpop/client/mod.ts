@@ -1,5 +1,10 @@
 import type { DpopJwtPayload } from "../types.ts";
-import { base64UrlEncode, normalizeHtu, normalizeMethod } from "../common.ts";
+import {
+  base64UrlEncode,
+  computeThumbprint,
+  normalizeHtu,
+  normalizeMethod,
+} from "../common.ts";
 import {
   IndexedDbKeyRepository,
   type KeyRepository,
@@ -82,7 +87,9 @@ function getMethodUrl(
 }
 export async function init(
   opts: InitOptions = {},
-): Promise<{ fetchDpop: FetchLike }> {
+): Promise<
+  { fetchDpop: FetchLike; thumbprint: string; publicJwk: JsonWebKey }
+> {
   opts.keyStore ??= new IndexedDbKeyRepository();
   const useFetch = opts.fetch ?? fetch.bind(globalThis);
 
@@ -92,6 +99,12 @@ export async function init(
     await opts.keyStore.saveKeyPair(keyPair_);
   }
   const keyPair = keyPair_;
+
+  const publicJwk = stripPrivateFields(
+    await crypto.subtle.exportKey("jwk", keyPair.publicKey),
+  );
+  const thumbprint = await computeThumbprint(publicJwk);
+
   const fetchDpop: FetchLike = async (
     input: RequestInfo | URL,
     init?: RequestInit,
@@ -113,5 +126,5 @@ export async function init(
     return useFetch(input, merged);
   };
 
-  return { fetchDpop };
+  return { fetchDpop, thumbprint, publicJwk };
 }

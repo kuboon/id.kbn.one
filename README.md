@@ -4,43 +4,25 @@
 
 ## アーキテクチャ
 
-- sp.example.com: service provider
-- idp.example.com: ID provider (This repo)
+- rp.example.com: Relying Party (= service provider)
+- idp.example.com: ID Provider (this repo)
 
-### 未ログイン遷移
+パスキー認証は IdP に集約。RP は DPoP 鍵を持ち、IdP のセッションを自分の jkt
+(JWK SHA-256 thumbprint) に bind してもらう。
 
-- sp.example.com のブラウザ上で DPoP 鍵作成
-  - dpop_fetch `GET idp.example.com/session`
-- idp.example.com サーバは Unauthorized を返す
-- sp.example.com のブラウザ上で form 要素を作成して click し、 POST遷移する
-  - 遷移先は `POST idp.example.com/session`
-  - htm, htu は ↑ で DPoP string を生成
-  - POST body に `DPOP=xxx,redirect=/profile` を付与する。
-- idp.example.com は DPOP を検証したのち、
-  - session-sp に以下の内容を保存
-    - `Origin` ヘッダ
-    - redirect (Origin を含まない, デフォルトは '/')
-  - 以下の Javascript を含む http response を返す
-    - ブラウザ上で DPoP 鍵生成 (以降 session-idp)
-    - dpop_fetch `POST /authenticate (body: {session: "session-sp"})`
-      - サーバは session-idp を生成し、 session-sp が認証待ちであることを記録
-    - session-idp が未ログインなので失敗し、ログイン画面へ遷移
-- idp.example.com 上で Passkeys ログイン認証を実施
-  - Passkeys 認証完了したら session-idp は user-1 でログイン済とマークする
-  - session-sp が認証待ちであることを検出
-  - session-sp は user-1 でログイン済とマークする
-  - session-sp から redirect と origin を読み出し、合成してブラウザへ送る
-- ブラウザを遷移
-- sp.example.com で dpop_fetch `GET idp.example.com/session`
-- idp.example.com は user-1 の情報を返す
+### サインインフロー
 
-### ログイン済遷移
-
-- idp へ POST redirect して dpop_fetch
-  `POST /authenticate (body: {session: "session-sp"})`
-  - session-sp は user-1 でログイン済とマークする
-  - session-sp から redirect と origin を読み出し、合成してブラウザへレスポンス
-  - ブラウザは直ちに redirect back
+1. RP のブラウザが DPoP 鍵ペアを生成 (IndexedDB 保存) → `rp_jkt` を計算
+2. RP が遷移: `https://idp.example.com/authorize?dpop_jkt=<rp_jkt>&redirect_uri=<here>`
+   - `redirect_uri` の origin は IdP の `AUTHORIZE_WHITELIST` に含まれている必要あり
+3. IdP は `authorize.html` を返す。クライアント JS は IdP 用の DPoP 鍵で動く
+4. IdP 側のセッションを確認:
+   - 未ログインならパスキー認証 (signin/register)
+   - ログイン済 or 認証成功後 → `dpop_fetch POST /bind_session {dpop_jkt: rp_jkt}`
+5. IdP は `sessionRepository.update(rp_jkt, () => ({ userId }))` を実行
+6. ブラウザを `redirect_uri` へ戻す
+7. RP のブラウザが `dpop_fetch GET https://idp.example.com/session` →
+   `{ userId }` が返る (DPoP proof の thumbprint = rp_jkt が bind 済のため)
 
 ## Prerequisites
 
@@ -61,11 +43,11 @@ mise use -g deno
 
 for more details, see `server/config.ts`.
 
-- `RP_ID` (relying party id, e.g. `localhost`)
+- `RP_ID` (relying party id for WebAuthn, e.g. `localhost`)
 - `RP_NAME` (relying party display name, e.g. `My ID Provider`)
-- `IDP_ORIGIN` (the origin of the ID provider, e.g. `http://localhost:8000`)
-- `ORIGINS` (a comma-separated list of allowed origins for Passkeys & CORS, e.g.
-  `http://localhost:8000,http://example.com`)
+- `IDP_ORIGIN` (this server's own origin, e.g. `http://localhost:8000`)
+- `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use
+  `/authorize` and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
 
 ## Project layout
 

@@ -6,9 +6,9 @@ import { PushService } from "./push/service.ts";
 import { createPushRouter } from "./push/router.ts";
 import { createCredentialsRouter } from "./credentials/router.ts";
 import {
+  authorizeWhitelist,
   idpOrigin,
   pushContact,
-  relatedOrigins,
   rpID,
   rpName,
 } from "./config.ts";
@@ -20,6 +20,8 @@ import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { HTTPException } from "hono/http-exception";
+import { sValidator } from "@hono/standard-validator";
+import { type } from "arktype";
 
 const kv = await getKvInstance();
 const credentialRepository = new DenoKvPasskeyRepository(kv);
@@ -29,7 +31,7 @@ const pushService = await PushService.create(kv);
 
 const allowedOrigins = [
   ...(idpOrigin ? [idpOrigin] : []),
-  ...relatedOrigins,
+  ...authorizeWhitelist,
 ];
 
 const setNoStore = (c: Context) => {
@@ -40,6 +42,22 @@ const ensureAuthenticatedUser = (c: Context): string => {
   const userId = c.var.session?.userId;
   if (!userId) throw new HTTPException(401, { message: "Sign-in required" });
   return userId;
+};
+
+const jktPattern = /^[A-Za-z0-9_-]{43}$/;
+
+const bindSessionBodySchema = type({
+  dpop_jkt: jktPattern,
+});
+
+const isAllowedRedirectUri = (redirectUri: string): boolean => {
+  let parsed: URL;
+  try {
+    parsed = new URL(redirectUri);
+  } catch {
+    return false;
+  }
+  return authorizeWhitelist.includes(parsed.origin);
 };
 
 const app = new Hono()
@@ -54,6 +72,19 @@ const app = new Hono()
     c.set("session", undefined);
     return c.json({ success: true });
   })
+  .get("/authorize", (c, next) => {
+    const dpopJkt = c.req.query("dpop_jkt");
+    const redirectUri = c.req.query("redirect_uri");
+    if (!dpopJkt || !jktPattern.test(dpopJkt)) {
+      throw new HTTPException(400, { message: "Invalid dpop_jkt" });
+    }
+    if (!redirectUri || !isAllowedRedirectUri(redirectUri)) {
+      throw new HTTPException(400, {
+        message: "redirect_uri is missing or not allowed",
+      });
+    }
+    return next();
+  })
   .use((c, next) => {
     const acceptsJson = c.req.header("accept")?.includes(
       "application/json",
@@ -63,6 +94,17 @@ const app = new Hono()
     }
     return next();
   })
+  .post(
+    "/bind_session",
+    sValidator("json", bindSessionBodySchema),
+    async (c) => {
+      setNoStore(c);
+      const userId = ensureAuthenticatedUser(c);
+      const { dpop_jkt: rpJkt } = c.req.valid("json");
+      await sessionRepository.update(rpJkt, () => ({ userId }));
+      return c.json({ success: true });
+    },
+  )
   .route(
     "/webauthn",
     createPasskeysRouter({
@@ -80,12 +122,6 @@ const app = new Hono()
       },
     }),
   )
-  .get("/.well-known/webauthn", (c) => {
-    if (relatedOrigins.length > 0) {
-      c.header("Cache-Control", "public, max-age=86400");
-    }
-    return c.json({ origins: relatedOrigins });
-  })
   .get("/session", (c) => {
     return c.json({ userId: c.var.session?.userId || null });
   })

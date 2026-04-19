@@ -3,7 +3,7 @@ const rpName = Deno.env.get("RP_NAME") ?? "Local Development";
 const idpOriginValue = Deno.env.get("IDP_ORIGIN")?.trim();
 const idpOrigin = idpOriginValue || null;
 
-const relatedOrigins = (Deno.env.get("ORIGINS") ?? "")
+const authorizeWhitelist = (Deno.env.get("AUTHORIZE_WHITELIST") ?? "")
   .split(",")
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0)
@@ -16,4 +16,4 @@ const relatedOrigins = (Deno.env.get("ORIGINS") ?? "")
 const pushContact = Deno.env.get("PUSH_CONTACT")?.trim() ||
   "mailto:o@kbn.one";
 
-export { idpOrigin, pushContact, relatedOrigins, rpID, rpName };
+export { authorizeWhitelist, idpOrigin, pushContact, rpID, rpName };

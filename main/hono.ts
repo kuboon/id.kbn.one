@@ -10,6 +10,8 @@ function rewriteRequestPath(path: string): string {
       return "/index.html";
     case "/me":
       return "/me.html";
+    case "/authorize":
+      return "/authorize.html";
     default:
       return path;
   }
@@ -20,7 +22,7 @@ app.use(
   "*",
   serveBundled({
     root: staticDir,
-    entrypoints: ["index.html", "me.html"],
+    entrypoints: ["index.html", "me.html", "authorize.html"],
     replacements: {},
     rewriteRequestPath,
   }),
