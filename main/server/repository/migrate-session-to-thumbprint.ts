@@ -101,15 +101,11 @@ export const migrateSessionKeysToThumbprint = async (
   return result;
 };
 
-if (import.meta.main) {
-  const dryRun = Deno.args.includes("--dry-run");
-  const kv = await Deno.openKv(
-    "https://api.deno.com/databases/ebf60f1f-4d3f-4402-ac49-fa60341278ed/connect",
-  );
-  try {
-    const result = await migrateSessionKeysToThumbprint(kv, { dryRun });
-    console.log(dryRun ? "dry-run result:" : "result:", result);
-  } finally {
-    kv.close();
-  }
+const dryRun = false;
+const kv = await Deno.openKv();
+try {
+  const result = await migrateSessionKeysToThumbprint(kv, { dryRun });
+  console.log(dryRun ? "dry-run result:" : "result:", result);
+} finally {
+  kv.close();
 }
