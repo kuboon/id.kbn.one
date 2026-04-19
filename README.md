@@ -13,12 +13,15 @@
 ### サインインフロー
 
 1. RP のブラウザが DPoP 鍵ペアを生成 (IndexedDB 保存) → `rp_jkt` を計算
-2. RP が遷移: `https://idp.example.com/authorize?dpop_jkt=<rp_jkt>&redirect_uri=<here>`
-   - `redirect_uri` の origin は IdP の `AUTHORIZE_WHITELIST` に含まれている必要あり
+2. RP が遷移:
+   `https://idp.example.com/authorize?dpop_jkt=<rp_jkt>&redirect_uri=<here>`
+   - `redirect_uri` の origin は IdP の `AUTHORIZE_WHITELIST`
+     に含まれている必要あり
 3. IdP は `authorize.html` を返す。クライアント JS は IdP 用の DPoP 鍵で動く
 4. IdP 側のセッションを確認:
    - 未ログインならパスキー認証 (signin/register)
-   - ログイン済 or 認証成功後 → `dpop_fetch POST /bind_session {dpop_jkt: rp_jkt}`
+   - ログイン済 or 認証成功後 →
+     `dpop_fetch POST /bind_session {dpop_jkt: rp_jkt}`
 5. IdP は `sessionRepository.update(rp_jkt, () => ({ userId }))` を実行
 6. ブラウザを `redirect_uri` へ戻す
 7. RP のブラウザが `dpop_fetch GET https://idp.example.com/session` →
@@ -46,8 +49,8 @@ for more details, see `server/config.ts`.
 - `RP_ID` (relying party id for WebAuthn, e.g. `localhost`)
 - `RP_NAME` (relying party display name, e.g. `My ID Provider`)
 - `IDP_ORIGIN` (this server's own origin, e.g. `http://localhost:8000`)
-- `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use
-  `/authorize` and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
+- `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use `/authorize`
+  and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
 
 ## Project layout
 

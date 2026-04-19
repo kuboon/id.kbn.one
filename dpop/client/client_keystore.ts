@@ -1,8 +1,27 @@
+/**
+ * Pluggable persistence for the client's DPoP key pair.
+ *
+ * Keys should be **non-extractable** whenever possible so they cannot be
+ * exfiltrated from the browser — `init()` creates them that way by default.
+ * That means the underlying key material cannot be serialized; the key pair
+ * must be stored as-is by a backend that accepts `CryptoKey` objects (such as
+ * IndexedDB), not encoded via `exportKey`.
+ *
+ * @module
+ */
+
+/** A storage backend for a single `CryptoKeyPair`. */
 export interface KeyRepository {
+  /** Returns the stored key pair, or `undefined` if nothing is stored yet. */
   getKeyPair(): Promise<CryptoKeyPair | undefined>;
+  /** Persist a key pair, overwriting any previous value. */
   saveKeyPair(keyPair: CryptoKeyPair): Promise<void>;
 }
 
+/**
+ * Non-persistent in-memory implementation — intended for tests and
+ * non-browser runtimes where you don't need keys to survive a restart.
+ */
 export class InMemoryKeyRepository implements KeyRepository {
   private store = new Map<string, CryptoKeyPair>();
 
@@ -16,7 +35,13 @@ export class InMemoryKeyRepository implements KeyRepository {
   }
 }
 
-// Browser-only IndexedDB
+/**
+ * Browser-only. Persists the key pair in an IndexedDB database named
+ * `dpop-keys-v1`, object store `keys`, under the key `"default"`.
+ *
+ * Works with non-extractable keys because IndexedDB can store `CryptoKey`
+ * objects natively (the structured-clone algorithm is used).
+ */
 export class IndexedDbKeyRepository implements KeyRepository {
   private dbName = "dpop-keys-v1";
 

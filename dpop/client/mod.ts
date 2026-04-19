@@ -1,3 +1,19 @@
+/**
+ * Client-side DPoP helper. Generates (or reuses) an ECDSA P-256 key pair in a
+ * pluggable key store and exposes a `fetch`-compatible wrapper that attaches a
+ * fresh `DPoP` header to every request.
+ *
+ * @example
+ * ```ts
+ * import { init } from "@kuboon/dpop/client.ts";
+ *
+ * const { fetchDpop, thumbprint } = await init();
+ * // Share `thumbprint` with your IdP so it can bind sessions/tokens to this key.
+ * await fetchDpop("/api/profile");
+ * ```
+ *
+ * @module
+ */
 import type { DpopJwtPayload } from "../types.ts";
 import {
   base64UrlEncode,
@@ -7,6 +23,12 @@ import {
 } from "../common.ts";
 import {
   IndexedDbKeyRepository,
+  type KeyRepository,
+} from "./client_keystore.ts";
+
+export {
+  IndexedDbKeyRepository,
+  InMemoryKeyRepository,
   type KeyRepository,
 } from "./client_keystore.ts";
 
@@ -57,8 +79,22 @@ const createDpopProof = async (
 };
 
 type FetchLike = typeof fetch;
+
+/** Options for {@link init}. */
 export interface InitOptions {
+  /**
+   * Where the long-lived key pair lives. Defaults to
+   * {@link IndexedDbKeyRepository} — browser only.
+   *
+   * On non-browser targets or in tests, pass an explicit store such as
+   * `InMemoryKeyRepository` or your own `KeyRepository` implementation.
+   */
   keyStore?: KeyRepository;
+  /**
+   * Override the underlying `fetch` implementation. Useful for tests and for
+   * environments that don't expose a global `fetch`. Defaults to
+   * `globalThis.fetch` bound to `globalThis`.
+   */
   fetch?: FetchLike;
 }
 
@@ -85,6 +121,20 @@ function getMethodUrl(
   const url = input instanceof URL ? input.toString() : input.url;
   return { method, url };
 }
+/**
+ * Bootstrap a DPoP-enabled fetch for the current context.
+ *
+ * The returned `fetchDpop` has the same signature as `fetch`. On each call it
+ * builds a fresh DPoP proof for that request's method and URL, signs it with
+ * the stored key, and sets the `DPoP` header. Other headers on the input are
+ * preserved.
+ *
+ * `thumbprint` is the RFC 7638 JWK SHA-256 thumbprint of the public key — the
+ * value a DPoP-aware IdP expects as `dpop_jkt` / the token's `cnf.jkt`.
+ *
+ * @returns `fetchDpop` (the wrapped fetch), plus the public `thumbprint` and
+ *   `publicJwk` you may want to hand to your authorization server.
+ */
 export async function init(
   opts: InitOptions = {},
 ): Promise<

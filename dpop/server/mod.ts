@@ -1,7 +1,43 @@
+/**
+ * Server-side DPoP proof verification per
+ * [RFC 9449](https://www.rfc-editor.org/rfc/rfc9449).
+ *
+ * Use {@link verifyDpopProofFromRequest} when you have a `Request` object, or
+ * {@link verifyDpopProof} when you only have the raw header and request
+ * metadata (e.g. behind a custom transport or load balancer).
+ *
+ * @example Hono middleware
+ * ```ts
+ * import { verifyDpopProofFromRequest } from "@kuboon/dpop";
+ *
+ * app.use(async (c, next) => {
+ *   const result = await verifyDpopProofFromRequest(c.req.raw, {
+ *     checkReplay: (jti) => replayCache.addIfAbsent(jti),
+ *   });
+ *   if (!result.valid) return c.text(result.error, 401);
+ *   c.set("dpopJwk", result.jwk);
+ *   await next();
+ * });
+ * ```
+ *
+ * @module
+ */
 import type { DpopProofRequest, VerifyDpopProofResult } from "./types.ts";
 import type { DpopJwtPayload, VerifyDpopProofOptions } from "../types.ts";
-import { normalizeHtu, normalizeMethod } from "../common.ts";
+import {
+  computeAth,
+  computeThumbprint,
+  normalizeHtu,
+  normalizeMethod,
+} from "../common.ts";
 import { decodeBase64Url } from "@std/encoding/base64url";
+
+export type { DpopProofRequest, VerifyDpopProofResult } from "./types.ts";
+export type {
+  DpopAccessTokenBinding,
+  DpopJwtPayload,
+  VerifyDpopProofOptions,
+} from "../types.ts";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -28,19 +64,42 @@ const isValidPublicJwk = (jwk: unknown): jwk is JsonWebKey => {
   );
 };
 
+/**
+ * Verify a DPoP proof against a specific HTTP method + URL.
+ *
+ * Performs the checks mandated by RFC 9449 §4.3:
+ *
+ * 1. Compact JWT format, `typ: dpop+jwt`, `alg: ES256`.
+ * 2. Embedded `jwk` is a valid EC P-256 public key.
+ * 3. Signature verifies against that key.
+ * 4. `htm` matches the normalized request method.
+ * 5. `htu` matches the normalized request URL (no fragment).
+ * 6. `jti` is a non-empty string.
+ * 7. `iat` is within `[now - maxAgeSeconds, now + clockSkewSeconds]`.
+ * 8. `checkReplay(jti)` returns truthy.
+ *
+ * On success the decoded payload and public JWK are returned so callers can
+ * perform further policy checks (e.g. matching the JWK thumbprint against a
+ * session binding, enforcing `nonce`, checking `ath`).
+ *
+ * @param request - The proof plus the method and URL it must be bound to.
+ * @param options_ - Tuning knobs; see {@link VerifyDpopProofOptions}.
+ * @returns A discriminated union — inspect `valid` to narrow.
+ */
 export const verifyDpopProof = async (
   request: DpopProofRequest,
   options_?: VerifyDpopProofOptions,
 ): Promise<VerifyDpopProofResult> => {
-  const options: Required<VerifyDpopProofOptions> = Object.assign(
-    {
-      maxAgeSeconds: 300,
-      clockSkewSeconds: 60,
-      checkReplay: () => true,
-      now: Math.floor(Date.now() / 1000),
-    },
-    options_ ?? {},
-  );
+  const options: Required<Omit<VerifyDpopProofOptions, "accessToken">> = Object
+    .assign(
+      {
+        maxAgeSeconds: 300,
+        clockSkewSeconds: 60,
+        checkReplay: () => true,
+        now: Math.floor(Date.now() / 1000),
+      },
+      options_ ?? {},
+    );
   const parts = request.proof.split(".");
   if (parts.length !== 3) {
     return { valid: false, error: "invalid-format" };
@@ -141,6 +200,18 @@ export const verifyDpopProof = async (
     return { valid: false, error: "replay-detected" };
   }
 
+  if (options_?.accessToken) {
+    const { token, claims } = options_.accessToken;
+    const proofJkt = await computeThumbprint(header.jwk);
+    if (claims.cnf?.jkt !== proofJkt) {
+      return { valid: false, error: "jkt-mismatch" };
+    }
+    const expectedAth = await computeAth(token);
+    if (payload.ath !== expectedAth) {
+      return { valid: false, error: "ath-mismatch" };
+    }
+  }
+
   return {
     valid: true,
     parts: parts as [string, string, string],
@@ -156,6 +227,13 @@ export const verifyDpopProof = async (
   };
 };
 
+/**
+ * Convenience wrapper around {@link verifyDpopProof} that reads the `DPoP`
+ * header, method, and URL from a `Request`.
+ *
+ * @returns `{ valid: false, error: "missing-dpop-header" }` if no `DPoP`
+ *   header is present; otherwise the result of {@link verifyDpopProof}.
+ */
 export const verifyDpopProofFromRequest = async (
   req: Request,
   options?: VerifyDpopProofOptions,
@@ -174,5 +252,3 @@ export const verifyDpopProofFromRequest = async (
     options,
   );
 };
-
-// Verify signature before trusting payload fields

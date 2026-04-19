@@ -8,6 +8,18 @@
     "./common.ts": "./common.ts",
     "./client.ts": "./client/mod.ts"
   },
+  "publish": {
+    "include": [
+      "README.md",
+      "deno.json",
+      "common.ts",
+      "types.ts",
+      "client/mod.ts",
+      "client/client_keystore.ts",
+      "server/mod.ts",
+      "server/types.ts"
+    ]
+  },
   "compilerOptions": {
     "strict": true,
     "lib": ["deno.ns", "deno.unstable", "dom"]
