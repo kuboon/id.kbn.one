@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { init } from "@kuboon/dpop/client.ts";
+ * import { init } from "@kuboon/dpop";
  *
  * const { fetchDpop, thumbprint } = await init();
  * // Share `thumbprint` with your IdP so it can bind sessions/tokens to this key.

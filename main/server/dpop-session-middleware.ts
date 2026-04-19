@@ -1,7 +1,7 @@
 import type { SessionData, SessionRepository } from "./repository/types.ts";
 
 import type { VerifyDpopProofOptions } from "@kuboon/dpop/types.ts";
-import { verifyDpopProofFromRequest } from "@kuboon/dpop";
+import { verifyDpopProofFromRequest } from "@kuboon/dpop/server.ts";
 import { computeThumbprint } from "@kuboon/dpop/common.ts";
 
 import { createMiddleware } from "hono/factory";

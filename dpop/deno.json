@@ -1,12 +1,12 @@
 {
   "name": "@kuboon/dpop",
   "license": "MIT",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "exports": {
-    ".": "./server/mod.ts",
+    ".": "./client/mod.ts",
     "./types.ts": "./types.ts",
     "./common.ts": "./common.ts",
-    "./client.ts": "./client/mod.ts"
+    "./server.ts": "./server/mod.ts"
   },
   "publish": {
     "include": [

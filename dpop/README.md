@@ -27,8 +27,8 @@ npx jsr add @kuboon/dpop
 
 | Import specifier         | Purpose                                                 |
 | ------------------------ | ------------------------------------------------------- |
-| `@kuboon/dpop`           | Server-side verification (`verifyDpopProof*`)           |
-| `@kuboon/dpop/client.ts` | Browser / client-side proof generator (`init`)          |
+| `@kuboon/dpop`           | Browser / client-side proof generator (`init`)          |
+| `@kuboon/dpop/server.ts` | Server-side verification (`verifyDpopProof*`)           |
 | `@kuboon/dpop/common.ts` | Shared helpers (`computeThumbprint`, normalizers, etc.) |
 | `@kuboon/dpop/types.ts`  | Shared TypeScript types                                 |
 
@@ -40,7 +40,7 @@ signature as `fetch`. Every call automatically attaches a freshly-signed `DPoP`
 header bound to the request's method and URL.
 
 ```ts
-import { init } from "@kuboon/dpop/client.ts";
+import { init } from "@kuboon/dpop";
 
 const { fetchDpop, thumbprint, publicJwk } = await init();
 
@@ -60,7 +60,7 @@ const res = await fetchDpop("/api/profile");
 ## Server usage
 
 ```ts
-import { verifyDpopProofFromRequest } from "@kuboon/dpop";
+import { verifyDpopProofFromRequest } from "@kuboon/dpop/server.ts";
 
 Deno.serve(async (req) => {
   const result = await verifyDpopProofFromRequest(req, {
@@ -81,7 +81,7 @@ If you already have the raw `DPoP` header string (e.g. from a custom transport),
 use the lower-level entry point:
 
 ```ts
-import { verifyDpopProof } from "@kuboon/dpop";
+import { verifyDpopProof } from "@kuboon/dpop/server.ts";
 
 const result = await verifyDpopProof({
   proof: dpopHeader,
@@ -121,7 +121,7 @@ binding checks:
 
 ```ts
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { verifyDpopProofFromRequest } from "@kuboon/dpop";
+import { verifyDpopProofFromRequest } from "@kuboon/dpop/server.ts";
 
 const JWKS = createRemoteJWKSet(
   new URL("https://id.kbn.one/.well-known/jwks.json"),
@@ -167,8 +167,7 @@ key you previously bound to a session.
 ### Swapping the key store (for test on server)
 
 ```ts
-import { init } from "@kuboon/dpop/client.ts";
-import { InMemoryKeyRepository } from "@kuboon/dpop/client.ts";
+import { init, InMemoryKeyRepository } from "@kuboon/dpop";
 
 const { fetchDpop } = await init({ keyStore: new InMemoryKeyRepository() });
 ```

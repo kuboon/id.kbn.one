@@ -8,7 +8,7 @@
  *
  * @example Hono middleware
  * ```ts
- * import { verifyDpopProofFromRequest } from "@kuboon/dpop";
+ * import { verifyDpopProofFromRequest } from "@kuboon/dpop/server.ts";
  *
  * app.use(async (c, next) => {
  *   const result = await verifyDpopProofFromRequest(c.req.raw, {
