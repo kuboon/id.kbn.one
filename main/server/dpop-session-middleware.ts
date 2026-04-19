@@ -2,6 +2,7 @@ import type { SessionData, SessionRepository } from "./repository/types.ts";
 
 import type { VerifyDpopProofOptions } from "@kuboon/dpop/types.ts";
 import { verifyDpopProofFromRequest } from "@kuboon/dpop";
+import { computeThumbprint } from "@kuboon/dpop/common.ts";
 
 import { createMiddleware } from "hono/factory";
 import { equal } from "@std/assert";
@@ -16,7 +17,7 @@ export const createDpopSessionMiddleware = (
   const { sessionStore, ...dpopOptions } = options;
 
   return createMiddleware<{
-    Variables: { session?: SessionData; sessionKey?: string };
+    Variables: { session?: SessionData; thumbprint?: string };
   }>(
     async (c, next) => {
       // dpopOptions contains mandatory checkReplay
@@ -25,14 +26,14 @@ export const createDpopSessionMiddleware = (
         return next();
       }
 
-      const sessionKey = dpop.parts[0];
-      c.set("sessionKey", sessionKey);
-      const beforeSession = await sessionStore.get(sessionKey);
+      const thumbprint = await computeThumbprint(dpop.jwk);
+      c.set("thumbprint", thumbprint);
+      const beforeSession = await sessionStore.get(thumbprint);
       c.set("session", beforeSession);
       await next();
       const afterSession = c.get("session");
       if (!equal(afterSession, beforeSession)) {
-        await sessionStore.update(sessionKey, () => afterSession ?? null);
+        await sessionStore.update(thumbprint, () => afterSession ?? null);
       }
     },
   );

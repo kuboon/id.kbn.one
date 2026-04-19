@@ -4,9 +4,9 @@ export interface SessionData {
 }
 
 export interface SessionRepository {
-  get(sessionKey: string): Promise<SessionData>;
+  get(thumbprint: string): Promise<SessionData>;
   update(
-    sessionKey: string,
+    thumbprint: string,
     updater: (current: SessionData | null) => SessionData | null,
   ): Promise<void>;
 }

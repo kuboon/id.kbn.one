@@ -24,6 +24,8 @@ const listUserCredentials = (
     prefix: userCredentialKey(userId),
   });
 
+const signSecretKey = (): Deno.KvKey => ["passkey_sign_secret"];
+
 export class DenoKvPasskeyRepository implements PasskeyRepository {
   constructor(private readonly kv: Deno.Kv) {}
 
@@ -122,5 +124,15 @@ export class DenoKvPasskeyRepository implements PasskeyRepository {
     if (count > 0) {
       await atomic.commit();
     }
+  }
+
+  async getOrCreateSignSecret(
+    gen: () => Promise<string> | string,
+  ): Promise<string> {
+    const existing = await this.kv.get<string>(signSecretKey());
+    if (existing.value) return existing.value;
+    const secret = await Promise.resolve(gen());
+    await this.kv.set(signSecretKey(), secret);
+    return secret;
   }
 }

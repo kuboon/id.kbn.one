@@ -1,9 +1,10 @@
 import {
+  type PublicKeyCredentialCreationOptionsJSON,
   startAuthentication,
   startRegistration,
 } from "@simplewebauthn/browser";
 
-import type { PasskeyCredential } from "../src/core/types.ts";
+import type { PasskeyCredential } from "../core/types.ts";
 
 const DEFAULT_MOUNT_PATH = "/webauthn";
 
@@ -20,19 +21,6 @@ const normalizeMountPath = (path: string | undefined) => {
 const hasJsonContentType = (response: Response) => {
   const contentType = response.headers.get("content-type");
   return Boolean(contentType && contentType.toLowerCase().includes("json"));
-};
-
-const getErrorMessage = (data: unknown, fallback: string) => {
-  if (typeof data === "string" && data.trim()) {
-    return data;
-  }
-  if (data && typeof data === "object" && "message" in data) {
-    const message = (data as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) {
-      return message;
-    }
-  }
-  return fallback;
 };
 
 class PasskeyClientError extends Error {
@@ -79,82 +67,80 @@ export interface AuthenticateResult {
   credential: PasskeyCredential;
 }
 
-const fetchJson = async <T = unknown>(
+const postJson = async <T = unknown>(
   fetchImpl: FetchLike,
   input: string,
   init?: RequestInit,
 ): Promise<T | null> => {
   const headers = new Headers(init?.headers);
-  if (init?.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+  if (init?.body) {
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
   }
   const response = await fetchImpl(input, {
     credentials: "include",
+    method: "POST",
     ...init,
     headers,
   });
-  if (!response.ok) {
-    let details: unknown = null;
-    try {
-      if (hasJsonContentType(response)) {
-        details = await response.json();
-      } else {
-        const text = await response.text();
-        details = text.trim() ? text : null;
+  if (response.status === 204) return null;
+  if (response.ok) return response.json();
+
+  let message = response.statusText;
+  let details: unknown;
+  try {
+    if (hasJsonContentType(response)) {
+      const data = await response.json();
+      if (data && typeof data === "object" && "message" in data) {
+        const message_ = (data as { message?: unknown }).message;
+        if (typeof message_ === "string") message = message_.trim();
       }
-    } catch {
-      details = null;
+    } else {
+      const text = await response.text();
+      details = text.trim();
     }
-    const message = getErrorMessage(
-      details,
-      response.statusText || `Request failed with status ${response.status}`,
-    );
-    throw new PasskeyClientError(message, response.status, details);
+  } catch {
+    details = null;
   }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  if (hasJsonContentType(response)) {
-    return response.json();
-  }
-
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
+  throw new PasskeyClientError(message, response.status, details);
 };
 
 export const createClient = (options: CreateClientOptions = {}) => {
   const mountPath = normalizeMountPath(options.mountPath ?? DEFAULT_MOUNT_PATH);
   const fetchImpl: FetchLike = options.fetch ?? fetch;
 
-  const buildUrl = (mountPath: string, endpoint: string) => {
-    return `${mountPath}${endpoint}`;
-  };
+  const buildUrl = (mountPath: string, endpoint: string) =>
+    `${mountPath}${endpoint}`;
 
   return {
     async register(params?: RegisterParams): Promise<RegisterResult> {
-      const optionsJSON = await fetchJson(
+      const res = await postJson<{
+        options: PublicKeyCredentialCreationOptionsJSON;
+        sessionToken: string;
+      }>(
         fetchImpl,
         buildUrl(mountPath, "/register/options"),
         {
-          method: "POST",
           body: JSON.stringify({
             userId: params?.userId,
           }),
         },
       );
+      if (!res) throw new Error("Invalid response from server");
+      const { options, sessionToken } = res;
       const attestationResponse = await startRegistration(
-        { optionsJSON } as Parameters<typeof startRegistration>[0],
+        { optionsJSON: options } as Parameters<typeof startRegistration>[0],
       );
 
-      const verification = await fetchJson(
+      const verification = await postJson(
         fetchImpl,
         buildUrl(mountPath, "/register/verify"),
         {
           method: "POST",
           body: JSON.stringify({
             credential: attestationResponse,
+            sessionToken,
           }),
         },
       );
@@ -163,24 +149,30 @@ export const createClient = (options: CreateClientOptions = {}) => {
     },
 
     async authenticate(): Promise<AuthenticateResult> {
-      const optionsJSON = await fetchJson(
+      const res = await postJson<{
+        options: Parameters<typeof startAuthentication>[0]["optionsJSON"];
+        sessionToken: string;
+      }>(
         fetchImpl,
         buildUrl(mountPath, "/authenticate/options"),
         { method: "POST" },
       );
+      if (!res) throw new Error("Invalid response from server");
+      const { options, sessionToken } = res;
 
       const assertionResponse = await startAuthentication(
-        { optionsJSON } as Parameters<typeof startAuthentication>[0],
+        { optionsJSON: options } as Parameters<typeof startAuthentication>[0],
       );
 
       try {
-        const verification = await fetchJson(
+        const verification = await postJson(
           fetchImpl,
           buildUrl(mountPath, "/authenticate/verify"),
           {
             method: "POST",
             body: JSON.stringify({
               credential: assertionResponse,
+              sessionToken,
             }),
           },
         );

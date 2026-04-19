@@ -58,7 +58,7 @@ const app = new Hono()
     const acceptsJson = c.req.header("accept")?.includes(
       "application/json",
     );
-    if (acceptsJson && !c.var.sessionKey) {
+    if (acceptsJson && !c.var.thumbprint) {
       throw new HTTPException(401, { message: "Invalid DPoP proof" });
     }
     return next();
@@ -70,6 +70,14 @@ const app = new Hono()
       rpName,
       storage: credentialRepository,
       getUserId: (c) => c.var.session?.userId,
+      updateSession: (c, userId) => {
+        const thumbprint = c.var.thumbprint;
+        if (!thumbprint) return;
+        return sessionRepository.update(thumbprint, (current) => ({
+          ...(current ?? {}),
+          userId,
+        }));
+      },
     }),
   )
   .get("/.well-known/webauthn", (c) => {

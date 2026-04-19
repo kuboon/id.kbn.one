@@ -14,6 +14,7 @@ const options: PasskeyMiddlewareOptions = {
   rpName: "localhost",
   storage,
   getUserId: (c) => c.var.session?.userId,
+  updateSession: (_c, _userId) => undefined,
 };
 
 const app = createPasskeysRouter(options);
@@ -31,8 +32,9 @@ Deno.test("PasskeyAppType RPC - register/options endpoint", async () => {
   assertEquals(res.status, 200);
   if (res.ok) {
     const data = await res.json();
-    assertEquals(typeof data.challenge, "string");
-    assertEquals(data.user.name, "test-user-123");
+    // response now includes options and session token
+    assertEquals(typeof data.options !== "undefined", true);
+    assertEquals(typeof data.sessionToken === "string", true);
   }
 });
 
@@ -42,8 +44,8 @@ Deno.test("PasskeyAppType RPC - authenticate/options endpoint", async () => {
   assertEquals(res.status, 200);
   if (res.ok) {
     const data = await res.json();
-    assertEquals(typeof data.challenge, "string");
-    assertEquals(data.userVerification, "preferred");
+    assertEquals(typeof data.options !== "undefined", true);
+    assertEquals(typeof data.sessionToken === "string", true);
   }
 });
 

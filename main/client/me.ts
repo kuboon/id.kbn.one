@@ -1,4 +1,4 @@
-import { createClient } from "@kuboon/passkeys/static/client.ts";
+import { createClient } from "@kuboon/passkeys/client.ts";
 import { init } from "@kuboon/dpop/client.ts";
 const { fetchDpop } = await init();
 
@@ -1177,15 +1177,24 @@ credentialsList.addEventListener("click", async (event) => {
   if (button.dataset.loading === "true") {
     return;
   }
+  const confirmed = globalThis.confirm(
+    "このパスキーを削除しますか？この操作は取り消せません。",
+  );
+  if (!confirmed) {
+    return;
+  }
   button.dataset.loading = "true";
   button.disabled = true;
   try {
     setStatus("パスキーを削除しています…");
-    // await client.delete({
-    //   credentialId,
-    // });
-    // setStatus("パスキーを削除しました。", "success");
-    setStatus("パスキーの削除機能は現在利用できません。", "error");
+    const response = await fetchDpop(
+      `/credentials/${encodeURIComponent(credentialId)}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      throw new Error(await extractErrorMessage(response));
+    }
+    setStatus("パスキーを削除しました。", "success", { autoHide: true });
     await refreshAccount();
   } catch (error) {
     setStatus(

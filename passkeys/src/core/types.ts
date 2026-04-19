@@ -6,7 +6,6 @@ import type {
   GenerateRegistrationOptionsOpts,
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
-  RegistrationResponseJSON,
   VerifiedAuthenticationResponse,
   VerifiedRegistrationResponse,
   VerifyAuthenticationResponseOpts,
@@ -33,16 +32,15 @@ export interface PasskeyRepository {
   updateCredential(credential: PasskeyCredential): Promise<void>;
   deleteCredential(credentialId: string): Promise<void>;
   deleteCredentialsByUserId(userId: string): Promise<void>;
+  // Get or create the signing secret used to sign session tokens.
+  // The generator should return a base64url-encoded secret string.
+  getOrCreateSignSecret(gen: () => Promise<string> | string): Promise<string>;
 }
 
 export type ChallengeType = "registration" | "authentication";
 
 export interface RegistrationOptionsRequestBody {
   userId: string;
-}
-
-export interface RegistrationVerifyRequestBody {
-  credential: RegistrationResponseJSON;
 }
 
 export interface AuthenticationOptionsRequestBody {
@@ -111,9 +109,9 @@ export interface PasskeyMiddlewareOptions {
   getUserId: (
     c: { var: { session?: { userId?: string } } },
   ) => string | undefined;
-  registrationOptions?: RegistrationOptionsOverrides;
-  authenticationOptions?: AuthenticationOptionsOverrides;
-  verifyRegistrationOptions?: VerifyRegistrationOverrides;
-  verifyAuthenticationOptions?: VerifyAuthenticationOverrides;
-  webauthn?: PasskeyWebAuthnOverrides;
+  updateSession: (
+    c: { var: { thumbprint?: string } },
+    userId: string,
+  ) => Promise<void> | void;
+  /** Session token lifetime in seconds (defaults to 300) */
 }

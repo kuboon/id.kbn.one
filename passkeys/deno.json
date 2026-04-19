@@ -3,20 +3,19 @@
   "version": "0.1.0",
   "exports": {
     "./hono-middleware": "./src/hono-middleware/mod.ts",
-    "./static/client.ts": "./static/client.ts"
+    "./client.ts": "./src/client/mod.ts"
   },
   "tasks": {
   },
   "imports": {
     "@std/path": "jsr:@std/path@^1.1.3",
-    "@simplewebauthn/browser": "npm:@simplewebauthn/browser@^13.2.2",
-    "@simplewebauthn/server": "npm:@simplewebauthn/server@^13.2.2"
+    "@simplewebauthn/browser": "jsr:@simplewebauthn/browser@^13.2.2",
+    "@simplewebauthn/server": "jsr:@simplewebauthn/server@^13.2.2"
   },
   "publish": {
     "include": [
       "README.md",
-      "src/**/*.ts",
-      "static/client.ts"
+      "src/**/*.ts"
     ]
   },
   "compilerOptions": {

@@ -1,4 +1,4 @@
-import { createClient } from "@kuboon/passkeys/static/client.ts";
+import { createClient } from "@kuboon/passkeys/client.ts";
 import { init } from "@kuboon/dpop/client.ts";
 const { fetchDpop } = await init();
 

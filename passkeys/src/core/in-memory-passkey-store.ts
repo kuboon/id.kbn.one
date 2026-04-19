@@ -2,6 +2,7 @@ import type { PasskeyCredential, PasskeyRepository } from "./types.ts";
 
 export class InMemoryPasskeyRepository implements PasskeyRepository {
   private readonly credentials = new Map<string, PasskeyCredential>();
+  private signSecret?: string;
 
   getCredentialById(credentialId: string): Promise<PasskeyCredential | null> {
     return Promise.resolve(this.credentials.get(credentialId) ?? null);
@@ -40,5 +41,14 @@ export class InMemoryPasskeyRepository implements PasskeyRepository {
       }
     }
     return Promise.resolve();
+  }
+
+  async getOrCreateSignSecret(
+    gen: () => Promise<string> | string,
+  ): Promise<string> {
+    if (this.signSecret) return this.signSecret;
+    const v = await Promise.resolve(gen());
+    this.signSecret = v;
+    return this.signSecret;
   }
 }

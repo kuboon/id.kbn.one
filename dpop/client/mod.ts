@@ -51,9 +51,10 @@ const createDpopProof = async (
   return `${signingInput}.${encodedSignature}`;
 };
 
+type FetchLike = typeof fetch;
 export interface InitOptions {
   keyStore?: KeyRepository;
-  fetch?: typeof fetch;
+  fetch?: FetchLike;
 }
 
 function generateKeyPair(): Promise<CryptoKeyPair> {
@@ -79,7 +80,9 @@ function getMethodUrl(
   const url = input instanceof URL ? input.toString() : input.url;
   return { method, url };
 }
-export const init = async (opts: InitOptions = {}) => {
+export async function init(
+  opts: InitOptions = {},
+): Promise<{ fetchDpop: FetchLike }> {
   opts.keyStore ??= new IndexedDbKeyRepository();
   const useFetch = opts.fetch ?? fetch.bind(globalThis);
 
@@ -89,7 +92,7 @@ export const init = async (opts: InitOptions = {}) => {
     await opts.keyStore.saveKeyPair(keyPair_);
   }
   const keyPair = keyPair_;
-  const fetchDpop: typeof fetch = async (
+  const fetchDpop: FetchLike = async (
     input: RequestInfo | URL,
     init?: RequestInit,
   ) => {
@@ -111,4 +114,4 @@ export const init = async (opts: InitOptions = {}) => {
   };
 
   return { fetchDpop };
-};
+}
