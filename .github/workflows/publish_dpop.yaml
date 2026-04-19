@@ -1,0 +1,25 @@
+name: Publish @kuboon/dpop
+
+on:
+  push:
+    tags:
+      - "dpop-v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: dpop
+    steps:
+      - uses: actions/checkout@v6
+      - uses: denoland/setup-deno@v2
+
+      - run: deno task test
+
+      - name: Publish to JSR
+        run: deno publish
