@@ -51,13 +51,15 @@ const bindSessionBodySchema = type({
 });
 
 const isAllowedRedirectUri = (redirectUri: string): boolean => {
-  let parsed: URL;
+  let url: URL;
   try {
-    parsed = new URL(redirectUri);
+    url = new URL(redirectUri);
   } catch {
     return false;
   }
-  return authorizeWhitelist.includes(parsed.origin);
+  return authorizeWhitelist.some((x) =>
+    url.hostname === x || url.hostname.endsWith("." + x)
+  );
 };
 
 const app = new Hono()

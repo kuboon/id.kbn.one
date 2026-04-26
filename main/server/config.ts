@@ -6,12 +6,7 @@ const idpOrigin = idpOriginValue || null;
 const authorizeWhitelist = (Deno.env.get("AUTHORIZE_WHITELIST") ?? "")
   .split(",")
   .map((origin) => origin.trim())
-  .filter((origin) => origin.length > 0)
-  .map((origin) =>
-    origin.includes("://") || origin.startsWith("localhost:")
-      ? origin
-      : `https://${origin}`
-  );
+  .filter((origin) => origin.length > 0);
 
 const pushContact = Deno.env.get("PUSH_CONTACT")?.trim() ||
   "mailto:o@kbn.one";
