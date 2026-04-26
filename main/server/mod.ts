@@ -29,11 +29,14 @@ const sessionRepository = new DenoKvSessionRepository(kv);
 const jtiStore = new DenoKvJtiStore(kv);
 const pushService = await PushService.create(kv);
 
-const allowedOrigins = [
-  ...(idpOrigin ? [idpOrigin] : []),
-  ...authorizeWhitelist,
-];
-
+const allowedOrigins = (reqOrigin: string) => {
+  if (reqOrigin === idpOrigin) return reqOrigin;
+  for (const origin of authorizeWhitelist) {
+    if (reqOrigin === origin || reqOrigin.endsWith("." + origin)) {
+      return reqOrigin;
+    }
+  }
+};
 const setNoStore = (c: Context) => {
   c.header("Cache-Control", "no-store");
 };
