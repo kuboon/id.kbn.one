@@ -67,8 +67,7 @@ export const authorizeAction: RequestHandler = (context) => {
           </div>
         </div>
       </div>
-
-      <script type="module" src="/authorize.js"></script>
     </main>,
+    { scripts: ["/authorize.js"] },
   );
 };

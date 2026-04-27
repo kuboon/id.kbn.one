@@ -35,7 +35,6 @@ export const homeAction: RequestHandler = (context) =>
           </div>
         </div>
       </div>
-
-      <script type="module" src="/index.js"></script>
     </main>,
+    { scripts: ["/index.js"] },
   );

@@ -1,6 +1,10 @@
 import { createClient } from "@kuboon/passkeys/client.ts";
 import { init } from "@kuboon/dpop";
 
+// Wait for the frame runtime to swap the page body into the DOM before
+// touching any of the elements rendered server-side.
+await (globalThis as unknown as { __rmxReady?: Promise<void> }).__rmxReady;
+
 const { fetchDpop } = await init();
 const client = createClient({ fetch: fetchDpop });
 

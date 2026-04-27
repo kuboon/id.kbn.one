@@ -1,5 +1,4 @@
 {
-  "name": "@kbn/bundler",
   "tasks": {
     "build": "deno run -A ./mod.ts"
   },

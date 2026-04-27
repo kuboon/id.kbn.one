@@ -1,5 +1,10 @@
 import { createClient } from "@kuboon/passkeys/client.ts";
 import { init } from "@kuboon/dpop";
+
+// The page body lives inside a frame template until the runtime swaps it
+// in; wait for the runtime to signal readiness before touching the DOM.
+await (globalThis as unknown as { __rmxReady?: Promise<void> }).__rmxReady;
+
 const { fetchDpop } = await init();
 
 const client = createClient({ fetch: fetchDpop });

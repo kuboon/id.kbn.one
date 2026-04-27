@@ -228,7 +228,6 @@ export const meAction: RequestHandler = (context) =>
           <button type="button">close</button>
         </form>
       </dialog>
-
-      <script type="module" src="/me.js"></script>
     </main>,
+    { scripts: ["/me.js"] },
   );
