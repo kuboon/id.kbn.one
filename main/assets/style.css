@@ -13,6 +13,10 @@
     lofi;
 }
 
+:root {
+  --card-p: 0;
+}
+
 @layer base {
   code {
     font-family: ui-monospace, SFMono-Regular, "Fira Code", monospace;

@@ -679,7 +679,7 @@ export const Me = clientEntry(
 
     // ---------- Render ----------
     return (_props: MeProps) => (
-      <main class="mx-auto w-full max-w-3xl p-6 space-y-6">
+      <main class="mx-auto w-full max-w-3xl p-6 space-y-10">
         <header class="flex items-center justify-between gap-3">
           <h1 class="text-2xl font-bold">アカウント</h1>
           <button
@@ -727,7 +727,7 @@ export const Me = clientEntry(
         )}
 
         {phase === "ready" && account && (
-          <section class="space-y-4">
+          <section class="space-y-10">
             <div class="card card-border bg-base-100">
               <div class="card-body">
                 <h2 class="card-title">プロフィール情報</h2>
@@ -755,16 +755,6 @@ export const Me = clientEntry(
                       新しいデバイスを登録したり、不要な鍵を削除できます。
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={busy.addPasskey}
-                    class="btn btn-primary btn-sm"
-                    mix={[on("click", () => {
-                      void addPasskey();
-                    })]}
-                  >
-                    別の鍵を追加
-                  </button>
                 </header>
                 <ul class="mt-3 space-y-3">
                   {account.credentials.length === 0 && (
@@ -818,6 +808,16 @@ export const Me = clientEntry(
                     </li>
                   ))}
                 </ul>
+                <button
+                  type="button"
+                  disabled={busy.addPasskey}
+                  class="btn btn-primary btn-sm"
+                  mix={[on("click", () => {
+                    void addPasskey();
+                  })]}
+                >
+                  別の鍵を追加
+                </button>
               </div>
             </div>
 
@@ -834,21 +834,6 @@ export const Me = clientEntry(
                       })}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={!pushState.supported ||
-                      pushState.permission === "denied" ||
-                      pushState.loading}
-                    class="btn btn-primary btn-sm"
-                    mix={[on("click", () => {
-                      void subscribePushDevice();
-                    })]}
-                  >
-                    {pushState.currentId &&
-                        pushState.permission === "granted"
-                      ? "このデバイスを更新"
-                      : "通知を有効化"}
-                  </button>
                 </header>
                 <ul class="mt-3 space-y-3">
                   {!pushState.supported && (
@@ -935,6 +920,21 @@ export const Me = clientEntry(
                     </li>
                   ))}
                 </ul>
+                <button
+                  type="button"
+                  disabled={!pushState.supported ||
+                    pushState.permission === "denied" ||
+                    pushState.loading}
+                  class="btn btn-primary btn-sm"
+                  mix={[on("click", () => {
+                    void subscribePushDevice();
+                  })]}
+                >
+                  {pushState.currentId &&
+                      pushState.permission === "granted"
+                    ? "このデバイスを更新"
+                    : "このデバイスへの通知を登録"}
+                </button>
               </div>
             </div>
 

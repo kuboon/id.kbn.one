@@ -53,14 +53,6 @@ export function Document() {
             </a>
           </div>
           <nav class="navbar-end gap-2">
-            <ul class="menu menu-horizontal px-1">
-              <li>
-                <a href={routes.home.href()} rmx-target="content">Sign in</a>
-              </li>
-              <li>
-                <a href={routes.me.href()} rmx-target="content">Account</a>
-              </li>
-            </ul>
             <div class="dropdown dropdown-end">
               <div
                 tabindex={0}
