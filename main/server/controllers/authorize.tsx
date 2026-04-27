@@ -1,12 +1,13 @@
 /**
  * GET /authorize?dpop_jkt=...&redirect_uri=...
  *
- * Validates the query parameters server-side, then renders an HTML shell.
- * `client/authorize.ts` reads the params and drives the IdP probe + bind +
- * redirect flow.
+ * Validates the query parameters server-side, then hands off to the
+ * `<Authorize />` clientEntry which drives the IdP probe + passkey +
+ * bind + redirect flow with the validated values passed via setup.
  */
 
 import type { RequestHandler } from "@remix-run/fetch-router";
+import { Authorize } from "../../client/authorize.tsx";
 import { authorizeWhitelist } from "../config.ts";
 import { renderPage } from "../utils/render.tsx";
 
@@ -37,37 +38,13 @@ export const authorizeAction: RequestHandler = (context) => {
     }, { status: 400 });
   }
 
+  let rpOrigin = "";
+  try {
+    rpOrigin = new URL(redirectUri).origin;
+  } catch { /* validated above */ }
+
   return renderPage(
     context,
-    <main class="mx-auto w-full max-w-md p-6 space-y-6">
-      <header class="text-center">
-        <h1 class="text-2xl font-bold">kbn.one ID</h1>
-      </header>
-
-      <div class="card card-border bg-base-100">
-        <div class="card-body gap-3">
-          <div role="alert" class="alert alert-info alert-soft">
-            <span id="status" data-state="pending">
-              セッションを確認しています…
-            </span>
-          </div>
-          <p id="rp-origin" class="text-sm text-base-content/70" hidden></p>
-
-          <div id="signin-actions" class="flex flex-col gap-2" hidden>
-            <button type="button" id="signin" class="btn btn-primary btn-block">
-              パスキーでサインイン
-            </button>
-            <button
-              type="button"
-              id="create-account"
-              class="btn btn-outline btn-block"
-            >
-              アカウントを作成
-            </button>
-          </div>
-        </div>
-      </div>
-    </main>,
-    { scripts: ["/authorize.js"] },
+    <Authorize setup={{ dpopJkt, redirectUri, rpOrigin }} />,
   );
 };

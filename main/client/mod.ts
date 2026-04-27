@@ -3,9 +3,9 @@
  *
  * Bundled to `bundled/mod.js` and loaded by every shell response. Hydrates
  * any clientEntry markers and wires up `<a rmx-target="content">` clicks
- * to swap just the frame body via `resolveFrame`. After hydration, resolves
- * the `__rmxReady` promise the document shell pre-creates so page modules
- * can sync their setup against frame readiness.
+ * to swap just the frame body via `resolveFrame`. Each page's clientEntry
+ * (Index / Me / Authorize) handles its own data fetching and rendering;
+ * `loadModule` here just dynamic-imports the bundled page module.
  */
 
 import { run } from "@remix-run/component";
@@ -29,8 +29,6 @@ const app = run({
 });
 
 await app.ready();
-
-(globalThis as unknown as { __rmxResolve?: () => void }).__rmxResolve?.();
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch((error) => {

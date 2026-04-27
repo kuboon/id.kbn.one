@@ -3,12 +3,9 @@
  *
  * Direct page loads render the full document; clicks on links with
  * `rmx-target="content"` swap the frame body via the client runtime.
- *
- * Page-specific JS modules are emitted in `<head>` rather than inline in
- * the page JSX. Frame contents are streamed inside an HTML `<template>`
- * element which makes `<script>` children inert when they're later moved
- * into the live DOM, so we hoist them into the document head where they
- * execute normally.
+ * All page-specific JS is loaded via the clientEntry hydration markers
+ * the framework emits, so the only `<script>` we need in `<head>` is the
+ * runtime boot at `/mod.js`.
  */
 
 import { Frame } from "@remix-run/component";
@@ -16,7 +13,6 @@ import { routes } from "../routes.ts";
 
 type DocumentProps = {
   initialSrc: string;
-  pageScripts?: readonly string[];
 };
 
 const THEMES = [
@@ -32,14 +28,8 @@ const THEMES = [
   { value: "lofi", label: "Lo-Fi" },
 ] as const;
 
-// Module scripts are async by default and may execute before the frame
-// runtime swaps the page body into the DOM. Page modules `await` this
-// promise so their `getElementById` calls succeed regardless of timing.
-const READY_PROMISE_SCRIPT =
-  `globalThis.__rmxReady = new Promise(function (r) { globalThis.__rmxResolve = r; });`;
-
 export function Document() {
-  return ({ initialSrc, pageScripts = [] }: DocumentProps) => (
+  return ({ initialSrc }: DocumentProps) => (
     <html lang="ja">
       <head>
         <meta charset="UTF-8" />
@@ -48,11 +38,7 @@ export function Document() {
         <title>kbn.one ID</title>
         <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=" />
         <link rel="manifest" href="/manifest.json" />
-        <script innerHTML={READY_PROMISE_SCRIPT}></script>
         <script async type="module" src="/mod.js"></script>
-        {pageScripts.map((src) => (
-          <script async type="module" src={src}></script>
-        ))}
         <link rel="stylesheet" href="/style.css" />
       </head>
       <body class="min-h-screen bg-base-100 text-base-content">

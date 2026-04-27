@@ -6,6 +6,10 @@
  *   - the full Document shell otherwise, with the current URL as the
  *     initial frame src. The shell's resolveFrame dispatches back into the
  *     same router to fetch the fragment.
+ *
+ * Page-specific JS is loaded via clientEntry hydration markers emitted by
+ * the framework, so renderPage takes no script-list option — only the
+ * runtime boot at `/mod.js` lives in `<head>`.
  */
 
 import type { RemixNode } from "@remix-run/component";
@@ -28,56 +32,41 @@ export function renderFragment(body: RemixNode, init?: ResponseInit): Response {
   return new Response(renderToStream(body), { ...init, headers });
 }
 
-export interface RenderPageOptions {
-  /**
-   * URLs of `type="module"` scripts to include in `<head>` for this page.
-   * Hoisting page scripts to head sidesteps the fact that frame fragments
-   * are streamed inside an HTML `<template>`, which makes any inline
-   * `<script>` inert when the runtime moves the fragment into the live DOM.
-   */
-  scripts?: readonly string[];
-}
-
 export function renderPage(
   context: RequestContext,
   fragment: RemixNode,
-  options: RenderPageOptions = {},
 ): Response {
   if (isFrameRequest(context.request)) {
     return renderFragment(fragment);
   }
-  return renderShell(context, fragment, options);
+  return renderShell(context, fragment);
 }
 
 export function renderShell(
   context: RequestContext,
   fragment?: RemixNode,
-  options: RenderPageOptions = {},
 ): Response {
   const { request, router } = context;
   const url = new URL(request.url);
   const initialSrc = url.pathname + url.search;
 
-  const stream = renderToStream(
-    <Document initialSrc={initialSrc} pageScripts={options.scripts} />,
-    {
-      frameSrc: request.url,
-      resolveFrame: async (src, target, frameContext) => {
-        // For the initial render we already have the fragment — short-circuit
-        // to avoid the recursive router fetch.
-        if (fragment && src === request.url && target === "content") {
-          return renderToStream(fragment);
-        }
-        return await resolveFrameViaRouter(
-          router,
-          request,
-          src,
-          target,
-          frameContext,
-        );
-      },
+  const stream = renderToStream(<Document initialSrc={initialSrc} />, {
+    frameSrc: request.url,
+    resolveFrame: async (src, target, frameContext) => {
+      // For the initial render we already have the fragment — short-circuit
+      // to avoid the recursive router fetch.
+      if (fragment && src === request.url && target === "content") {
+        return renderToStream(fragment);
+      }
+      return await resolveFrameViaRouter(
+        router,
+        request,
+        src,
+        target,
+        frameContext,
+      );
     },
-  );
+  });
   return createHtmlResponse(stream);
 }
 
