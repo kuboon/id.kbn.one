@@ -1,5 +1,5 @@
-import { app } from "./hono.ts";
+import router from "./server/router.ts";
 
-export default { fetch: app.fetch };
+export default { fetch: router.fetch.bind(router) };
 
 console.log("deno serve started.");

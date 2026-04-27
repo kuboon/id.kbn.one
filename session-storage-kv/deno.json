@@ -1,0 +1,13 @@
+{
+  "name": "@kbn/session-storage-kv",
+  "version": "0.1.0",
+  "exports": "./mod.ts",
+  "imports": {
+    "@remix-run/session": "npm:@remix-run/session@^0.4.1"
+  },
+  "lint": {
+    "rules": {
+      "exclude": ["no-slow-types"]
+    }
+  }
+}

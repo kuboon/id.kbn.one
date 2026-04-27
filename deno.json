@@ -4,19 +4,35 @@
     "test": "deno fmt && deno lint && deno check && deno test -P",
     "dev": "deno task --cwd=main dev",
     "serve": "deno task --cwd=main serve",
-    "pre-deploy": "echo \"nothing to do\""
+    "bundle": "deno task --cwd=main/bundler build",
+    "pre-deploy": "deno task bundle"
   },
   "workspace": [
     "main",
+    "main/bundler",
     "passkeys",
-    "dpop"
+    "dpop",
+    "kv",
+    "session-storage-kv",
+    "dpop-session-middleware"
   ],
   "imports": {
     "@hexagon/base64": "npm:@hexagon/base64@2.0.4",
     "@hono/standard-validator": "jsr:@hono/standard-validator@^0.2.2",
     "@std/assert": "jsr:@std/assert@^1.0.19",
+    "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "arktype": "npm:arktype@^2.2.0",
-    "hono": "jsr:@hono/hono@^4.12.14"
+    "daisyui": "npm:daisyui@^5.5.19",
+    "hono": "jsr:@hono/hono@^4.12.14",
+    "tailwindcss": "npm:tailwindcss@^4.1.18",
+    "@remix-run/component": "npm:@remix-run/component@^0.7.0",
+    "@remix-run/cors-middleware": "npm:@remix-run/cors-middleware@^0.1.1",
+    "@remix-run/fetch-router": "npm:@remix-run/fetch-router@0.18.1",
+    "@remix-run/html-template": "npm:@remix-run/html-template@^0.3.0",
+    "@remix-run/logger-middleware": "npm:@remix-run/logger-middleware@^0.1.5",
+    "@remix-run/response": "npm:@remix-run/response@^0.3.2",
+    "@remix-run/session": "npm:@remix-run/session@^0.4.1",
+    "@remix-run/static-middleware": "npm:@remix-run/static-middleware@^0.4.6"
   },
   "unstable": ["kv", "bundle"],
   "deploy": {
