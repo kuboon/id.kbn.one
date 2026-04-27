@@ -2,3 +2,4 @@ node_modules/
 .mise
 *.js.map
 _data/
+main/bundled/

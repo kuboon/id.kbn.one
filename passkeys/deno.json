@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "exports": {
     "./hono-middleware": "./src/hono-middleware/mod.ts",
+    "./fetch-router-middleware": "./src/fetch-router-middleware/mod.ts",
     "./client.ts": "./src/client/mod.ts"
   },
   "tasks": {

@@ -12,9 +12,24 @@ const createAccountButton = document.getElementById(
   "create-account",
 ) as HTMLButtonElement;
 
-const setStatus = (message: string, state = "info") => {
+const ALERT_CLASSES = [
+  "alert-info",
+  "alert-success",
+  "alert-warning",
+  "alert-error",
+];
+
+const setStatus = (
+  message: string,
+  state: "info" | "success" | "warning" | "error" = "info",
+) => {
   statusEl.textContent = message;
   statusEl.dataset.state = state;
+  const wrapper = statusEl.closest(".alert");
+  if (wrapper) {
+    wrapper.classList.remove(...ALERT_CLASSES);
+    wrapper.classList.add(`alert-${state}`);
+  }
 };
 
 const params = new URLSearchParams(globalThis.location.search);
@@ -72,7 +87,10 @@ const bindAndRedirect = async () => {
   globalThis.location.replace(redirectUri);
 };
 
-const showSigninActions = (message: string, state = "info") => {
+const showSigninActions = (
+  message: string,
+  state: "info" | "success" | "warning" | "error" = "info",
+) => {
   setStatus(message, state);
   signinActions.hidden = false;
 };

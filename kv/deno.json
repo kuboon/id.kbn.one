@@ -1,0 +1,18 @@
+{
+  "name": "@kbn/kv",
+  "version": "0.1.0",
+  "exports": {
+    "./types.ts": "./types.ts",
+    "./memcache.ts": "./memcache.ts",
+    "./memory.ts": "./memory.ts",
+    "./denoKv.ts": "./denoKv.ts"
+  },
+  "imports": {
+    "@std/ulid": "jsr:@std/ulid@^1.0.0"
+  },
+  "lint": {
+    "rules": {
+      "exclude": ["no-slow-types"]
+    }
+  }
+}

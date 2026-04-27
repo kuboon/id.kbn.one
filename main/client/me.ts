@@ -125,33 +125,37 @@ const state: State = {
 };
 
 let statusHideTimeout = 0;
-let statusAnimationFrame = 0;
+
+const ALERT_CLASSES = [
+  "alert-info",
+  "alert-success",
+  "alert-warning",
+  "alert-error",
+];
 
 const setStatus = (
   message: string,
   status: "info" | "error" | "success" = "info",
   { autoHide = false, timeout = 4000 } = {},
 ) => {
-  statusEl.textContent = message;
+  const span = statusEl.querySelector("span") ?? statusEl;
+  span.textContent = message;
+  statusEl.classList.remove(...ALERT_CLASSES);
+  statusEl.classList.add(`alert-${status}`);
+  statusEl.hidden = false;
   statusEl.dataset.status = status;
-  statusEl.dataset.visible = "false";
-  if (statusAnimationFrame) {
-    cancelAnimationFrame(statusAnimationFrame);
-  }
+  statusEl.dataset.visible = "true";
   if (statusHideTimeout) {
     clearTimeout(statusHideTimeout);
     statusHideTimeout = 0;
   }
-  statusAnimationFrame = requestAnimationFrame(() => {
-    statusAnimationFrame = 0;
-    statusEl.dataset.visible = "true";
-    if (autoHide) {
-      statusHideTimeout = setTimeout(() => {
-        statusHideTimeout = 0;
-        statusEl.dataset.visible = "false";
-      }, timeout);
-    }
-  });
+  if (autoHide) {
+    statusHideTimeout = setTimeout(() => {
+      statusHideTimeout = 0;
+      statusEl.hidden = true;
+      statusEl.dataset.visible = "false";
+    }, timeout);
+  }
 };
 
 const formatDate = (value: number): string => {
@@ -241,21 +245,21 @@ const renderPushSubscriptions = (subscriptions: PushSubscription[]) => {
   updatePushSummary();
   if (!state.account) {
     const li = document.createElement("li");
-    li.className = "empty";
+    li.className = "text-base-content/60 italic";
     li.textContent = "サインインして通知設定を管理してください。";
     pushSubscriptionList.append(li);
     return;
   }
   if (!state.push.supported) {
     const li = document.createElement("li");
-    li.className = "empty";
+    li.className = "text-base-content/60 italic";
     li.textContent = "このブラウザーは Web Push に対応していません。";
     pushSubscriptionList.append(li);
     return;
   }
   if (!subscriptions.length) {
     const li = document.createElement("li");
-    li.className = "empty";
+    li.className = "text-base-content/60 italic";
     li.textContent = "まだ通知を受け取るデバイスが登録されていません。";
     pushSubscriptionList.append(li);
     return;
@@ -275,21 +279,23 @@ const renderPushSubscriptions = (subscriptions: PushSubscription[]) => {
       state.push.currentId === subscription.id
     ) {
       const badge = document.createElement("span");
-      badge.className = "tag success";
+      badge.className = "badge badge-success badge-sm";
       badge.textContent = "このデバイス";
       header.append(badge);
     }
     li.append(header);
 
     const meta = document.createElement("dl");
-    meta.className = "credential-meta";
+    meta.className = "grid gap-2 text-sm sm:grid-cols-2 mt-1";
     const addMetaRow = (label: string, value: string) => {
       const row = document.createElement("div");
+      row.className = "flex gap-2";
       const labelEl = document.createElement("dt");
+      labelEl.className = "text-base-content/60";
       labelEl.textContent = label;
       const valueEl = document.createElement("dd");
+      valueEl.className = "font-medium";
       valueEl.textContent = value;
-      valueEl.style.fontWeight = "500";
       row.append(labelEl, valueEl);
       meta.append(row);
     };
@@ -314,17 +320,17 @@ const renderPushSubscriptions = (subscriptions: PushSubscription[]) => {
     li.append(meta);
 
     const actions = document.createElement("div");
-    actions.className = "credential-editor-actions";
+    actions.className = "flex gap-2 mt-2";
     const renameButton = document.createElement("button");
     renameButton.type = "button";
-    renameButton.className = "link";
+    renameButton.className = "btn btn-ghost btn-xs";
     renameButton.dataset.action = "edit-subscription";
     renameButton.dataset.subscriptionId = subscription.id;
     renameButton.textContent = "名前を変更";
     actions.append(renameButton);
     const testButton = document.createElement("button");
     testButton.type = "button";
-    testButton.className = "secondary";
+    testButton.className = "btn btn-ghost btn-xs";
     testButton.dataset.action = "test-subscription";
     testButton.dataset.subscriptionId = subscription.id;
     testButton.textContent = "テスト通知";
@@ -332,7 +338,7 @@ const renderPushSubscriptions = (subscriptions: PushSubscription[]) => {
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
-    removeButton.className = "danger outline";
+    removeButton.className = "btn btn-ghost btn-xs text-error";
     removeButton.dataset.action = "remove-subscription";
     removeButton.dataset.subscriptionId = subscription.id;
     removeButton.textContent = "解除";
@@ -351,14 +357,14 @@ const renderCredentials = (credentials: Credential[]) => {
   credentialsList.innerHTML = "";
   if (!state.account) {
     const li = document.createElement("li");
-    li.className = "empty";
+    li.className = "text-base-content/60 italic";
     li.textContent = "サインインするとパスキーが表示されます。";
     credentialsList.append(li);
     return;
   }
   if (!credentials.length) {
     const li = document.createElement("li");
-    li.className = "empty";
+    li.className = "text-base-content/60 italic";
     li.textContent = "まだパスキーが登録されていません。";
     credentialsList.append(li);
     return;
@@ -1238,9 +1244,6 @@ statusEl.addEventListener("click", () => {
     clearTimeout(statusHideTimeout);
     statusHideTimeout = 0;
   }
-  if (statusAnimationFrame) {
-    cancelAnimationFrame(statusAnimationFrame);
-    statusAnimationFrame = 0;
-  }
+  statusEl.hidden = true;
   statusEl.dataset.visible = "false";
 });
