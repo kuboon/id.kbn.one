@@ -63,6 +63,11 @@ const router = createRouter({
   ],
 });
 
+// fetch-router's typed `Action` argument is contravariant in the request
+// context, but our action handlers are written against the default
+// `RequestContext` while the router computes its context from the
+// middleware tuple (adding `DpopSession`). The runtime works correctly
+// either way; cast to bypass TS's overload resolution.
 // deno-lint-ignore no-explicit-any
 const r = router as any;
 
