@@ -20,7 +20,7 @@ type DocumentProps = {
 };
 
 const THEMES = [
-  { value: "", label: "Auto" },
+  { value: "default", label: "Default" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
   { value: "cupcake", label: "Cupcake" },
@@ -88,19 +88,24 @@ export function Document() {
                   height="12"
                   viewBox="0 0 20 20"
                   fill="currentColor"
+                  class="inline-block opacity-60"
                 >
                   <path d="M5 7l5 5 5-5H5z" />
                 </svg>
               </div>
               <ul
-                tabindex={0}
-                class="dropdown-content menu bg-base-100 rounded-box z-10 w-44 p-2 shadow"
+                tabindex={-1}
+                class="dropdown-content bg-base-300 rounded-box z-10 w-52 p-2 shadow-2xl"
               >
                 {THEMES.map(({ value, label }) => (
                   <li>
-                    <button type="button" data-theme-set={value}>
-                      {label}
-                    </button>
+                    <input
+                      type="radio"
+                      name="theme-dropdown"
+                      class="theme-controller w-full btn btn-sm btn-block btn-ghost justify-start"
+                      aria-label={label}
+                      value={value}
+                    />
                   </li>
                 ))}
               </ul>
