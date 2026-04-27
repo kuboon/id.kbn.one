@@ -17,15 +17,28 @@
    `https://idp.example.com/authorize?dpop_jkt=<rp_jkt>&redirect_uri=<here>`
    - `redirect_uri` の origin は IdP の `AUTHORIZE_WHITELIST`
      に含まれている必要あり
-3. IdP は `authorize.html` を返す。クライアント JS は IdP 用の DPoP 鍵で動く
+3. IdP の `/authorize` がクエリを検証 → `<Authorize />` clientEntry を SSR。
+   クライアント JS は IdP 用の DPoP 鍵で動く
 4. IdP 側のセッションを確認:
    - 未ログインならパスキー認証 (signin/register)
    - ログイン済 or 認証成功後 →
      `dpop_fetch POST /bind_session {dpop_jkt: rp_jkt}`
-5. IdP は `sessionRepository.update(rp_jkt, () => ({ userId }))` を実行
+5. IdP は thumbprint=`rp_jkt` の DPoP セッションに `userId` を書き込む
 6. ブラウザを `redirect_uri` へ戻す
 7. RP のブラウザが `dpop_fetch GET https://idp.example.com/session` →
    `{ userId }` が返る (DPoP proof の thumbprint = rp_jkt が bind 済のため)
+
+## 技術スタック
+
+- ランタイム: **Deno** (`Deno.bundle`, `Deno.openKv`)
+- ルーター:
+  [`@remix-run/fetch-router`](https://github.com/remix-run/remix/tree/main/packages/fetch-router) +
+  Frame ベースの shell ナビゲーション (`@remix-run/component`)
+- セッション: `@remix-run/session` を `@kbn/session-storage-kv` 経由で `KvRepo`
+  に保存。DPoP セッションは `@kbn/dpop-session-middleware` が thumbprint
+  をキーに管理
+- UI: JSX SSR + [Tailwind v4](https://tailwindcss.com) +
+  [daisyUI v5](https://daisyui.com)
 
 ## Prerequisites
 
@@ -44,73 +57,61 @@ mise use -g deno
 
 ## Environment variables
 
-for more details, see `server/config.ts`.
+詳細は `main/server/config.ts`。
 
 - `RP_ID` (relying party id for WebAuthn, e.g. `localhost`)
 - `RP_NAME` (relying party display name, e.g. `My ID Provider`)
 - `IDP_ORIGIN` (this server's own origin, e.g. `http://localhost:8000`)
 - `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use `/authorize`
   and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
+- `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
 
 ## Project layout
 
 ```
 /
-├─ dpop/               # DPoP key + proof helpers
-├─ passkeys/    # Passkeys / WebAuthn middleware for Hono
-└─ server/             # ID provider server
+├─ main/                          # ID provider server
+│  ├─ assets/                     # Tailwind/daisyui input CSS
+│  ├─ bundler/                    # Deno.bundle JS + Tailwind CSS build
+│  ├─ client/                     # Page clientEntries (.tsx) + SW
+│  └─ server/                     # fetch-router + JSX controllers
+├─ kv/                            # KvRepo abstraction (memory + Deno KV)
+├─ session-storage-kv/            # Remix SessionStorage adapter for KvRepo
+├─ dpop-session-middleware/       # DPoP session middleware for fetch-router
+├─ dpop/                          # DPoP key + proof helpers
+└─ passkeys/                      # Passkeys / WebAuthn (hono + fetch-router)
 ```
 
 ## Quick start — run the demo server
 
-This workspace is configured for Deno. The project includes a `mise` helper in
-`AGENTS.md` for consistent tool versions, but Deno can be invoked directly if
-you have a compatible version installed.
-
-Recommended (uses mise if available):
+The dev task bundles client JS / Tailwind+daisyui CSS, then starts `deno serve`
+against the workspace router.
 
 ```bash
 # from repository root
-mise exec -- deno task -C server dev
-```
-
-Or, without mise:
-
-```bash
-cd server
 deno task dev
 ```
 
-The demo server listens on http://localhost:8000. You can override relying-party
-values with environment variables when needed:
-
-- `RP_ID` (relying party id)
-- `RP_NAME` (relying party display name)
-
-Open the browser at http://localhost:8000 to try registering and authenticating
-passkeys using the UI in `server/static/index.html`.
+The demo server listens on http://localhost:8000. Open the browser to try
+registering and authenticating passkeys.
 
 ## Development & checks
 
-Run formatting, linting and tests as recommended in `AGENTS.md`:
-
 ```bash
-deno fmt && deno lint && deno test -C . -P
+# format + lint + type-check + tests
+deno task test
+
+# rebuild bundled assets (CSS + JS) without serving
+deno task bundle
 ```
 
-You can also run module-local tasks. Examples:
-
-```bash
-deno task --cwd server dev
-```
+`pre-deploy` runs the bundler, so a deploy reads pre-built assets from
+`main/bundled/` (which is git-ignored).
 
 Notes:
 
-- The `@kuboon/passkeys` package includes an `InMemoryPasskeyRepository`
-  intended for local development only. Replace it with a persistent storage
-  implementation for production.
-- `dpop/` exports `createDpopProof` and `verifyDpopProof` helpers for working
-  with DPoP-bound access tokens.
-
-If you'd like, I can also add a short example showing how to call
-`dpop/createDpopProof` from the demo UI.
+- `@kuboon/passkeys` ships both a Hono adapter (`hono-middleware`, kept for
+  back-compat) and a fetch-router adapter (`fetch-router-middleware`). The IdP
+  server uses the latter.
+- `@kuboon/dpop` exports `createDpopProof` / `verifyDpopProof` for DPoP- bound
+  access tokens.
