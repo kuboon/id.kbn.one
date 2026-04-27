@@ -38,31 +38,6 @@ const THEMES = [
 const READY_PROMISE_SCRIPT =
   `globalThis.__rmxReady = new Promise(function (r) { globalThis.__rmxResolve = r; });`;
 
-const THEME_SCRIPT = `
-(function () {
-  var root = document.documentElement;
-  try {
-    var saved = localStorage.getItem('theme');
-    if (saved) root.setAttribute('data-theme', saved);
-  } catch (e) {}
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest && e.target.closest('[data-theme-set]');
-    if (!btn) return;
-    var v = btn.getAttribute('data-theme-set');
-    if (v) {
-      root.setAttribute('data-theme', v);
-      try { localStorage.setItem('theme', v); } catch (e) {}
-    } else {
-      root.removeAttribute('data-theme');
-      try { localStorage.removeItem('theme'); } catch (e) {}
-    }
-    if (document.activeElement && document.activeElement.blur) {
-      document.activeElement.blur();
-    }
-  });
-})();
-`;
-
 export function Document() {
   return ({ initialSrc, pageScripts = [] }: DocumentProps) => (
     <html lang="ja">
@@ -74,7 +49,6 @@ export function Document() {
         <link rel="icon" href="data:image/png;base64,iVBORw0KGgo=" />
         <link rel="manifest" href="/manifest.json" />
         <script innerHTML={READY_PROMISE_SCRIPT}></script>
-        <script innerHTML={THEME_SCRIPT}></script>
         <script async type="module" src="/mod.js"></script>
         {pageScripts.map((src) => (
           <script async type="module" src={src}></script>

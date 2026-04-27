@@ -9,7 +9,7 @@
 const CLIENT_ENTRIES = [
   "mod.ts",
   "index.ts",
-  "me.ts",
+  "me.tsx",
   "authorize.ts",
   "sw.js",
 ] as const;

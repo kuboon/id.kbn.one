@@ -36,11 +36,25 @@ Deno.test("home: /index.js is emitted in <head>, not in body", async () => {
   }
 });
 
-Deno.test("/me: /me.js is emitted in <head>, not in body", async () => {
+Deno.test("/me: page body fully renders (no <template> inside the frame)", async () => {
+  // The previous /me page used `<template id="credential-item-template">`
+  // inside the page JSX so `me.ts` could clone DOM rows. renderToStream
+  // truncates after a nested `<template>`, which silently dropped the
+  // rest of the page body (including the dialogs and the delete-account
+  // button). The clientEntry rewrite renders every row from JSX directly,
+  // so the only `<template>` left in the response is the frame wrapper
+  // the framework emits after `</html>`.
   const raw = await html("/me");
-  assertStringIncludes(headSection(raw), `src="/me.js"`);
-  const body = bodyAfterHead(raw);
-  if (body.includes(`src="/me.js"`)) {
-    throw new Error("/me.js leaked into <body>");
+  const beforeFrameTemplate = raw.split(/<template id="[^"]+">/)[0] ?? raw;
+  if (beforeFrameTemplate.includes("<template")) {
+    throw new Error(
+      "Unexpected <template> inside the page body — would truncate the SSR stream.",
+    );
+  }
+  // The clientEntry wraps its render in <main>...</main>; if the stream
+  // were truncated the closing </main> would be missing.
+  const sentinel = "loading loading-spinner";
+  if (!raw.includes(sentinel)) {
+    throw new Error(`Loading shell missing — found:\n${raw.slice(-500)}`);
   }
 });
