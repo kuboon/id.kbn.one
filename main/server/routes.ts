@@ -11,8 +11,6 @@ export const routes = route({
   // each URL stays at its original path because `route(defs)` uses the "/"
   // base.
   auth: route({
-    session: get("/session"),
-    sessionLogout: post("/session/logout"),
     webauthn: route("webauthn", webauthnRoute),
   }),
 
@@ -36,5 +34,9 @@ export const routes = route({
       deleteSubscription: del("/subscriptions/:id"),
       testNotification: post("/notifications/test"),
     }),
+  }),
+  cors: route({
+    session: get("/session"),
+    sessionLogout: post("/session/logout"),
   }),
 });

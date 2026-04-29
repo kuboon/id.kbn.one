@@ -21,13 +21,12 @@ import { webauthnController } from "./lib/webauthn/controller.ts";
 import { routes } from "./routes.ts";
 import {
   authMiddleware,
+  corsMiddlewares,
   middleware,
   userApiMiddleware,
 } from "#server/middlewares.ts";
 
-const router = createRouter({
-  middleware,
-});
+const router = createRouter({ middleware });
 
 // HTML pages — root middleware only.
 router.get(routes.home, homeAction);
@@ -38,8 +37,6 @@ router.get(routes.authorize, authorizeAction);
 router.map(routes.auth, {
   middleware: authMiddleware,
   actions: {
-    session: sessionAction,
-    sessionLogout: sessionLogoutAction,
     webauthn: webauthnController,
   },
 });
@@ -52,6 +49,14 @@ router.map(routes.userApi, {
     accountDelete: accountDeleteAction,
     credentials: credentialsController,
     push: pushController,
+  },
+});
+
+router.map(routes.cors, {
+  middleware: corsMiddlewares,
+  actions: {
+    session: sessionAction,
+    sessionLogout: sessionLogoutAction,
   },
 });
 

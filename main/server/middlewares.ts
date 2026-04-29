@@ -32,11 +32,6 @@ const errorHandler: Middleware = async (_context, next) => {
 
 export const middleware = [
   errorHandler,
-  cors({
-    origin: (origin) => allowedOrigins(origin) ?? false,
-    credentials: true,
-    allowedHeaders: ["content-type", "dpop", "authorization"],
-  }),
   staticFiles(bundledDir),
 ];
 
@@ -52,3 +47,11 @@ export const authMiddleware = [dpop] as const;
  * is bound. Handlers should consume `context.get(User)`, not `DpopSession`.
  */
 export const userApiMiddleware = [dpop, requireUser] as const;
+
+const corsMiddleware = cors({
+  origin: (origin) => allowedOrigins(origin) ?? false,
+  credentials: true,
+  allowedHeaders: ["content-type", "dpop", "authorization"],
+});
+
+export const corsMiddlewares = [dpop, requireUser, corsMiddleware] as const;
