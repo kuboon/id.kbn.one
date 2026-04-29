@@ -5,27 +5,25 @@
 import type { RequestContext } from "@remix-run/fetch-router";
 import { type } from "arktype";
 
+import { setNoStore } from "../middleware/auth.ts";
+import { User } from "../middleware/user.ts";
 import { credentialRepository } from "../repositories.ts";
-import { requireUser, setNoStore } from "../middleware/auth.ts";
 
 const credentialIdParam = type({ credentialId: "string" });
 const updateNicknameBody = type({ nickname: "string>0" });
 
-// deno-lint-ignore no-explicit-any
-type Ctx = RequestContext<any, any>;
-
 export const credentialsController = {
   actions: {
-    async list(context: Ctx) {
-      const { userId } = requireUser(context);
+    async list(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const credentials = await credentialRepository.getCredentialsByUserId(
         userId,
       );
       return setNoStore(Response.json({ userId, credentials }));
     },
 
-    async update(context: Ctx) {
-      const { userId } = requireUser(context);
+    async update(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const param = credentialIdParam(context.params);
       if (param instanceof type.errors) {
         return Response.json({ message: param.summary }, { status: 400 });
@@ -56,8 +54,8 @@ export const credentialsController = {
       return setNoStore(Response.json({ credential }));
     },
 
-    async delete(context: Ctx) {
-      const { userId } = requireUser(context);
+    async delete(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const param = credentialIdParam(context.params);
       if (param instanceof type.errors) {
         return Response.json({ message: param.summary }, { status: 400 });

@@ -7,7 +7,8 @@ import { type } from "arktype";
 
 import { pushContact } from "../config.ts";
 import { pushService } from "../repositories.ts";
-import { requireUser, setNoStore } from "../middleware/auth.ts";
+import { setNoStore } from "../middleware/auth.ts";
+import { User } from "../middleware/user.ts";
 import {
   type PushSubscriptionMetadata,
   type StoredPushSubscription,
@@ -18,9 +19,6 @@ import {
   testNotificationBodySchema,
   updateMetadataBodySchema,
 } from "../push/schemas.ts";
-
-// deno-lint-ignore no-explicit-any
-type Ctx = RequestContext<any, any>;
 
 const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
   if (!metadata || typeof metadata !== "object") {
@@ -94,24 +92,23 @@ const validateParams = <T>(
 
 export const pushController = {
   actions: {
-    vapidKey(context: Ctx) {
-      requireUser(context);
+    vapidKey(_context: RequestContext) {
       return setNoStore(Response.json({
         publicKey: pushService.getPublicKey(),
         contact: pushContact,
       }));
     },
 
-    async listSubscriptions(context: Ctx) {
-      const { userId } = requireUser(context);
+    async listSubscriptions(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const subscriptions = await pushService.listSubscriptions(userId);
       return setNoStore(
         Response.json({ subscriptions: subscriptions.map(serialize) }),
       );
     },
 
-    async upsertSubscription(context: Ctx) {
-      const { userId } = requireUser(context);
+    async upsertSubscription(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const body = await validateBody(
         context.request,
         pushSubscriptionBodySchema,
@@ -134,8 +131,8 @@ export const pushController = {
       }
     },
 
-    async updateSubscription(context: Ctx) {
-      const { userId } = requireUser(context);
+    async updateSubscription(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const param = validateParams(context.params, subscriptionIdParamSchema);
       if (param instanceof Response) return param;
       const body = await validateBody(
@@ -169,8 +166,8 @@ export const pushController = {
       }
     },
 
-    async deleteSubscription(context: Ctx) {
-      const { userId } = requireUser(context);
+    async deleteSubscription(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const param = validateParams(context.params, subscriptionIdParamSchema);
       if (param instanceof Response) return param;
       const deleted = await pushService.deleteSubscription(userId, param.id);
@@ -178,8 +175,8 @@ export const pushController = {
       return setNoStore(Response.json({ success: true }));
     },
 
-    async testNotification(context: Ctx) {
-      const { userId } = requireUser(context);
+    async testNotification(context: RequestContext) {
+      const { id: userId } = context.get(User);
       const body = await validateBody(
         context.request,
         testNotificationBodySchema,

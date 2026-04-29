@@ -13,15 +13,15 @@ import { type } from "arktype";
 import { createPasskeysCore } from "../core/mod.ts";
 import type { PasskeyRepository } from "../core/types.ts";
 
-export interface PasskeysActionsOptions<TContext extends RequestContext> {
+export interface PasskeysActionsOptions {
   rpID: string;
   rpName: string;
   storage: PasskeyRepository;
   /** Returns the currently signed-in user, if any. */
-  getUserId: (context: TContext) => string | undefined;
+  getUserId: (context: RequestContext) => string | undefined;
   /** Persists the signed-in user after successful registration / auth. */
   updateSession: (
-    context: TContext,
+    context: RequestContext,
     userId: string,
   ) => Promise<void> | void;
 }
@@ -76,16 +76,16 @@ const validateReqBody = async <T>(
   return result;
 };
 
-export interface PasskeysActions<TContext extends RequestContext> {
-  registerOptions: RequestHandler<Record<string, never>, TContext>;
-  registerVerify: RequestHandler<Record<string, never>, TContext>;
-  authenticateOptions: RequestHandler<Record<string, never>, TContext>;
-  authenticateVerify: RequestHandler<Record<string, never>, TContext>;
+export interface PasskeysActions {
+  registerOptions: RequestHandler;
+  registerVerify: RequestHandler;
+  authenticateOptions: RequestHandler;
+  authenticateVerify: RequestHandler;
 }
 
-export function createPasskeysActions<TContext extends RequestContext>(
-  options: PasskeysActionsOptions<TContext>,
-): PasskeysActions<TContext> {
+export function createPasskeysActions(
+  options: PasskeysActionsOptions,
+): PasskeysActions {
   const { getUserId, updateSession, storage, rpID, rpName } = options;
   const core = createPasskeysCore({
     rpID,
@@ -104,7 +104,7 @@ export function createPasskeysActions<TContext extends RequestContext>(
         registerOptionsBody,
       );
       if (parsed instanceof Response) return parsed;
-      const sessionUserId = getUserId(context as TContext);
+      const sessionUserId = getUserId(context);
       const userName = sessionUserId || parsed.userId;
       if (!userName) return jsonError(400, "userId is required");
       const requestUrl = getRequestUrl(context.request);
@@ -125,7 +125,7 @@ export function createPasskeysActions<TContext extends RequestContext>(
       if (!result.verified || !result.credential) {
         return jsonError(400, "Registration could not be verified");
       }
-      await updateSession(context as TContext, result.credential.userId);
+      await updateSession(context, result.credential.userId);
       return ok({ verified: result.verified });
     },
 
@@ -150,7 +150,7 @@ export function createPasskeysActions<TContext extends RequestContext>(
         if (!result.verified || !result.credential) {
           return jsonError(400, "Authentication could not be verified");
         }
-        await updateSession(context as TContext, result.credential.userId);
+        await updateSession(context, result.credential.userId);
         return ok({ verified: result.verified });
       } catch (err) {
         if (

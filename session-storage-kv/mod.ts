@@ -15,32 +15,18 @@ import type { KvRepo } from "@kbn/kv/types.ts";
 
 type SessionDataTuple = Session["data"];
 
-export interface KvSessionStorageOptions {
-  /**
-   * Whether to reuse session IDs sent from the client that are not found in
-   * storage. Default is `false`.
-   */
-  useUnknownIds?: boolean;
-}
-
 export function createKvSessionStorage(
   repo: KvRepo<SessionDataTuple>,
-  options?: KvSessionStorageOptions,
 ): SessionStorage {
-  const useUnknownIds = options?.useUnknownIds ?? false;
-
   return {
-    async read(cookie: string | null): Promise<Session> {
-      const id = cookie;
-
+    async read(id: string | null): Promise<Session> {
       if (id) {
         const data = await repo.entry(id).get();
         if (data !== null) {
           return createSession(id, data);
         }
       }
-
-      return createSession(useUnknownIds && id ? id : undefined);
+      return createSession(id ?? undefined);
     },
     async save(session: Session): Promise<string | null> {
       if (session.deleteId) {

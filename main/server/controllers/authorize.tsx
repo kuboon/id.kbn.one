@@ -25,7 +25,9 @@ const isAllowedRedirectUri = (redirectUri: string): boolean => {
   );
 };
 
-export const authorizeAction: RequestHandler = (context) => {
+export const authorizeAction: RequestHandler<
+  Record<string, never>
+> = (context) => {
   const url = new URL(context.request.url);
   const dpopJkt = url.searchParams.get("dpop_jkt") ?? "";
   const redirectUri = url.searchParams.get("redirect_uri") ?? "";
