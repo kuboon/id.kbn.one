@@ -1,4 +1,4 @@
-import { getKvInstance } from "../kvInstance.ts";
+import { kv } from "../repositories.ts";
 import type {
   PasskeyCredential,
   PasskeyRepository,
@@ -28,11 +28,6 @@ const signSecretKey = (): Deno.KvKey => ["passkey_sign_secret"];
 
 export class DenoKvPasskeyRepository implements PasskeyRepository {
   constructor(private readonly kv: Deno.Kv) {}
-
-  static async create(): Promise<DenoKvPasskeyRepository> {
-    const kv = await getKvInstance();
-    return new DenoKvPasskeyRepository(kv);
-  }
 
   async getCredentialById(
     credentialId: string,
@@ -136,3 +131,5 @@ export class DenoKvPasskeyRepository implements PasskeyRepository {
     return secret;
   }
 }
+
+export const credentialRepository = new DenoKvPasskeyRepository(kv);

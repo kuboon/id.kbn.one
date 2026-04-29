@@ -6,7 +6,7 @@
 import { createPasskeysActions } from "@kuboon/passkeys/remix";
 
 import { rpID, rpName } from "#server/config.ts";
-import { credentialRepository } from "#server/repositories.ts";
+import { credentialRepository } from "#server/lib/passkey.ts";
 import { DpopSession, sessionUserId } from "#server/middleware/dpop.ts";
 
 const actions = createPasskeysActions({

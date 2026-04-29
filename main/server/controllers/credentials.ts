@@ -7,7 +7,7 @@ import { type } from "arktype";
 
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
-import { credentialRepository } from "../repositories.ts";
+import { credentialRepository } from "../lib/passkey.ts";
 
 const credentialIdParam = type({ credentialId: "string" });
 const updateNicknameBody = type({ nickname: "string>0" });

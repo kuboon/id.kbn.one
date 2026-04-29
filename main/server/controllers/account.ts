@@ -7,7 +7,7 @@ import type { RequestContext } from "@remix-run/fetch-router";
 
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
-import { credentialRepository } from "../repositories.ts";
+import { credentialRepository } from "../lib/passkey.ts";
 
 export const accountDeleteAction = async (
   context: RequestContext,
