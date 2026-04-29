@@ -3,11 +3,11 @@
  * a verified DPoP session for `updateSession` to persist the userId.
  */
 
-import { createPasskeysActions } from "@kuboon/passkeys/fetch-router-middleware";
+import { createPasskeysActions } from "@kuboon/passkeys/remix";
 
-import { rpID, rpName } from "../config.ts";
-import { credentialRepository } from "../repositories.ts";
-import { DpopSession, sessionUserId } from "../middleware/dpop.ts";
+import { rpID, rpName } from "#server/config.ts";
+import { credentialRepository } from "#server/repositories.ts";
+import { DpopSession, sessionUserId } from "#server/middleware/dpop.ts";
 
 const actions = createPasskeysActions({
   rpID,

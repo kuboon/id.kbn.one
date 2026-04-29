@@ -63,8 +63,7 @@ type SetDpopSessionContextTransform = readonly [
 
 export function dpopSession(
   options: DpopSessionMiddlewareOptions,
-  // deno-lint-ignore no-explicit-any
-): Middleware<any, any, SetDpopSessionContextTransform> {
+): Middleware<"ANY", Record<string, never>, SetDpopSessionContextTransform> {
   const { sessionStorage } = options;
   const replayDetector = options.replayDetector ?? new InMemoryReplayDetector();
   const maxAgeSeconds = options.maxAgeSeconds ?? 300;

@@ -21,7 +21,7 @@ import {
   sessionAction,
   sessionLogoutAction,
 } from "./controllers/session.ts";
-import { webauthnController } from "./controllers/webauthn.ts";
+import { webauthnController } from "./lib/webauthn/controller.ts";
 import { routes } from "./routes.ts";
 
 const allowedOrigins = (origin: string): string | undefined => {

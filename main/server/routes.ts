@@ -1,4 +1,5 @@
 import { del, get, patch, post, route } from "@remix-run/fetch-router/routes";
+import webauthnRoute from "./lib/webauthn/routes.ts";
 
 export const routes = route({
   // Pages
@@ -15,12 +16,7 @@ export const routes = route({
   accountDelete: del("/account"),
 
   // Webauthn (passkeys)
-  webauthn: route("webauthn", {
-    registerOptions: post("/register/options"),
-    registerVerify: post("/register/verify"),
-    authenticateOptions: post("/authenticate/options"),
-    authenticateVerify: post("/authenticate/verify"),
-  }),
+  webauthn: route("webauthn", webauthnRoute),
 
   // Credentials
   credentials: route("credentials", {

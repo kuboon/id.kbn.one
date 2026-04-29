@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "lib": ["dom", "es2024"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "@remix-run/component"
+  },
+  "imports": {
+    "@kuboon/dpop": "jsr:@kuboon/dpop@^0.1.2",
+    "@remix-run/component": "npm:@remix-run/component@^0.7.0"
+  }
+}

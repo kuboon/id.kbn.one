@@ -59,7 +59,7 @@ const noStore = (response: Response): Response => {
 
 const ok = <T>(body: T): Response => noStore(Response.json(body));
 
-const parseJson = async <T>(
+const validateReqBody = async <T>(
   request: Request,
   schema: { (input: unknown): T | type.errors },
 ): Promise<T | Response> => {
@@ -99,7 +99,10 @@ export function createPasskeysActions<TContext extends RequestContext>(
 
   return {
     async registerOptions(context) {
-      const parsed = await parseJson(context.request, registerOptionsBody);
+      const parsed = await validateReqBody(
+        context.request,
+        registerOptionsBody,
+      );
       if (parsed instanceof Response) return parsed;
       const sessionUserId = getUserId(context as TContext);
       const userName = sessionUserId || parsed.userId;
@@ -111,7 +114,7 @@ export function createPasskeysActions<TContext extends RequestContext>(
     },
 
     async registerVerify(context) {
-      const parsed = await parseJson(context.request, registerVerifyBody);
+      const parsed = await validateReqBody(context.request, registerVerifyBody);
       if (parsed instanceof Response) return parsed;
       const result = await core.verifyRegistration({
         body: parsed.credential,
@@ -134,7 +137,10 @@ export function createPasskeysActions<TContext extends RequestContext>(
     },
 
     async authenticateVerify(context) {
-      const parsed = await parseJson(context.request, authenticateVerifyBody);
+      const parsed = await validateReqBody(
+        context.request,
+        authenticateVerifyBody,
+      );
       if (parsed instanceof Response) return parsed;
       try {
         const result = await core.verifyAuthentication({

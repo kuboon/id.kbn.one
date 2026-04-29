@@ -2,13 +2,13 @@
   "nodeModulesDir": "auto",
   "tasks": {
     "test": "deno fmt && deno lint && deno check && deno test -P",
-    "dev": "deno task --cwd=main dev",
-    "serve": "deno task --cwd=main serve",
-    "bundle": "deno task --cwd=main/bundler build",
-    "pre-deploy": "deno task bundle"
+    "dev": "deno task --cwd=main/server dev",
+    "serve": "deno task --cwd=main/server serve",
+    "pre-deploy": "echo nothing to do"
   },
   "workspace": [
-    "main",
+    "main/client",
+    "main/server",
     "main/bundler",
     "passkeys",
     "dpop",
@@ -18,12 +18,10 @@
   ],
   "imports": {
     "@hexagon/base64": "npm:@hexagon/base64@2.0.4",
-    "@hono/standard-validator": "jsr:@hono/standard-validator@^0.2.2",
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "arktype": "npm:arktype@^2.2.0",
     "daisyui": "npm:daisyui@^5.5.19",
-    "hono": "jsr:@hono/hono@^4.12.14",
     "tailwindcss": "npm:tailwindcss@^4.1.18",
     "@remix-run/component": "npm:@remix-run/component@^0.7.0",
     "@remix-run/cors-middleware": "npm:@remix-run/cors-middleware@^0.1.1",

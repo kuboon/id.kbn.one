@@ -13,7 +13,7 @@ import {
   on,
   type SerializableValue,
 } from "@remix-run/component";
-import { createClient } from "@kuboon/passkeys/client.ts";
+import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 
 type AlertKind = "info" | "success" | "warning" | "error";
