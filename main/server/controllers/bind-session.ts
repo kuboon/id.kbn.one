@@ -9,7 +9,7 @@ import { type } from "arktype";
 
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
-import { sessionRepository } from "../repositories.ts";
+import { sessionRepository } from "../lib/session.ts";
 
 const bindSessionBody = type({
   dpop_jkt: /^[A-Za-z0-9_-]{43}$/,

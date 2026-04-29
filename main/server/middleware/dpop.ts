@@ -5,7 +5,7 @@
 
 import { DpopSession, dpopSession } from "@kbn/dpop-session-middleware";
 
-import { dpopSessionStorage } from "../repositories.ts";
+import { dpopSessionStorage } from "../lib/session.ts";
 import { DenoKvJtiStore } from "../repository/deno-kv-jti-store.ts";
 import { getKvInstance } from "../kvInstance.ts";
 
