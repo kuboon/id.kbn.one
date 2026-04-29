@@ -6,19 +6,19 @@ import type { RequestContext } from "@remix-run/fetch-router";
 import { type } from "arktype";
 
 import { pushContact } from "../config.ts";
-import { pushService } from "../repositories.ts";
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
 import {
+  pushService,
   type PushSubscriptionMetadata,
   type StoredPushSubscription,
-} from "../push/service.ts";
+} from "../lib/push/service.ts";
 import {
   pushSubscriptionBodySchema,
   subscriptionIdParamSchema,
   testNotificationBodySchema,
   updateMetadataBodySchema,
-} from "../push/schemas.ts";
+} from "../lib/push/schemas.ts";
 
 const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
   if (!metadata || typeof metadata !== "object") {

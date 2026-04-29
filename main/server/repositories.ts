@@ -11,7 +11,10 @@ import {
 } from "@remix-run/session";
 
 import { DenoKvPasskeyRepository } from "./repository/deno-kv-passkey-store.ts";
-import { PushService } from "./push/service.ts";
+import type {
+  StoredPushSubscription,
+  UserIndexValue,
+} from "./lib/push/service.ts";
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
@@ -50,7 +53,12 @@ export const credentialRepository = await (async () => {
   return new DenoKvPasskeyRepository(kv);
 })();
 
-export const pushService = await (async () => {
-  const kv = await getKvInstance();
-  return await PushService.create(kv);
-})();
+export const pushSubscriptionRepo = new DenoKvRepo<StoredPushSubscription>([
+  "push",
+  "subscription",
+]);
+
+export const pushUserIndexRepoForUser = (
+  userId: string,
+): DenoKvRepo<UserIndexValue> =>
+  new DenoKvRepo<UserIndexValue>(["push", "user", "subscriptions", userId]);

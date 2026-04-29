@@ -1,6 +1,6 @@
 import { fromArrayBuffer } from "@hexagon/base64";
-import { pushContact } from "../config.ts";
-import { Secret } from "../secret.ts";
+import { pushContact } from "../../config.ts";
+import { Secret } from "../../secret.ts";
 import {
   ApplicationServer,
   exportApplicationServerKey,
@@ -12,20 +12,16 @@ import {
   Urgency,
 } from "@negrel/webpush";
 import type { PushSubscriptionPayload } from "./schemas.ts";
+import {
+  pushSubscriptionRepo,
+  pushUserIndexRepoForUser,
+} from "../../repositories.ts";
 
 const encoder = new TextEncoder();
 
-const SUBSCRIPTION_KEY_PREFIX = ["push", "subscription"] as const;
-const USER_INDEX_PREFIX = ["push", "user", "subscriptions"] as const;
-
-const subscriptionKey = (
-  id: string,
-): Deno.KvKey => [...SUBSCRIPTION_KEY_PREFIX, id];
-
-const userIndexKey = (
-  userId: string,
-  id: string,
-): Deno.KvKey => [...USER_INDEX_PREFIX, userId, id];
+export interface UserIndexValue {
+  id: string;
+}
 
 const hashSubscriptionEndpoint = async (endpoint: string): Promise<string> => {
   const digest = await crypto.subtle.digest(
@@ -94,14 +90,13 @@ interface PushServiceErrorInfo {
 
 export class PushService {
   private constructor(
-    private readonly kv: Deno.Kv,
+    private readonly subscriptionRepo: typeof pushSubscriptionRepo,
+    private readonly userIndexRepoForUser: typeof pushUserIndexRepoForUser,
     private readonly applicationServer: ApplicationServer,
     private readonly vapidPublicKey: string,
   ) {}
 
-  static async create(
-    kv: Deno.Kv,
-  ): Promise<PushService> {
+  static async create(): Promise<PushService> {
     const vapidSecret = await Secret<StoredVapidKeysRecord>(
       "push_vapid_keys",
       async () => {
@@ -124,7 +119,12 @@ export class PushService {
       vapidKeys,
     });
     const vapidPublicKey = await exportApplicationServerKey(vapidKeys);
-    return new PushService(kv, applicationServer, vapidPublicKey);
+    return new PushService(
+      pushSubscriptionRepo,
+      pushUserIndexRepoForUser,
+      applicationServer,
+      vapidPublicKey,
+    );
   }
 
   getPublicKey(): string {
@@ -137,42 +137,37 @@ export class PushService {
     metadata: PushSubscriptionMetadata = {},
   ): Promise<StoredPushSubscription> {
     const id = await hashSubscriptionEndpoint(subscription.endpoint);
-    const existingEntry = await this.kv.get<StoredPushSubscription>(
-      subscriptionKey(id),
-    );
     const now = Date.now();
-    const previous = existingEntry.value;
 
-    const record: StoredPushSubscription = {
-      id,
-      userId,
-      endpoint: subscription.endpoint,
-      expirationTime: subscription.expirationTime,
-      keys: subscription.keys,
-      createdAt: previous?.createdAt ?? now,
-      updatedAt: now,
-      metadata: {
-        ...(previous?.metadata ?? {}),
-        ...metadata,
-        lastUpdatedAt: now,
-      },
-    };
-
-    const tx = this.kv.atomic();
-    if (existingEntry.versionstamp) {
-      tx.check(existingEntry);
-    } else {
-      tx.check({ key: subscriptionKey(id), versionstamp: null });
-    }
-    tx.set(subscriptionKey(id), record);
-    tx.set(userIndexKey(userId, id), { id });
-    const result = await tx.commit();
-    if (!result.ok) {
+    let previousUserId: string | undefined;
+    let record: StoredPushSubscription | undefined;
+    const result = await this.subscriptionRepo.entry(id).update((current) => {
+      previousUserId = current?.userId;
+      record = {
+        id,
+        userId,
+        endpoint: subscription.endpoint,
+        expirationTime: subscription.expirationTime,
+        keys: subscription.keys,
+        createdAt: current?.createdAt ?? now,
+        updatedAt: now,
+        metadata: {
+          ...(current?.metadata ?? {}),
+          ...metadata,
+          lastUpdatedAt: now,
+        },
+      };
+      return record;
+    });
+    if (!result.ok || !record) {
       throw new Error("Failed to save push subscription");
     }
 
-    if (previous && previous.userId !== userId) {
-      await this.kv.delete(userIndexKey(previous.userId, id));
+    await this.userIndexRepoForUser(userId).entry(id).update(() => ({ id }));
+    if (previousUserId && previousUserId !== userId) {
+      await this.userIndexRepoForUser(previousUserId).entry(id).update(
+        () => null,
+      );
     }
 
     return record;
@@ -180,23 +175,13 @@ export class PushService {
 
   async listSubscriptions(userId: string): Promise<StoredPushSubscription[]> {
     const subscriptions: StoredPushSubscription[] = [];
-    const prefix = userIndexKey(userId, "").slice(0, -1) as Deno.KvKey;
+    const indexRepo = this.userIndexRepoForUser(userId);
 
-    for await (const entry of this.kv.list<{ id: string }>({ prefix })) {
-      const id = entry.value?.id;
-      if (!id) {
-        continue;
-      }
-      const subscriptionEntry = await this.kv.get<StoredPushSubscription>(
-        subscriptionKey(id),
-      );
-      const value = subscriptionEntry.value;
-      if (!value) {
-        await this.kv.delete(entry.key);
-        continue;
-      }
-      if (value.userId !== userId) {
-        await this.kv.delete(entry.key);
+    for await (const indexEntry of indexRepo) {
+      const id = String(indexEntry.key);
+      const value = await this.subscriptionRepo.entry(id).get();
+      if (!value || value.userId !== userId) {
+        await indexEntry.update(() => null);
         continue;
       }
       subscriptions.push(value);
@@ -209,18 +194,17 @@ export class PushService {
     userId: string,
     id: string,
   ): Promise<boolean> {
-    const existing = await this.kv.get<StoredPushSubscription>(
-      subscriptionKey(id),
-    );
-    if (!existing.value || existing.value.userId !== userId) {
+    const subEntry = this.subscriptionRepo.entry(id);
+    const existing = await subEntry.get();
+    if (!existing || existing.userId !== userId) {
       return false;
     }
-    const tx = this.kv.atomic()
-      .check(existing)
-      .delete(subscriptionKey(id))
-      .delete(userIndexKey(userId, id));
-    const result = await tx.commit();
-    return result.ok;
+    const result = await subEntry.update(() => null);
+    if (!result.ok) {
+      return false;
+    }
+    await this.userIndexRepoForUser(userId).entry(id).update(() => null);
+    return true;
   }
 
   async updateSubscriptionMetadata(
@@ -234,26 +218,27 @@ export class PushService {
     if (!Object.keys(metadata).length) {
       throw new Error("Metadata is required");
     }
-    const existing = await this.kv.get<StoredPushSubscription>(
-      subscriptionKey(id),
-    );
-    if (!existing.value || existing.value.userId !== userId) {
+    const subEntry = this.subscriptionRepo.entry(id);
+    let updated: StoredPushSubscription | undefined;
+    const result = await subEntry.update((current) => {
+      if (!current || current.userId !== userId) {
+        return current;
+      }
+      const now = Date.now();
+      updated = {
+        ...current,
+        updatedAt: now,
+        metadata: {
+          ...(current.metadata ?? {}),
+          ...metadata,
+          lastUpdatedAt: now,
+        },
+      };
+      return updated;
+    });
+    if (!updated) {
       throw new Error("Subscription not found");
     }
-    const now = Date.now();
-    const updated: StoredPushSubscription = {
-      ...existing.value,
-      updatedAt: now,
-      metadata: {
-        ...(existing.value.metadata ?? {}),
-        ...metadata,
-        lastUpdatedAt: now,
-      },
-    };
-    const tx = this.kv.atomic()
-      .check(existing)
-      .set(subscriptionKey(id), updated);
-    const result = await tx.commit();
     if (!result.ok) {
       throw new Error("Failed to update subscription");
     }
@@ -266,7 +251,7 @@ export class PushService {
   ): Promise<StoredPushSubscription> {
     const normalized = message?.trim() || "Push service error";
     const now = Date.now();
-    const updated: StoredPushSubscription = {
+    let updated: StoredPushSubscription = {
       ...subscription,
       metadata: {
         ...subscription.metadata,
@@ -275,7 +260,19 @@ export class PushService {
       },
       updatedAt: now,
     };
-    await this.kv.set(subscriptionKey(subscription.id), updated);
+    await this.subscriptionRepo.entry(subscription.id).update((current) => {
+      const base = current ?? subscription;
+      updated = {
+        ...base,
+        metadata: {
+          ...base.metadata,
+          lastError: normalized,
+          lastErrorAt: now,
+        },
+        updatedAt: now,
+      };
+      return updated;
+    });
     return updated;
   }
 
@@ -340,10 +337,7 @@ export class PushService {
     userId: string,
     id: string,
   ): Promise<StoredPushSubscription | null> {
-    const entry = await this.kv.get<StoredPushSubscription>(
-      subscriptionKey(id),
-    );
-    const value = entry.value;
+    const value = await this.subscriptionRepo.entry(id).get();
     if (!value || value.userId !== userId) {
       return null;
     }
@@ -468,7 +462,7 @@ export class PushService {
     }
 
     const now = Date.now();
-    const updatedSubscription: StoredPushSubscription = {
+    let updatedSubscription: StoredPushSubscription = {
       ...subscriptionRecord,
       metadata: {
         ...subscriptionRecord.metadata,
@@ -478,7 +472,20 @@ export class PushService {
       },
       updatedAt: now,
     };
-    await this.kv.set(subscriptionKey(id), updatedSubscription);
+    await this.subscriptionRepo.entry(id).update((current) => {
+      const base = current ?? subscriptionRecord;
+      updatedSubscription = {
+        ...base,
+        metadata: {
+          ...base.metadata,
+          lastSuccessfulSendAt: now,
+          lastError: undefined,
+          lastErrorAt: undefined,
+        },
+        updatedAt: now,
+      };
+      return updatedSubscription;
+    });
     return { subscription: updatedSubscription, warnings };
   }
 
@@ -496,3 +503,5 @@ export class PushService {
     });
   }
 }
+
+export const pushService = await PushService.create();
