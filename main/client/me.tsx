@@ -728,7 +728,7 @@ export const Me = clientEntry(
 
         {phase === "ready" && account && (
           <section class="space-y-10">
-            <div class="card card-border bg-base-100">
+            <div class="card bg-base-100">
               <div class="card-body">
                 <h2 class="card-title">プロフィール情報</h2>
                 <label class="form-control w-full max-w-sm">
@@ -746,7 +746,7 @@ export const Me = clientEntry(
               </div>
             </div>
 
-            <div class="card card-border bg-base-100">
+            <div class="card bg-base-100">
               <div class="card-body">
                 <header class="flex items-start justify-between gap-3">
                   <div>
@@ -821,7 +821,7 @@ export const Me = clientEntry(
               </div>
             </div>
 
-            <div class="card card-border bg-base-100">
+            <div class="card bg-base-100">
               <div class="card-body">
                 <header class="flex items-start justify-between gap-3">
                   <div>
@@ -938,7 +938,7 @@ export const Me = clientEntry(
               </div>
             </div>
 
-            <div class="card card-border bg-base-100">
+            <div class="card bg-base-100">
               <div class="card-body">
                 <button
                   type="button"
