@@ -2,9 +2,9 @@
  * IdP authorize landing (`/authorize`) — Remix v3 clientEntry component.
  *
  * The server validates `dpop_jkt` + `redirect_uri` on the URL and passes
- * the validated pair as the `setup` prop, so the component can drive the
- * IdP probe / passkey / bind / redirect flow without re-parsing the URL
- * on the client.
+ * the validated values as props, so the component can drive the IdP probe
+ * / passkey / bind / redirect flow without re-parsing the URL on the
+ * client.
  */
 
 import {
@@ -12,20 +12,16 @@ import {
   type Handle,
   on,
   type SerializableValue,
-} from "@remix-run/component";
+} from "@remix-run/ui";
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 
 type AlertKind = "info" | "success" | "warning" | "error";
 
-export interface AuthorizeSetup {
+export interface AuthorizeProps {
   dpopJkt: string;
   redirectUri: string;
   rpOrigin: string;
-  [key: string]: SerializableValue;
-}
-
-export interface AuthorizeProps {
   [key: string]: SerializableValue;
 }
 
@@ -35,8 +31,8 @@ const isClientEnv = typeof globalThis !== "undefined" &&
 
 export const Authorize = clientEntry(
   "/authorize.js#Authorize",
-  function Authorize(handle: Handle, setup: AuthorizeSetup) {
-    const { dpopJkt, redirectUri, rpOrigin } = setup;
+  function Authorize(handle: Handle<AuthorizeProps>) {
+    const { dpopJkt, redirectUri, rpOrigin } = handle.props;
 
     let status: { message: string; kind: AlertKind } = {
       message: "セッションを確認しています…",
@@ -161,7 +157,7 @@ export const Authorize = clientEntry(
       void initialize();
     }
 
-    return (_props: AuthorizeProps) => (
+    return () => (
       <main class="mx-auto w-full max-w-md p-6 space-y-6">
         <header class="text-center">
           <h1 class="text-2xl font-bold">kbn.one ID</h1>

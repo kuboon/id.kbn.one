@@ -18,7 +18,7 @@ import {
   type Handle,
   on,
   type SerializableValue,
-} from "@remix-run/component";
+} from "@remix-run/ui";
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 
@@ -143,7 +143,7 @@ const pushSummaryText = (s: {
 
 export const Me = clientEntry(
   "/me.js#Me",
-  function Me(handle: Handle, _setup: null) {
+  function Me(handle: Handle<MeProps>) {
     // ---------- State (lives across re-renders via setup-scope closure) ----
     let phase: "loading" | "ready" | "error" = "loading";
     let errorMessage: string | null = null;
@@ -678,7 +678,7 @@ export const Me = clientEntry(
     }
 
     // ---------- Render ----------
-    return (_props: MeProps) => (
+    return () => (
       <main class="mx-auto w-full max-w-3xl p-6 space-y-10">
         <header class="flex items-center justify-between gap-3">
           <h1 class="text-2xl font-bold">アカウント</h1>

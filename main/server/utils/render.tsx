@@ -12,8 +12,8 @@
  * runtime boot at `/mod.js` lives in `<head>`.
  */
 
-import type { RemixNode } from "@remix-run/component";
-import { renderToStream } from "@remix-run/component/server";
+import type { RemixNode } from "@remix-run/ui";
+import { renderToStream } from "@remix-run/ui/server";
 import type { RequestContext, Router } from "@remix-run/fetch-router";
 import { createHtmlResponse } from "@remix-run/response/html";
 

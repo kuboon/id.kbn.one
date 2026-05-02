@@ -3,7 +3,7 @@
  *
  * Validates the query parameters server-side, then hands off to the
  * `<Authorize />` clientEntry which drives the IdP probe + passkey +
- * bind + redirect flow with the validated values passed via setup.
+ * bind + redirect flow with the validated values passed as props.
  */
 
 import type { RequestHandler } from "@remix-run/fetch-router";
@@ -47,6 +47,10 @@ export const authorizeAction: RequestHandler<
 
   return renderPage(
     context,
-    <Authorize setup={{ dpopJkt, redirectUri, rpOrigin }} />,
+    <Authorize
+      dpopJkt={dpopJkt}
+      redirectUri={redirectUri}
+      rpOrigin={rpOrigin}
+    />,
   );
 };

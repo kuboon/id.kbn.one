@@ -33,7 +33,7 @@
 - ランタイム: **Deno** (`Deno.bundle`, `Deno.openKv`)
 - ルーター:
   [`@remix-run/fetch-router`](https://github.com/remix-run/remix/tree/main/packages/fetch-router) +
-  Frame ベースの shell ナビゲーション (`@remix-run/component`)
+  Frame ベースの shell ナビゲーション (`@remix-run/ui`)
 - セッション: `@remix-run/session` を `@kbn/session-storage-kv` 経由で `KvRepo`
   に保存。DPoP セッションは `@kbn/dpop-session-middleware` が thumbprint
   をキーに管理

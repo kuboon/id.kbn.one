@@ -1,5 +1,5 @@
 {
   "imports": {
-    "@remix-run/fetch-router": "npm:@remix-run/fetch-router@0.18.1"
+    "@remix-run/fetch-router": "npm:@remix-run/fetch-router@0.18.2"
   }
 }

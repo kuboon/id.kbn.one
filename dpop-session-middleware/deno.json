@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "exports": "./mod.ts",
   "imports": {
-    "@remix-run/fetch-router": "npm:@remix-run/fetch-router@0.18.1",
+    "@remix-run/fetch-router": "npm:@remix-run/fetch-router@0.18.2",
     "@remix-run/session": "npm:@remix-run/session@^0.4.1"
   },
   "lint": {

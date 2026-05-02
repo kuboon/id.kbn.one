@@ -10,4 +10,4 @@ import { renderPage } from "../utils/render.tsx";
 
 export const meAction: RequestHandler<Record<string, never>> = (
   context,
-) => renderPage(context, <Me setup={null} />);
+) => renderPage(context, <Me />);

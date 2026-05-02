@@ -12,7 +12,7 @@ import {
   type Handle,
   on,
   type SerializableValue,
-} from "@remix-run/component";
+} from "@remix-run/ui";
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 
@@ -28,7 +28,7 @@ const isClientEnv = typeof globalThis !== "undefined" &&
 
 export const Index = clientEntry(
   "/index.js#Index",
-  function Index(handle: Handle, _setup: null) {
+  function Index(handle: Handle<IndexProps>) {
     let status: { message: string; kind: AlertKind } = {
       message: "パスキーの自動入力に対応しているか確認しています…",
       kind: "info",
@@ -187,7 +187,7 @@ export const Index = clientEntry(
       void initialize();
     }
 
-    return (_props: IndexProps) => (
+    return () => (
       <main class="mx-auto w-full max-w-md p-6 space-y-6">
         <header class="text-center">
           <h1 class="text-3xl font-bold">kbn.one ID</h1>

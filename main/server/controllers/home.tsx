@@ -10,5 +10,5 @@ import { renderPage } from "../utils/render.tsx";
 export const homeAction: BuildAction<"GET", typeof routes.home> = (
   context,
 ) => {
-  return renderPage(context, <Index setup={null} />);
+  return renderPage(context, <Index />);
 };

@@ -8,7 +8,7 @@
  * runtime boot at `/mod.js`.
  */
 
-import { Frame } from "@remix-run/component";
+import { Frame, type Handle } from "@remix-run/ui";
 import { routes } from "../routes.ts";
 
 type DocumentProps = {
@@ -28,8 +28,8 @@ const THEMES = [
   { value: "lofi", label: "Lo-Fi" },
 ] as const;
 
-export function Document() {
-  return ({ initialSrc }: DocumentProps) => (
+export function Document(handle: Handle<DocumentProps>) {
+  return () => (
     <html lang="ja">
       <head>
         <meta charset="UTF-8" />
@@ -92,7 +92,7 @@ export function Document() {
         </header>
         <Frame
           name="content"
-          src={initialSrc}
+          src={handle.props.initialSrc}
           fallback={
             <main class="mx-auto w-full max-w-3xl p-8">
               <p>Loading…</p>

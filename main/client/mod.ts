@@ -8,7 +8,7 @@
  * `loadModule` here just dynamic-imports the bundled page module.
  */
 
-import { run } from "@remix-run/component";
+import { run } from "@remix-run/ui";
 
 const FRAME_HEADER = "rmx-frame";
 
