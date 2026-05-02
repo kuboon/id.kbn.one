@@ -6,7 +6,6 @@
     "@std/media-types": "jsr:@std/media-types@^1.1.0"
   },
   "tasks": {
-    "dev": "deno task --cwd=../bundler build && deno serve -P --watch=.. router.ts",
     "serve": "deno task -P router.ts"
   },
   "compilerOptions": {

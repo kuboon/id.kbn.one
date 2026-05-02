@@ -2,7 +2,8 @@
   "nodeModulesDir": "auto",
   "tasks": {
     "test": "deno fmt && deno lint && deno check && deno test -P",
-    "dev": "deno task --cwd=main/server dev",
+    "build": "deno task --cwd=main/bundler build",
+    "dev": "deno task build && deno task --cwd=main/server serve",
     "serve": "deno task --cwd=main/server serve",
     "pre-deploy": "echo nothing to do"
   },
