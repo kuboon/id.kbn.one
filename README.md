@@ -26,7 +26,47 @@
 5. IdP は thumbprint=`rp_jkt` の DPoP セッションに `userId` を書き込む
 6. ブラウザを `redirect_uri` へ戻す
 7. RP のブラウザが `dpop_fetch GET https://idp.example.com/session` →
-   `{ userId }` が返る (DPoP proof の thumbprint = rp_jkt が bind 済のため)
+   `{ userId, jws }` が返る (DPoP proof の thumbprint = rp_jkt が bind 済のため)
+
+### 発行される JWT (`jws` フィールド)
+
+ES256 署名の compact JWS ([RFC 7515] / [RFC 7519])。クレーム:
+
+- `iss`: `IDP_ORIGIN`
+- `sub`: userId
+- `nbf`, `exp`, `jti`
+- `cnf.jkt`: RP の DPoP 鍵 thumbprint (= `rp_jkt`) — [RFC 9449] DPoP binding
+
+リソースサーバ呼び出し時は DPoP proof と組み合わせて使う。
+
+### RP 側での検証
+
+公開鍵は JWKS として `https://idp.example.com/.well-known/jwks.json`
+([RFC 7517]) で配布。`jose` の `createRemoteJWKSet` で取得・キャッシュできる:
+
+```ts
+import { createRemoteJWKSet, jwtVerify } from "jose";
+
+const JWKS = createRemoteJWKSet(
+  new URL("https://idp.example.com/.well-known/jwks.json"),
+);
+
+const { payload } = await jwtVerify(jws, JWKS, {
+  issuer: "https://idp.example.com",
+});
+// payload.sub === userId
+// payload.cnf.jkt === rpJkt も別途確認すること
+```
+
+`jwtVerify` は署名 + `iss` / `exp` / `nbf` を一括検証する。`cnf.jkt` が自分の
+DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵はヘッダの `kid` (RFC
+7638 thumbprint) で JWKS から選択される — 鍵ローテーション時は新旧両方を JWKS
+に並べておけば自動で切り替わる。
+
+[RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515
+[RFC 7517]: https://www.rfc-editor.org/rfc/rfc7517
+[RFC 7519]: https://www.rfc-editor.org/rfc/rfc7519
+[RFC 9449]: https://www.rfc-editor.org/rfc/rfc9449
 
 ## 技術スタック
 
@@ -105,8 +145,10 @@ deno task test
 deno task bundle
 ```
 
-`pre-deploy` runs the bundler, so a deploy reads pre-built assets from
-`main/bundled/` (which is git-ignored).
+`pre-deploy` runs one-shot KV migrations (`main/server/migrate.ts`). It does
+**not** rebuild bundled assets — run `deno task build` separately before
+deploying so the deploy can read pre-built assets from `main/bundled/` (which is
+git-ignored).
 
 Notes:
 

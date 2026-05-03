@@ -7,6 +7,9 @@ export const routes = route({
   me: get("/me"),
   authorize: get("/authorize"),
 
+  // Public JWKS for verifiers (RFC 7517). No DPoP, no auth.
+  jwks: get("/.well-known/jwks.json"),
+
   // `auth:` — DPoP-bound passkey + raw session ops. Logical grouping only;
   // each URL stays at its original path because `route(defs)` uses the "/"
   // base.

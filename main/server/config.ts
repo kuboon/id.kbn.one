@@ -1,7 +1,6 @@
 const rpID = Deno.env.get("RP_ID") ?? "localhost";
 const rpName = Deno.env.get("RP_NAME") ?? "Local Development";
-const idpOriginValue = Deno.env.get("IDP_ORIGIN")?.trim();
-const idpOrigin = idpOriginValue || null;
+const idpOrigin = Deno.env.get("IDP_ORIGIN") ?? "http://localhost:3000";
 
 const authorizeWhitelist = (Deno.env.get("AUTHORIZE_WHITELIST") ?? "")
   .split(",")

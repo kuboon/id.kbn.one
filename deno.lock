@@ -9,6 +9,7 @@
     "jsr:@kuboon/tailwindcss-deno@~0.1.3": "0.1.3",
     "jsr:@negrel/http-ece@0.7.0": "0.7.0",
     "jsr:@negrel/webpush@0.5": "0.5.0",
+    "jsr:@panva/jose@^6.2.3": "6.2.3",
     "jsr:@simplewebauthn/browser@^13.2.2": "13.3.0",
     "jsr:@simplewebauthn/server@^13.2.2": "13.3.0",
     "jsr:@standard-schema/spec@1": "1.1.0",
@@ -98,6 +99,9 @@
         "jsr:@std/bytes",
         "jsr:@std/encoding@1"
       ]
+    },
+    "@panva/jose@6.2.3": {
+      "integrity": "57cc772f01b2ac60f847a7e6ec815059762768186266ed833fb59953e9611312"
     },
     "@simplewebauthn/browser@13.3.0": {
       "integrity": "2e837b14c06346e815dafa89270360c07a41411f62fa1ff3e0535de18ec2c8a5"
@@ -676,6 +680,7 @@
       "main/server": {
         "dependencies": [
           "jsr:@negrel/webpush@0.5",
+          "jsr:@panva/jose@^6.2.3",
           "jsr:@std/encoding@^1.0.10",
           "jsr:@std/media-types@^1.1.0"
         ]

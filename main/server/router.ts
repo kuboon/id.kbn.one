@@ -14,6 +14,7 @@ import { authorizeAction } from "./controllers/authorize.tsx";
 import { bindSessionAction } from "./controllers/bind-session.ts";
 import { credentialsController } from "./controllers/credentials.ts";
 import { homeAction } from "./controllers/home.tsx";
+import { jwksAction } from "./controllers/jwks.ts";
 import { meAction } from "./controllers/me.tsx";
 import { pushController } from "./controllers/push.ts";
 import { sessionAction, sessionLogoutAction } from "./controllers/session.ts";
@@ -32,6 +33,7 @@ const router = createRouter({ middleware });
 router.get(routes.home, homeAction);
 router.get(routes.me, meAction);
 router.get(routes.authorize, authorizeAction);
+router.get(routes.jwks, jwksAction);
 
 // auth: layer — DPoP-bound passkey + raw session ops.
 router.map(routes.auth, {

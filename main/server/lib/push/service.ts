@@ -1,12 +1,7 @@
 import { fromArrayBuffer } from "@hexagon/base64";
 import { pushContact } from "../../config.ts";
-import { Secret } from "../../secret.ts";
 import {
   ApplicationServer,
-  exportApplicationServerKey,
-  exportVapidKeys,
-  generateVapidKeys,
-  importVapidKeys,
   PushMessageError,
   type PushSubscription as WebPushSubscription,
   Urgency,
@@ -16,6 +11,7 @@ import {
   pushSubscriptionRepo,
   pushUserIndexRepoForUser,
 } from "../../repositories.ts";
+import { getSigningKey } from "../signing-key.ts";
 
 const encoder = new TextEncoder();
 
@@ -30,12 +26,6 @@ const hashSubscriptionEndpoint = async (endpoint: string): Promise<string> => {
   );
   return fromArrayBuffer(digest, true);
 };
-
-interface StoredVapidKeysRecord {
-  keys: Awaited<ReturnType<typeof exportVapidKeys>>;
-  createdAt: number;
-  updatedAt: number;
-}
 
 export interface PushSubscriptionMetadata {
   deviceName?: string;
@@ -97,33 +87,16 @@ export class PushService {
   ) {}
 
   static async create(): Promise<PushService> {
-    const vapidSecret = await Secret<StoredVapidKeysRecord>(
-      "push_vapid_keys",
-      async () => {
-        const generated = await generateVapidKeys({ extractable: true });
-        const exported = await exportVapidKeys(generated);
-        const now = Date.now();
-        return {
-          keys: exported,
-          createdAt: now,
-          updatedAt: now,
-        };
-      },
-    );
-
-    const storedVapidKeys = await vapidSecret.get();
-    const vapidKeys = await importVapidKeys(storedVapidKeys.keys);
-
+    const { keyPair, publicKey } = await getSigningKey();
     const applicationServer = await ApplicationServer.new({
       contactInformation: pushContact,
-      vapidKeys,
+      vapidKeys: keyPair,
     });
-    const vapidPublicKey = await exportApplicationServerKey(vapidKeys);
     return new PushService(
       pushSubscriptionRepo,
       pushUserIndexRepoForUser,
       applicationServer,
-      vapidPublicKey,
+      publicKey,
     );
   }
 

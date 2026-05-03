@@ -14,5 +14,7 @@ export const accountDeleteAction = async (
   const user = context.get(User);
   await credentialRepository.deleteCredentialsByUserId(user.id);
   user.logout();
-  return Response.json({ success: true }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ success: true }, {
+    headers: { "Cache-Control": "no-store" },
+  });
 };
