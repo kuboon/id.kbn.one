@@ -43,7 +43,7 @@ export interface StoredPushSubscription {
   id: string;
   userId: string;
   endpoint: string;
-  expirationTime: number | undefined;
+  expirationTime: number | null | undefined;
   keys: WebPushSubscription["keys"];
   createdAt: number;
   updatedAt: number;

@@ -5,7 +5,7 @@
  * migrations should be appended below and invoked from `main()`.
  */
 
-import { getKvInstance } from "./kvInstance.ts";
+import { getKvInstance } from "../kvInstance.ts";
 
 interface OldVapidKeysRecord {
   keys: { publicKey: JsonWebKey; privateKey: JsonWebKey };

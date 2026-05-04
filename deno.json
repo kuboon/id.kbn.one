@@ -5,7 +5,7 @@
     "build": "deno task --cwd=main/bundler build",
     "dev": "deno task build && deno task --cwd=main/server serve",
     "serve": "deno task --cwd=main/server serve",
-    "pre-deploy": "deno run -P main/server/migrate.ts"
+    "pre-deploy": "echo 'nothing to do'"
   },
   "workspace": [
     "main/client",

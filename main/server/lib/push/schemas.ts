@@ -6,7 +6,7 @@ export const subscriptionIdParamSchema = type({
 
 export const pushSubscriptionPayloadSchema = type({
   endpoint: "string>0",
-  "expirationTime?": "number",
+  "expirationTime?": "number | null",
   keys: {
     auth: "string>0",
     p256dh: "string>0",
