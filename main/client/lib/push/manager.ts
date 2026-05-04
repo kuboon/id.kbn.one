@@ -97,7 +97,6 @@ export function createPushManager(deps: PushManagerDeps): PushManager {
   };
 
   const load = async (initial = false): Promise<void> => {
-    if (!state.supported) return;
     try {
       const r = await fetchDpop("/push/subscriptions");
       if (!r.ok) throw new Error(await extractErrorMessage(r));
@@ -106,7 +105,7 @@ export function createPushManager(deps: PushManagerDeps): PushManager {
       };
       const subs = Array.isArray(data.subscriptions) ? data.subscriptions : [];
       state.subscriptions = subs;
-      if (initial && isClientEnv) {
+      if (initial && isClientEnv && state.supported) {
         try {
           const reg = await navigator.serviceWorker.getRegistration();
           const existing = await reg?.pushManager.getSubscription();
