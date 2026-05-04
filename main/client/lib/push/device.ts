@@ -41,11 +41,10 @@ export const pushSummaryText = (s: {
   permission: NotificationPermission;
   hasSubscription: boolean;
 }): string => {
-  if (!s.supported) return "このブラウザーは Web Push に対応していません。";
-  if (s.permission === "denied") {
+  if (s.supported && s.permission === "denied") {
     return "通知がブロックされています。ブラウザーの設定から通知を許可してください。";
   }
-  if (s.permission === "granted") {
+  if (s.supported && s.permission === "granted") {
     return "通知が許可されています。テスト通知を送信して動作を確認できます。";
   }
   return "通知を許可するとサインイン時にスマートフォンへプッシュ通知を送れます。";

@@ -555,12 +555,7 @@ export const Me = clientEntry(
                     </div>
                   </header>
                   <ul class="mt-3 space-y-3">
-                    {!push.supported && (
-                      <li class="text-base-content/60 italic">
-                        このブラウザーは Web Push に対応していません。
-                      </li>
-                    )}
-                    {push.supported && push.subscriptions.length === 0 && (
+                    {push.subscriptions.length === 0 && (
                       <li class="text-base-content/60 italic">
                         まだ通知を受け取るデバイスが登録されていません。
                       </li>
@@ -641,6 +636,11 @@ export const Me = clientEntry(
                       </li>
                     ))}
                   </ul>
+                  {!push.supported && (
+                    <p class="text-sm text-base-content/60 italic mt-3">
+                      このブラウザーは Web Push に対応していません。
+                    </p>
+                  )}
                   <button
                     type="button"
                     disabled={!push.supported ||
