@@ -28,7 +28,14 @@ export const routes = route({
       update: patch("/:credentialId"),
       delete: del("/:credentialId"),
     }),
+  }),
+  cors: route({
+    session: get("/session"),
+    sessionLogout: post("/session/logout"),
 
+    // All push endpoints are CORS-enabled so RP frontends on different
+    // origins can read the VAPID public key, manage subscriptions, and
+    // trigger notifications for the signed-in user.
     push: route("push", {
       vapidKey: get("/vapid-key"),
       listSubscriptions: get("/subscriptions"),
@@ -36,10 +43,7 @@ export const routes = route({
       updateSubscription: patch("/subscriptions/:id"),
       deleteSubscription: del("/subscriptions/:id"),
       testNotification: post("/notifications/test"),
+      sendNotification: post("/notifications"),
     }),
-  }),
-  cors: route({
-    session: get("/session"),
-    sessionLogout: post("/session/logout"),
   }),
 });

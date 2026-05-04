@@ -30,8 +30,23 @@ const errorHandler: Middleware = async (_context, next) => {
   }
 };
 
+const corsMiddleware = cors({
+  origin: (origin) => allowedOrigins(origin) ?? false,
+  credentials: true,
+  allowedHeaders: ["content-type", "dpop", "authorization"],
+});
+
+/**
+ * Root-level middleware applied to every request.
+ *
+ * `corsMiddleware` runs here (not inside a route group) so that OPTIONS
+ * preflights — which never match a method-specific route and therefore
+ * skip route-scoped middleware — still get a proper 204 with CORS
+ * headers.
+ */
 export const middleware = [
   errorHandler,
+  corsMiddleware,
   staticFiles(bundledDir),
 ];
 
@@ -48,10 +63,9 @@ export const authMiddleware = [dpop] as const;
  */
 export const userApiMiddleware = [dpop, requireUser] as const;
 
-const corsMiddleware = cors({
-  origin: (origin) => allowedOrigins(origin) ?? false,
-  credentials: true,
-  allowedHeaders: ["content-type", "dpop", "authorization"],
-});
-
-export const corsMiddlewares = [dpop, requireUser, corsMiddleware] as const;
+/**
+ * `cors:` layer — userApi semantics for cross-origin callers. The CORS
+ * middleware itself is in the root chain (above) so preflights resolve
+ * before routing; this layer just adds DPoP + requireUser.
+ */
+export const corsMiddlewares = [dpop, requireUser] as const;

@@ -50,7 +50,6 @@ router.map(routes.userApi, {
     bindSession: bindSessionAction,
     accountDelete: accountDeleteAction,
     credentials: credentialsController,
-    push: pushController,
   },
 });
 
@@ -59,6 +58,7 @@ router.map(routes.cors, {
   actions: {
     session: sessionAction,
     sessionLogout: sessionLogoutAction,
+    push: pushController,
   },
 });
 
