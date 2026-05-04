@@ -12,6 +12,7 @@ const CLIENT_ENTRIES = [
   "me.tsx",
   "authorize.tsx",
   "sw.js",
+  "rp.ts",
 ] as const;
 
 export async function buildJs(
