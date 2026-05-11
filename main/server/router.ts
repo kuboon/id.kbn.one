@@ -15,6 +15,10 @@ import { bindSessionAction } from "./controllers/bind-session.ts";
 import { credentialsController } from "./controllers/credentials.ts";
 import { homeAction } from "./controllers/home.tsx";
 import { jwksAction } from "./controllers/jwks.ts";
+import { authorizeCodeAction } from "./lib/oidc/controller/authorize-code.ts";
+import { openidConfigurationAction } from "./lib/oidc/controller/openid-configuration.ts";
+import { tokenAction } from "./lib/oidc/controller/token.ts";
+import { userinfoAction } from "./lib/oidc/controller/userinfo.ts";
 import { meAction } from "./controllers/me.tsx";
 import { pushController } from "./controllers/push.ts";
 import { sessionAction, sessionLogoutAction } from "./controllers/session.ts";
@@ -34,6 +38,9 @@ router.get(routes.home, homeAction);
 router.get(routes.me, meAction);
 router.get(routes.authorize, authorizeAction);
 router.get(routes.jwks, jwksAction);
+router.get(routes.openidConfiguration, openidConfigurationAction);
+router.post(routes.token, tokenAction);
+router.get(routes.userinfo, userinfoAction);
 
 // auth: layer — DPoP-bound passkey + raw session ops.
 router.map(routes.auth, {
@@ -48,6 +55,7 @@ router.map(routes.userApi, {
   middleware: userApiMiddleware,
   actions: {
     bindSession: bindSessionAction,
+    authorizeCode: authorizeCodeAction,
     accountDelete: accountDeleteAction,
     credentials: credentialsController,
   },

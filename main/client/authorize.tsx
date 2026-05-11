@@ -1,10 +1,15 @@
 /**
  * IdP authorize landing (`/authorize`) — Remix v3 clientEntry component.
  *
- * The server validates `dpop_jkt` + `redirect_uri` on the URL and passes
- * the validated values as props, so the component can drive the IdP probe
- * / passkey / bind / redirect flow without re-parsing the URL on the
- * client.
+ * Two modes:
+ *   - "dpop": simple DPoP-jkt flow used by first-party RPs. After passkey
+ *     auth, POST /bind_session binds the RP's DPoP key, then
+ *     `location.replace(redirectUri)` (no query params). The RP fetches
+ *     `/session` with its DPoP key to get a bound JWS.
+ *   - "oidc": OIDC Authorization Code flow for third-party RPs that
+ *     speak standard OIDC. After passkey auth, POST /authorize/code
+ *     issues a one-time code, then redirect to
+ *     `redirect_uri?code=...&state=...`.
  */
 
 import {
@@ -19,9 +24,18 @@ import { init as initDpop } from "@kuboon/dpop";
 type AlertKind = "info" | "success" | "warning" | "error";
 
 export interface AuthorizeProps {
-  dpopJkt: string;
-  redirectUri: string;
+  mode: "dpop" | "oidc";
   rpOrigin: string;
+  // dpop mode
+  dpopJkt?: string;
+  redirectUri?: string;
+  // oidc mode
+  oidcClientId?: string;
+  oidcRedirectUri?: string;
+  oidcScope?: string;
+  oidcState?: string;
+  oidcNonce?: string;
+  oidcCodeChallenge?: string;
   [key: string]: SerializableValue;
 }
 
@@ -32,7 +46,7 @@ const isClientEnv = typeof globalThis !== "undefined" &&
 export const Authorize = clientEntry(
   "/authorize.js#Authorize",
   function Authorize(handle: Handle<AuthorizeProps>) {
-    const { dpopJkt, redirectUri, rpOrigin } = handle.props;
+    const props = handle.props;
 
     let status: { message: string; kind: AlertKind } = {
       message: "セッションを確認しています…",
@@ -58,13 +72,13 @@ export const Authorize = clientEntry(
       }
     };
 
-    const bindAndRedirect = async () => {
+    const finalizeDpop = async () => {
       if (!fetchDpop) throw new Error("DPoP not initialized");
       setStatus("セッションを連携しています…");
       const r = await fetchDpop("/bind_session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dpop_jkt: dpopJkt }),
+        body: JSON.stringify({ dpop_jkt: props.dpopJkt }),
       });
       if (!r.ok) {
         let message = `セッションの連携に失敗しました (HTTP ${r.status})`;
@@ -81,8 +95,49 @@ export const Authorize = clientEntry(
       }
       phase = "redirecting";
       setStatus("リダイレクトしています…", "success");
-      location.replace(redirectUri);
+      location.replace(props.redirectUri!);
     };
+
+    const finalizeOidc = async () => {
+      if (!fetchDpop) throw new Error("DPoP not initialized");
+      setStatus("認可コードを発行しています…");
+      const body = {
+        client_id: props.oidcClientId,
+        redirect_uri: props.oidcRedirectUri,
+        scope: props.oidcScope,
+        state: props.oidcState,
+        nonce: props.oidcNonce || undefined,
+        code_challenge: props.oidcCodeChallenge,
+        code_challenge_method: "S256",
+      };
+      const r = await fetchDpop("/authorize/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        let message = `認可コードの発行に失敗しました (HTTP ${r.status})`;
+        try {
+          const data = await r.json() as {
+            error_description?: unknown;
+            message?: unknown;
+          };
+          if (typeof data?.error_description === "string") {
+            message = data.error_description;
+          } else if (typeof data?.message === "string") {
+            message = data.message;
+          }
+        } catch { /* ignore */ }
+        throw new Error(message);
+      }
+      const { redirect_to } = await r.json() as { redirect_to: string };
+      phase = "redirecting";
+      setStatus("リダイレクトしています…", "success");
+      location.replace(redirect_to);
+    };
+
+    const finalize = () =>
+      props.mode === "oidc" ? finalizeOidc() : finalizeDpop();
 
     const handleSigninError = (error: unknown, fallback: string) => {
       let message = fallback;
@@ -105,7 +160,7 @@ export const Authorize = clientEntry(
       try {
         setStatus("パスキーの操作を待機しています…");
         await passkeyClient.authenticate();
-        await bindAndRedirect();
+        await finalize();
       } catch (error) {
         handleSigninError(error, "サインインに失敗しました");
         busy.signin = false;
@@ -126,7 +181,7 @@ export const Authorize = clientEntry(
       try {
         setStatus("セキュリティキーの操作を待機しています…");
         await passkeyClient.register({ userId });
-        await bindAndRedirect();
+        await finalize();
       } catch (error) {
         handleSigninError(error, "アカウントの作成に失敗しました");
         busy.register = false;
@@ -142,7 +197,7 @@ export const Authorize = clientEntry(
 
         const session = await getSession();
         if (session?.userId) {
-          await bindAndRedirect();
+          await finalize();
           return;
         }
         phase = "needs-action";
@@ -169,9 +224,9 @@ export const Authorize = clientEntry(
               <span>{status.message}</span>
             </div>
 
-            {rpOrigin && (
+            {props.rpOrigin && (
               <p class="text-sm text-base-content/70">
-                {rpOrigin} からのサインインリクエストです。
+                {props.rpOrigin} からのサインインリクエストです。
               </p>
             )}
 

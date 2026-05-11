@@ -10,6 +10,16 @@ export const routes = route({
   // Public JWKS for verifiers (RFC 7517). No DPoP, no auth.
   jwks: get("/.well-known/jwks.json"),
 
+  // OpenID Connect Discovery 1.0 metadata. No DPoP, no auth.
+  openidConfiguration: get("/.well-known/openid-configuration"),
+
+  // OIDC token endpoint — Bearer access_token + id_token issuance.
+  // No DPoP (public client + PKCE per RFC 7636).
+  token: post("/token"),
+
+  // OIDC UserInfo endpoint — Bearer-authenticated.
+  userinfo: get("/userinfo"),
+
   // `auth:` — DPoP-bound passkey + raw session ops. Logical grouping only;
   // each URL stays at its original path because `route(defs)` uses the "/"
   // base.
@@ -21,6 +31,7 @@ export const routes = route({
   // `context.get(User)` (id + logout()) instead of touching DPoP directly.
   userApi: route({
     bindSession: post("/bind_session"),
+    authorizeCode: post("/authorize/code"),
     accountDelete: del("/account"),
 
     credentials: route("credentials", {

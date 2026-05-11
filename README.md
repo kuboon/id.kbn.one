@@ -7,10 +7,19 @@
 - rp.example.com: Relying Party (= service provider)
 - idp.example.com: ID Provider (this repo)
 
-パスキー認証は IdP に集約。RP は DPoP 鍵を持ち、IdP のセッションを自分の jkt
-(JWK SHA-256 thumbprint) に bind してもらう。
+パスキー認証は IdP に集約。RP は 2 種類の経路から選べる:
 
-### サインインフロー
+- **Simple (DPoP)** — 自作 first-party RP 向け。RP は DPoP 鍵を持ち、IdP
+  セッションを自分の jkt (JWK SHA-256 thumbprint) に bind してもらう。トークンは
+  `/session` 経由で取得し DPoP-bound JWS が返る
+- **OIDC Authorization Code (PKCE 必須)** — Outline などサードパーティ RP
+  向け。標準の `/.well-known/openid-configuration` discovery 対応。public
+  client、`client_secret` は受理するが検証しない
+
+両者は同じ `/authorize` を入口に持ち、クエリで分岐 (`response_type=code`
+があれば OIDC、なければ DPoP)。
+
+### Simple (DPoP) サインインフロー
 
 1. RP のブラウザが DPoP 鍵ペアを生成 (IndexedDB 保存) → `rp_jkt` を計算
 2. RP が遷移:
@@ -67,6 +76,30 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 [RFC 7517]: https://www.rfc-editor.org/rfc/rfc7517
 [RFC 7519]: https://www.rfc-editor.org/rfc/rfc7519
 [RFC 9449]: https://www.rfc-editor.org/rfc/rfc9449
+
+### OIDC Authorization Code フロー
+
+Outline など標準 OIDC を喋るサードパーティ RP 向け。
+
+1. RP が
+   `https://idp.example.com/authorize?response_type=code&client_id=<rp_origin>&redirect_uri=<cb>&scope=openid+profile+email&state=<csrf>&code_challenge=<S256>&code_challenge_method=S256`
+   にブラウザを飛ばす
+   - `client_id` は RP の origin、`redirect_uri` は同 origin かつ
+     `AUTHORIZE_WHITELIST` 配下である必要あり
+2. IdP がパスキー認証を実施 → 認証成功後、IdP フロントが内部
+   `POST /authorize/code` (DPoP-bound) で one-time code を発行
+3. ブラウザを `redirect_uri?code=...&state=...` に戻す
+4. RP が `POST /token` (form-encoded) に
+   `grant_type=authorization_code&code=...&redirect_uri=...&client_id=...&code_verifier=...`
+   を投げて、`{ access_token, id_token, token_type, expires_in, scope }` を取得
+5. (任意) `GET /userinfo` に `Authorization: Bearer <access_token>` で
+   `{ sub, email, preferred_username, name }` を取得 (scope に応じて
+   `profile`/`email` claim が含まれる)
+
+設定は **public client + PKCE 必須**。`client_secret` の検証は行わないが RP
+ライブラリが要求する場合は適当な値をセットして良い。`email` は
+`<userId>@<idp host>` で合成される。詳細メタデータは
+`/.well-known/openid-configuration` を参照。
 
 ## 技術スタック
 
