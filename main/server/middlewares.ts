@@ -6,6 +6,7 @@ import { authorizeWhitelist, idpOrigin } from "./config.ts";
 import { dpop } from "./middleware/dpop.ts";
 import { AuthRequiredError } from "./middleware/auth.ts";
 import { requireUser } from "./middleware/user.ts";
+import { requireRpClient } from "./middleware/rp.ts";
 
 const allowedOrigins = (origin: string): string | undefined => {
   if (idpOrigin && origin === idpOrigin) return origin;
@@ -69,3 +70,10 @@ export const userApiMiddleware = [dpop, requireUser] as const;
  * before routing; this layer just adds DPoP + requireUser.
  */
 export const corsMiddlewares = [dpop, requireUser] as const;
+
+/**
+ * `rpApi:` layer — server-to-server callers. `requireRpClient` verifies the
+ * `private_key_jwt` client assertion and exposes `RpClient`; there is no DPoP
+ * or browser session here.
+ */
+export const rpApiMiddleware = [requireRpClient] as const;

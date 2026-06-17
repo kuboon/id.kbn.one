@@ -68,6 +68,93 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 [RFC 7519]: https://www.rfc-editor.org/rfc/rfc7519
 [RFC 9449]: https://www.rfc-editor.org/rfc/rfc9449
 
+## Push 通知
+
+### 一斉通知 (`POST /push/notifications`)
+
+サインイン中ユーザ自身（ブラウザの DPoP セッション）から、自分のデバイスへ通知を
+送る。宛先の指定方法:
+
+| ボディ                      | 宛先                                             |
+| --------------------------- | ------------------------------------------------ |
+| `subscriptionIds: string[]` | 指定した複数の購読（重複は除去）                 |
+| `subscriptionId: string`    | 単一の購読（`subscriptionIds` と同時指定は 400） |
+| どちらも省略                | そのユーザの全デバイス                           |
+
+1リクエストあたり最大 500 宛先。送信は同時実行 10
+のワーカープールで処理する（push
+サービスのレート制限・アウトバウンド接続上限への
+配慮）。それ以上はリクエスト分割で。
+
+### RPサーバ起点の通知 (`POST /rp/notifications`)
+
+ブラウザ（エンドユーザの DPoP
+鍵）を経由せず、**RPサーバ自身**から通知を送る経路。 DPoP
+セッションは使えないので、RP は **`private_key_jwt` クライアントアサーション**
+([RFC 7521] / [RFC 7523]) で認証する。**共通鍵は不要** — IdP は RP
+の公開鍵だけを 保持し、RP の秘密鍵で署名された JWS を検証する。
+
+事前に IdP の `RP_PUSH_CLIENTS` 環境変数へ RP
+の公開鍵を登録する（鍵ローテーション時 は新旧を並べる）:
+
+```json
+[
+  {
+    "clientId": "rp.example.com",
+    "keys": [
+      {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "…",
+        "y": "…",
+        "alg": "ES256",
+        "kid": "…"
+      }
+    ]
+  }
+]
+```
+
+RP 側は秘密鍵でクライアントアサーションを署名し、`Authorization` ヘッダに載せて
+POST する:
+
+```ts
+import { calculateJwkThumbprint, SignJWT } from "jose";
+
+// privateKey: RP の ES256 秘密鍵 (CryptoKey)。kid は登録済 JWK と一致させる。
+const now = Math.floor(Date.now() / 1000);
+const assertion = await new SignJWT({})
+  .setProtectedHeader({ alg: "ES256", typ: "client-assertion+jwt", kid })
+  .setIssuer("rp.example.com") // = clientId
+  .setSubject("rp.example.com") // = clientId
+  .setAudience("https://id.kbn.one") // = IDP_ORIGIN
+  .setIssuedAt(now)
+  .setExpirationTime(now + 60)
+  .setJti(crypto.randomUUID()) // 単回利用（リプレイ防止）
+  .sign(privateKey);
+
+const res = await fetch("https://id.kbn.one/rp/notifications", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    authorization: `Bearer ${assertion}`,
+  },
+  body: JSON.stringify({
+    // 宛先: userIds / userId / subscriptionIds のいずれか1つ以上
+    userIds: ["user-1", "user-2"],
+    notification: { title: "Hi", body: "Notification from RP server" },
+  }),
+});
+// → { results: [{ userId, subscriptionId, ok, removed, warnings } | … ],
+//     unknownSubscriptionIds: [] }
+```
+
+登録済みの RP は任意のユーザに送信できる。宛先解決後の上限・同時実行は一斉通知と
+同じ（最大 500 宛先 / 同時 10）。
+
+[RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
+[RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523
+
 ## 技術スタック
 
 - ランタイム: **Deno** (`Deno.bundle`, `Deno.openKv`)
@@ -105,6 +192,8 @@ mise use -g deno
 - `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use `/authorize`
   and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
 - `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
+- `RP_PUSH_CLIENTS` (JSON: RPサーバ起点通知を許可する RP の `clientId`
+  と公開鍵。 下記「RPサーバ起点の通知」参照)
 
 ## Project layout
 

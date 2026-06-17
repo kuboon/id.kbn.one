@@ -50,6 +50,16 @@ export const sendNotificationBodySchema = type({
   notification: pushNotificationContentSchema,
 });
 
+// RP-server fan-out: target by user(s) and/or explicit subscription id(s).
+// At least one targeting field must be present (enforced in the controller),
+// since a registered RP could otherwise notify every user at once.
+export const rpSendNotificationBodySchema = type({
+  "userId?": "string>0",
+  "userIds?": "string>0[]",
+  "subscriptionIds?": "string>0[]",
+  notification: pushNotificationContentSchema,
+});
+
 // Infer types from schemas
 export type SubscriptionIdParam = typeof subscriptionIdParamSchema.infer;
 export type PushSubscriptionPayload =
@@ -60,3 +70,4 @@ export type TestNotificationBody = typeof testNotificationBodySchema.infer;
 export type PushNotificationContent =
   typeof pushNotificationContentSchema.infer;
 export type SendNotificationBody = typeof sendNotificationBodySchema.infer;
+export type RpSendNotificationBody = typeof rpSendNotificationBodySchema.infer;

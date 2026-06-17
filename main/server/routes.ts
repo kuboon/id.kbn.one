@@ -29,6 +29,13 @@ export const routes = route({
       delete: del("/:credentialId"),
     }),
   }),
+  // `rpApi:` — server-to-server endpoints authenticated by a `private_key_jwt`
+  // client assertion (no browser / DPoP, no CORS). A registered RP may push to
+  // any user.
+  rpApi: route("rp", {
+    sendNotification: post("/notifications"),
+  }),
+
   cors: route({
     session: get("/session"),
     sessionLogout: post("/session/logout"),

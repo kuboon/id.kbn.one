@@ -46,6 +46,7 @@
         "IDP_ORIGIN",
         "AUTHORIZE_WHITELIST",
         "PUSH_CONTACT",
+        "RP_PUSH_CLIENTS",
         "DENO_KV_ACCESS_TOKEN"
       ],
       "net": [

@@ -8,25 +8,28 @@
 
 import type { RequestContext } from "@remix-run/fetch-router";
 import { type } from "arktype";
-import { Urgency } from "@negrel/webpush";
 
 import { pushContact } from "../config.ts";
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
 import {
-  type PushNotificationPayload,
   pushService,
   type PushSubscriptionMetadata,
   type StoredPushSubscription,
 } from "../lib/push/service.ts";
 import {
-  type PushNotificationContent,
   pushSubscriptionBodySchema,
   sendNotificationBodySchema,
   subscriptionIdParamSchema,
   testNotificationBodySchema,
   updateMetadataBodySchema,
 } from "../lib/push/schemas.ts";
+import {
+  mapWithConcurrency,
+  MAX_NOTIFICATION_TARGETS,
+  PUSH_SEND_CONCURRENCY,
+  toServicePayload,
+} from "../lib/push/dispatch.ts";
 
 const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
   if (!metadata || typeof metadata !== "object") {
@@ -97,73 +100,6 @@ const validateParams = <T>(
   }
   return result;
 };
-
-/**
- * Upper bound on how many subscriptions a single `POST /push/notifications`
- * call may target. Web Push itself imposes no protocol limit, but each target
- * is an independent HTTPS request to a push service, so we cap the request to
- * keep latency and outbound connection use bounded. Larger audiences should be
- * split across multiple calls (or a future queue-backed job).
- */
-const MAX_NOTIFICATION_TARGETS = 500;
-
-/**
- * How many push deliveries run at once. Push services (FCM / Mozilla / Apple)
- * rate-limit aggressive senders, and the runtime caps concurrent outbound
- * connections, so we drain targets through a bounded worker pool rather than
- * firing every request simultaneously.
- */
-const PUSH_SEND_CONCURRENCY = 10;
-
-/**
- * Run `fn` over `items` with at most `limit` in flight at a time, preserving
- * input order in the returned settled results.
- */
-const mapWithConcurrency = async <T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<PromiseSettledResult<R>[]> => {
-  const results = new Array<PromiseSettledResult<R>>(items.length);
-  let cursor = 0;
-  const worker = async () => {
-    while (cursor < items.length) {
-      const index = cursor++;
-      try {
-        results[index] = {
-          status: "fulfilled",
-          value: await fn(items[index], index),
-        };
-      } catch (reason) {
-        results[index] = { status: "rejected", reason };
-      }
-    }
-  };
-  const workers = Array.from(
-    { length: Math.min(limit, items.length) },
-    () => worker(),
-  );
-  await Promise.all(workers);
-  return results;
-};
-
-const toServicePayload = (
-  content: PushNotificationContent,
-): PushNotificationPayload => ({
-  title: content.title,
-  body: content.body,
-  url: content.url,
-  icon: content.icon,
-  badge: content.badge,
-  tag: content.tag,
-  requireInteraction: content.requireInteraction,
-  data: content.data && typeof content.data === "object"
-    ? content.data as Record<string, unknown>
-    : undefined,
-  urgency: content.urgency as Urgency | undefined,
-  ttl: content.ttl,
-  topic: content.topic,
-});
 
 export const pushController = {
   actions: {
