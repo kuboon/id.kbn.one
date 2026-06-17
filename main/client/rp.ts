@@ -3,8 +3,8 @@
  * web app.
  *
  * Wraps the DPoP key bootstrap, `/authorize` redirect, `/session` lookup,
- * and the push subscription / dispatch endpoints into a single object so
- * an RP can ship a sign-in + push integration in a few lines:
+ * and push subscription management into a single object so an RP frontend
+ * can ship a sign-in + push-registration integration in a few lines:
  *
  * @example
  * ```ts
@@ -16,26 +16,13 @@
  * if (!session) rp.signIn();        // navigates to /authorize
  *
  * await rp.registerPush({ serviceWorkerUrl: "/sw.js" });
- * await rp.sendPush({ title: "Hi", body: "Notification from RP" });
  * ```
+ *
+ * Sending notifications is server-initiated — the RP *server* calls
+ * `POST /rp/notifications` (see README "RPサーバ起点の通知"), not this client.
  */
 
 import { init as initDpop } from "@kuboon/dpop";
-
-/** Notification payload accepted by `sendPush` — mirrors the IdP schema. */
-export interface PushNotificationContent {
-  title: string;
-  body: string;
-  url?: string;
-  icon?: string;
-  badge?: string;
-  tag?: string;
-  requireInteraction?: boolean;
-  data?: Record<string, unknown>;
-  urgency?: "very-low" | "low" | "normal" | "high";
-  ttl?: number;
-  topic?: string;
-}
 
 export interface SessionResult {
   /** Stable user id assigned by the IdP. */
@@ -43,22 +30,6 @@ export interface SessionResult {
   /** Compact JWS signed by the IdP — verify with `/.well-known/jwks.json`. */
   jws: string;
 }
-
-export type PushSendResult = {
-  results: Array<
-    | {
-      subscriptionId: string;
-      ok: true;
-      removed: boolean;
-      warnings: string[];
-    }
-    | {
-      subscriptionId: string;
-      ok: false;
-      error: string;
-    }
-  >;
-};
 
 export interface RpClientOptions {
   /** IdP origin, e.g. `"https://id.kbn.one"`. Must include scheme, no path. */
@@ -75,21 +46,6 @@ export interface RegisterPushOptions {
   serviceWorkerUrl?: string;
   /** Free-form metadata stored alongside the subscription on the IdP. */
   metadata?: Record<string, unknown>;
-}
-
-export interface SendPushOptions {
-  /**
-   * Target a specific subscription. Mutually exclusive with
-   * {@link subscriptionIds}.
-   */
-  subscriptionId?: string;
-  /**
-   * Target several subscriptions in one call. Mutually exclusive with
-   * {@link subscriptionId}. If both are omitted, the IdP fans the
-   * notification out to every subscription registered for the signed-in
-   * user.
-   */
-  subscriptionIds?: string[];
 }
 
 export interface RpClient {
@@ -119,16 +75,6 @@ export interface RpClient {
    * notification permission (the helper requests permission if needed).
    */
   registerPush(opts?: RegisterPushOptions): Promise<{ id: string }>;
-
-  /**
-   * Trigger a notification through the IdP — to a specific subscription if
-   * `opts.subscriptionId` is set, otherwise to all of the user's
-   * registered devices.
-   */
-  sendPush(
-    notification: PushNotificationContent,
-    opts?: SendPushOptions,
-  ): Promise<PushSendResult>;
 }
 
 const trimTrailingSlash = (value: string): string =>
@@ -248,24 +194,6 @@ export const createRpClient = async (
     return { id: data.subscription.id };
   };
 
-  const sendPush = async (
-    notification: PushNotificationContent,
-    sendOpts: SendPushOptions = {},
-  ): Promise<PushSendResult> => {
-    const response = await fetchDpop(idp("/push/notifications"), {
-      ...baseInit,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subscriptionId: sendOpts.subscriptionId,
-        subscriptionIds: sendOpts.subscriptionIds,
-        notification,
-      }),
-    });
-    await expectOk(response, "POST /push/notifications");
-    return await response.json() as PushSendResult;
-  };
-
   return {
     thumbprint,
     fetchDpop,
@@ -273,6 +201,5 @@ export const createRpClient = async (
     getSession,
     signOut,
     registerPush,
-    sendPush,
   };
 };

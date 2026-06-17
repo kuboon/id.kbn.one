@@ -70,21 +70,10 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 
 ## Push 通知
 
-### 一斉通知 (`POST /push/notifications`)
-
-サインイン中ユーザ自身（ブラウザの DPoP セッション）から、自分のデバイスへ通知を
-送る。宛先の指定方法:
-
-| ボディ                      | 宛先                                             |
-| --------------------------- | ------------------------------------------------ |
-| `subscriptionIds: string[]` | 指定した複数の購読（重複は除去）                 |
-| `subscriptionId: string`    | 単一の購読（`subscriptionIds` と同時指定は 400） |
-| どちらも省略                | そのユーザの全デバイス                           |
-
-1リクエストあたり最大 500 宛先。送信は同時実行 10
-のワーカープールで処理する（push
-サービスのレート制限・アウトバウンド接続上限への
-配慮）。それ以上はリクエスト分割で。
+通知の送信は **常にサーバ起点** で行う（`POST /rp/notifications`）。ブラウザ
+（エンドユーザ）からの送信エンドポイントは無い。`/push/*` はブラウザからの
+購読管理（VAPID 公開鍵取得・subscription の CRUD・デバイス自己テスト
+`POST /push/notifications/test`）のみを担う。
 
 ### RPサーバ起点の通知 (`POST /rp/notifications`)
 
@@ -140,17 +129,18 @@ const res = await fetch("https://id.kbn.one/rp/notifications", {
     authorization: `Bearer ${assertion}`,
   },
   body: JSON.stringify({
-    // 宛先: userIds / userId / subscriptionIds のいずれか1つ以上
+    // 宛先: userId / userIds のいずれか1つ以上。名指しした各ユーザの全デバイスへ。
     userIds: ["user-1", "user-2"],
     notification: { title: "Hi", body: "Notification from RP server" },
   }),
 });
-// → { results: [{ userId, subscriptionId, ok, removed, warnings } | … ],
-//     unknownSubscriptionIds: [] }
+// → { results: [{ userId, subscriptionId, ok, removed, warnings } | … ] }
 ```
 
-登録済みの RP は任意のユーザに送信できる。宛先解決後の上限・同時実行は一斉通知と
-同じ（最大 500 宛先 / 同時 10）。
+登録済みの RP は任意のユーザに送信できる。宛先（ユーザの全デバイス）は 1
+リクエストあたり最大 500、送信は同時実行 10 のワーカープールで処理する（push
+サービスのレート制限・アウトバウンド接続上限への配慮）。それ以上はリクエスト
+分割で。
 
 [RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
 [RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523

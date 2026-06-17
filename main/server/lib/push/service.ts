@@ -317,18 +317,6 @@ export class PushService {
     return value;
   }
 
-  /**
-   * Look up a subscription by id without an ownership filter. Used by trusted
-   * server-to-server callers (a registered RP) that may target any user; the
-   * returned `userId` is then passed back into {@link sendNotification} so the
-   * usual ownership-checked path still runs.
-   */
-  async getSubscriptionById(
-    id: string,
-  ): Promise<StoredPushSubscription | null> {
-    return await this.subscriptionRepo.entry(id).get();
-  }
-
   async sendNotification(
     userId: string,
     id: string,

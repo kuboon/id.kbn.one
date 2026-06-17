@@ -1,9 +1,10 @@
 /**
- * /push/* — VAPID key, subscriptions CRUD, and notification dispatch.
+ * /push/* — VAPID key, subscriptions CRUD, and the device self-test.
  *
  * Every endpoint here is exposed to the `cors:` route group so RP frontends
- * on a different origin can manage and trigger notifications for the
- * signed-in user.
+ * on a different origin can read the VAPID public key and manage the
+ * signed-in user's subscriptions. Sending app notifications is always
+ * server-initiated — see `controllers/rp-push.ts` (`POST /rp/notifications`).
  */
 
 import type { RequestContext } from "@remix-run/fetch-router";
@@ -19,17 +20,10 @@ import {
 } from "../lib/push/service.ts";
 import {
   pushSubscriptionBodySchema,
-  sendNotificationBodySchema,
   subscriptionIdParamSchema,
   testNotificationBodySchema,
   updateMetadataBodySchema,
 } from "../lib/push/schemas.ts";
-import {
-  mapWithConcurrency,
-  MAX_NOTIFICATION_TARGETS,
-  PUSH_SEND_CONCURRENCY,
-  toServicePayload,
-} from "../lib/push/dispatch.ts";
 
 const sanitizeMetadata = (metadata: unknown): PushSubscriptionMetadata => {
   if (!metadata || typeof metadata !== "object") {
@@ -211,68 +205,6 @@ export const pushController = {
             : "Failed to send notification",
         );
       }
-    },
-
-    async sendNotification(context: RequestContext) {
-      const { id: userId } = context.get(User);
-      const body = await validateBody(
-        context.request,
-        sendNotificationBodySchema,
-      );
-      if (body instanceof Response) return body;
-
-      if (body.subscriptionId && body.subscriptionIds) {
-        return errorResponse(
-          400,
-          "Provide either subscriptionId or subscriptionIds, not both",
-        );
-      }
-
-      const payload = toServicePayload(body.notification);
-
-      const explicit = body.subscriptionIds ??
-        (body.subscriptionId ? [body.subscriptionId] : undefined);
-      // De-duplicate explicit targets so a repeated id is only delivered once
-      // and only appears once in the results.
-      const targets = explicit
-        ? [...new Set(explicit)]
-        : (await pushService.listSubscriptions(userId)).map((s) => s.id);
-
-      if (targets.length === 0) {
-        return setNoStore(Response.json({ results: [] }));
-      }
-
-      if (targets.length > MAX_NOTIFICATION_TARGETS) {
-        return errorResponse(
-          400,
-          `Too many targets: ${targets.length} (max ${MAX_NOTIFICATION_TARGETS})`,
-        );
-      }
-
-      const settled = await mapWithConcurrency(
-        targets,
-        PUSH_SEND_CONCURRENCY,
-        (id) => pushService.sendNotification(userId, id, payload),
-      );
-
-      const results = settled.map((r, i) =>
-        r.status === "fulfilled"
-          ? {
-            subscriptionId: targets[i],
-            ok: true,
-            removed: r.value.removed ?? false,
-            warnings: r.value.warnings ?? [],
-          }
-          : {
-            subscriptionId: targets[i],
-            ok: false,
-            error: r.reason instanceof Error
-              ? r.reason.message
-              : String(r.reason),
-          }
-      );
-
-      return setNoStore(Response.json({ results }));
     },
   },
 };

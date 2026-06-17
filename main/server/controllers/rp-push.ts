@@ -1,9 +1,10 @@
 /**
  * `POST /rp/notifications` — server-to-server notification dispatch for a
  * registered RP, authenticated via a `private_key_jwt` client assertion (see
- * `middleware/rp.ts`). Unlike `POST /push/notifications` there is no browser
- * DPoP session: the RP names its targets explicitly by `userId(s)` and/or
- * `subscriptionIds`, and a registered RP may target any user.
+ * `middleware/rp.ts`). There is no browser DPoP session: the RP names its
+ * target users by `userId` / `userIds`, and a registered RP may target any
+ * user. The notification is delivered to every device the named users have
+ * registered.
  */
 
 import type { RequestContext } from "@remix-run/fetch-router";
@@ -23,7 +24,7 @@ import {
 const errorResponse = (status: number, message: string): Response =>
   Response.json({ message }, { status });
 
-/** A concrete delivery target: an owned subscription id. */
+/** A concrete delivery target: one user's subscription. */
 interface Target {
   userId: string;
   subscriptionId: string;
@@ -46,46 +47,27 @@ export const rpPushController = {
       return errorResponse(400, body.summary);
     }
 
-    const userIds = [
+    const userIds = new Set([
       ...(body.userId ? [body.userId] : []),
       ...(body.userIds ?? []),
-    ];
-    const subscriptionIds = body.subscriptionIds ?? [];
-    if (!userIds.length && !subscriptionIds.length) {
-      return errorResponse(
-        400,
-        "Provide at least one of userId, userIds, or subscriptionIds",
-      );
+    ]);
+    if (userIds.size === 0) {
+      return errorResponse(400, "Provide at least one of userId or userIds");
     }
 
     const payload = toServicePayload(body.notification);
 
-    // Resolve every target to an (owner, subscription) pair, de-duplicated by
-    // subscription id so a device reachable via both a userId and an explicit
-    // id is only notified once.
-    const byId = new Map<string, Target>();
-    for (const userId of new Set(userIds)) {
+    // Expand each user to their registered devices.
+    const targets: Target[] = [];
+    for (const userId of userIds) {
       const subs = await pushService.listSubscriptions(userId);
       for (const sub of subs) {
-        byId.set(sub.id, { userId, subscriptionId: sub.id });
+        targets.push({ userId, subscriptionId: sub.id });
       }
-    }
-    const unknownSubscriptionIds: string[] = [];
-    for (const id of new Set(subscriptionIds)) {
-      if (byId.has(id)) continue;
-      const sub = await pushService.getSubscriptionById(id);
-      if (!sub) {
-        unknownSubscriptionIds.push(id);
-        continue;
-      }
-      byId.set(id, { userId: sub.userId, subscriptionId: id });
     }
 
-    const targets = [...byId.values()];
     if (targets.length === 0) {
-      return setNoStore(
-        Response.json({ results: [], unknownSubscriptionIds }),
-      );
+      return setNoStore(Response.json({ results: [] }));
     }
     if (targets.length > MAX_NOTIFICATION_TARGETS) {
       return errorResponse(
@@ -119,6 +101,6 @@ export const rpPushController = {
         }
     );
 
-    return setNoStore(Response.json({ results, unknownSubscriptionIds }));
+    return setNoStore(Response.json({ results }));
   },
 };
