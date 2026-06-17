@@ -79,11 +79,17 @@ export interface RegisterPushOptions {
 
 export interface SendPushOptions {
   /**
-   * Target a specific subscription. If omitted, the IdP fans the
+   * Target a specific subscription. Mutually exclusive with
+   * {@link subscriptionIds}.
+   */
+  subscriptionId?: string;
+  /**
+   * Target several subscriptions in one call. Mutually exclusive with
+   * {@link subscriptionId}. If both are omitted, the IdP fans the
    * notification out to every subscription registered for the signed-in
    * user.
    */
-  subscriptionId?: string;
+  subscriptionIds?: string[];
 }
 
 export interface RpClient {
@@ -252,6 +258,7 @@ export const createRpClient = async (
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         subscriptionId: sendOpts.subscriptionId,
+        subscriptionIds: sendOpts.subscriptionIds,
         notification,
       }),
     });

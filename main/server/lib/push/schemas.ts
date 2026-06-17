@@ -41,7 +41,12 @@ export const pushNotificationContentSchema = type({
 });
 
 export const sendNotificationBodySchema = type({
+  // Single target (back-compat). Mutually exclusive with `subscriptionIds`.
   "subscriptionId?": "string>0",
+  // Multiple explicit targets for a one-shot fan-out. When omitted (and
+  // `subscriptionId` is also absent) the notification goes to every
+  // subscription of the signed-in user.
+  "subscriptionIds?": "string>0[]",
   notification: pushNotificationContentSchema,
 });
 

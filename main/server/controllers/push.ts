@@ -98,6 +98,55 @@ const validateParams = <T>(
   return result;
 };
 
+/**
+ * Upper bound on how many subscriptions a single `POST /push/notifications`
+ * call may target. Web Push itself imposes no protocol limit, but each target
+ * is an independent HTTPS request to a push service, so we cap the request to
+ * keep latency and outbound connection use bounded. Larger audiences should be
+ * split across multiple calls (or a future queue-backed job).
+ */
+const MAX_NOTIFICATION_TARGETS = 500;
+
+/**
+ * How many push deliveries run at once. Push services (FCM / Mozilla / Apple)
+ * rate-limit aggressive senders, and the runtime caps concurrent outbound
+ * connections, so we drain targets through a bounded worker pool rather than
+ * firing every request simultaneously.
+ */
+const PUSH_SEND_CONCURRENCY = 10;
+
+/**
+ * Run `fn` over `items` with at most `limit` in flight at a time, preserving
+ * input order in the returned settled results.
+ */
+const mapWithConcurrency = async <T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> => {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      try {
+        results[index] = {
+          status: "fulfilled",
+          value: await fn(items[index], index),
+        };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  };
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return results;
+};
+
 const toServicePayload = (
   content: PushNotificationContent,
 ): PushNotificationPayload => ({
@@ -236,18 +285,38 @@ export const pushController = {
       );
       if (body instanceof Response) return body;
 
+      if (body.subscriptionId && body.subscriptionIds) {
+        return errorResponse(
+          400,
+          "Provide either subscriptionId or subscriptionIds, not both",
+        );
+      }
+
       const payload = toServicePayload(body.notification);
 
-      const targets = body.subscriptionId
-        ? [body.subscriptionId]
+      const explicit = body.subscriptionIds ??
+        (body.subscriptionId ? [body.subscriptionId] : undefined);
+      // De-duplicate explicit targets so a repeated id is only delivered once
+      // and only appears once in the results.
+      const targets = explicit
+        ? [...new Set(explicit)]
         : (await pushService.listSubscriptions(userId)).map((s) => s.id);
 
       if (targets.length === 0) {
         return setNoStore(Response.json({ results: [] }));
       }
 
-      const settled = await Promise.allSettled(
-        targets.map((id) => pushService.sendNotification(userId, id, payload)),
+      if (targets.length > MAX_NOTIFICATION_TARGETS) {
+        return errorResponse(
+          400,
+          `Too many targets: ${targets.length} (max ${MAX_NOTIFICATION_TARGETS})`,
+        );
+      }
+
+      const settled = await mapWithConcurrency(
+        targets,
+        PUSH_SEND_CONCURRENCY,
+        (id) => pushService.sendNotification(userId, id, payload),
       );
 
       const results = settled.map((r, i) =>
