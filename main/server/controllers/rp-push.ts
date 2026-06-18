@@ -2,9 +2,8 @@
  * `POST /rp/notifications` — server-to-server notification dispatch for a
  * registered RP, authenticated via a `private_key_jwt` client assertion (see
  * `middleware/rp.ts`). There is no browser DPoP session: the RP names its
- * target users by `userId` / `userIds`, and a registered RP may target any
- * user. The notification is delivered to every device the named users have
- * registered.
+ * target users by `userIds`, and a whitelisted RP may target any user. The
+ * notification is delivered to every device the named users have registered.
  */
 
 import type { RequestContext } from "@remix-run/fetch-router";
@@ -47,12 +46,9 @@ export const rpPushController = {
       return errorResponse(400, body.summary);
     }
 
-    const userIds = new Set([
-      ...(body.userId ? [body.userId] : []),
-      ...(body.userIds ?? []),
-    ]);
+    const userIds = new Set(body.userIds);
     if (userIds.size === 0) {
-      return errorResponse(400, "Provide at least one of userId or userIds");
+      return errorResponse(400, "userIds must not be empty");
     }
 
     const payload = toServicePayload(body.notification);

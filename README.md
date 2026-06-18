@@ -120,7 +120,7 @@ const res = await fetch("https://id.kbn.one/rp/notifications", {
     authorization: `Bearer ${assertion}`,
   },
   body: JSON.stringify({
-    // 宛先: userId / userIds のいずれか1つ以上。名指しした各ユーザの全デバイスへ。
+    // 宛先: userIds（1つ以上）。名指しした各ユーザの全デバイスへ配信。
     userIds: ["user-1", "user-2"],
     notification: { title: "Hi", body: "Notification from RP server" },
   }),

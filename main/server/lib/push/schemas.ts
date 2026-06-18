@@ -40,13 +40,11 @@ export const pushNotificationContentSchema = type({
   "topic?": "string>0",
 });
 
-// RP-server fan-out: target by user(s). At least one of `userId` / `userIds`
-// must be present (enforced in the controller), since a registered RP could
-// otherwise notify every user at once. The notification is delivered to all
-// of each named user's registered devices.
+// RP-server fan-out: target users by id. The notification is delivered to
+// every registered device of each named user. A non-empty list is enforced
+// in the controller.
 export const rpSendNotificationBodySchema = type({
-  "userId?": "string>0",
-  "userIds?": "string>0[]",
+  userIds: "string>0[]",
   notification: pushNotificationContentSchema,
 });
 

@@ -1,5 +1,5 @@
 import { fromArrayBuffer } from "@hexagon/base64";
-import { pushContact, pushRateLimit, pushRateWindowMs } from "../../config.ts";
+import { pushContact } from "../../config.ts";
 import {
   ApplicationServer,
   PushMessageError,
@@ -103,7 +103,7 @@ export class PushService {
       pushUserIndexRepoForUser,
       applicationServer,
       publicKey,
-      new PushRateLimiter(pushRateLimitRepo, pushRateLimit, pushRateWindowMs),
+      new PushRateLimiter(pushRateLimitRepo),
     );
   }
 

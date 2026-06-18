@@ -9,11 +9,19 @@
 
 import type { DenoKvRepo } from "@kbn/kv/denoKv.ts";
 
+/**
+ * Fixed per-subscription send rate: at most `RATE_LIMIT` notifications per
+ * `RATE_WINDOW_MS` window. Over-limit sends are throttled (skipped) so a
+ * device can't be flooded.
+ */
+export const RATE_LIMIT = 1;
+export const RATE_WINDOW_MS = 60_000;
+
 export class PushRateLimiter {
   constructor(
     private readonly repo: DenoKvRepo<number>,
-    private readonly limit: number,
-    private readonly windowMs: number,
+    private readonly limit: number = RATE_LIMIT,
+    private readonly windowMs: number = RATE_WINDOW_MS,
     private readonly now: () => number = Date.now,
   ) {}
 
