@@ -75,6 +75,15 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 購読管理（VAPID 公開鍵取得・subscription の CRUD・デバイス自己テスト
 `POST /push/notifications/test`）のみを担う。
 
+#### レート制限（subscription 単位の flood 防止）
+
+1つの subscription に短時間で大量の通知が飛ばないよう、固定ウィンドウのレート
+制限を全送信経路（RP
+起点・自己テスト共通）に適用する。`PUSH_RATE_WINDOW_SECONDS` （既定 60
+秒）あたり `PUSH_MAX_PER_WINDOW`（既定 10）件まで。上限超過分は **エラーにせず
+skip** し、レスポンスの該当エントリに `throttled: true` が立つ
+（`PUSH_MAX_PER_WINDOW=0` で無効化）。
+
 ### RPサーバ起点の通知 (`POST /rp/notifications`)
 
 ブラウザ（エンドユーザの DPoP
@@ -134,7 +143,8 @@ const res = await fetch("https://id.kbn.one/rp/notifications", {
     notification: { title: "Hi", body: "Notification from RP server" },
   }),
 });
-// → { results: [{ userId, subscriptionId, ok, removed, warnings } | … ] }
+// → { results: [{ userId, subscriptionId, ok, throttled, removed, warnings }
+//                 | { userId, subscriptionId, ok: false, error } ] }
 ```
 
 登録済みの RP は任意のユーザに送信できる。宛先（ユーザの全デバイス）は 1
@@ -182,6 +192,9 @@ mise use -g deno
 - `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use `/authorize`
   and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
 - `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
+- `PUSH_MAX_PER_WINDOW` (1つの subscription
+  に送れる通知数の上限／ウィンドウ。既定 `10`、`0` で無効)
+- `PUSH_RATE_WINDOW_SECONDS` (上記ウィンドウの長さ（秒）。既定 `60`)
 - `RP_PUSH_CLIENTS` (JSON: RPサーバ起点通知を許可する RP の `clientId`
   と公開鍵。 下記「RPサーバ起点の通知」参照)
 

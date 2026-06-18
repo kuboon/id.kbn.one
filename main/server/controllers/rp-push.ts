@@ -87,7 +87,8 @@ export const rpPushController = {
         ? {
           userId: targets[i].userId,
           subscriptionId: targets[i].subscriptionId,
-          ok: true,
+          ok: !r.value.throttled,
+          throttled: r.value.throttled ?? false,
           removed: r.value.removed ?? false,
           warnings: r.value.warnings ?? [],
         }

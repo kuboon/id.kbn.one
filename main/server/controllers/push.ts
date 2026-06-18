@@ -196,6 +196,7 @@ export const pushController = {
           subscription: serialize(result.subscription),
           removed: result.removed ?? false,
           warnings: result.warnings ?? [],
+          throttled: result.throttled ?? false,
         }));
       } catch (error) {
         return errorResponse(
