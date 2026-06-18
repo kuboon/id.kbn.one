@@ -10,21 +10,14 @@ const authorizeWhitelist = (Deno.env.get("AUTHORIZE_WHITELIST") ?? "")
 const pushContact = Deno.env.get("PUSH_CONTACT")?.trim() ||
   "mailto:o@kbn.one";
 
-const positiveIntEnv = (name: string, fallback: number): number => {
-  const raw = Deno.env.get(name)?.trim();
-  if (!raw) return fallback;
-  const value = Number(raw);
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
-};
-
 /**
- * Per-subscription send rate limit. At most `pushRateLimit` notifications are
- * delivered to a single subscription per `pushRateWindowMs`; further sends in
- * the window are throttled (skipped) so a device can't be flooded. A limit of
- * `0` disables throttling.
+ * Per-subscription send rate limit (fixed): at most `pushRateLimit`
+ * notifications are delivered to a single subscription per `pushRateWindowMs`;
+ * further sends in the window are throttled (skipped) so a device can't be
+ * flooded.
  */
-const pushRateLimit = positiveIntEnv("PUSH_MAX_PER_WINDOW", 1);
-const pushRateWindowMs = positiveIntEnv("PUSH_RATE_WINDOW_SECONDS", 60) * 1000;
+const pushRateLimit = 1;
+const pushRateWindowMs = 60_000;
 
 export {
   authorizeWhitelist,

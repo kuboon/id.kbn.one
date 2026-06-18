@@ -1,8 +1,10 @@
-import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import {
   calculateJwkThumbprint,
+  createLocalJWKSet,
   exportJWK,
   generateKeyPair,
+  type JWTVerifyGetKey,
   SignJWT,
 } from "jose";
 
@@ -12,10 +14,9 @@ import {
   type ReplayCheck,
   verifyClientAssertion,
 } from "./assertion.ts";
-import { buildRpClientRegistry } from "./clients.ts";
 
 const AUD = "https://idp.example.com";
-const CLIENT_ID = "rp.example.com";
+const CLIENT_ID = "https://rp.example.com";
 
 const setup = async () => {
   const { publicKey, privateKey } = await generateKeyPair("ES256", {
@@ -23,9 +24,9 @@ const setup = async () => {
   });
   const publicJwk = await exportJWK(publicKey);
   const kid = await calculateJwkThumbprint(publicJwk);
-  const registry = buildRpClientRegistry([
-    { clientId: CLIENT_ID, keys: [{ ...publicJwk, alg: "ES256", kid }] },
-  ]);
+  const jwks: JWTVerifyGetKey = createLocalJWKSet({
+    keys: [{ ...publicJwk, alg: "ES256", kid }],
+  });
 
   const sign = (
     overrides: Record<string, unknown> = {},
@@ -59,7 +60,8 @@ const setup = async () => {
   const verify = (assertion: string, replayOverride?: ReplayCheck) =>
     verifyClientAssertion(assertion, {
       audience: AUD,
-      registry,
+      isAllowed: (clientId) => clientId === CLIENT_ID,
+      keysFor: () => jwks,
       replay: replayOverride ?? replay,
     });
 
@@ -72,13 +74,16 @@ Deno.test("verifyClientAssertion: valid assertion returns clientId", async () =>
   assertEquals(clientId, CLIENT_ID);
 });
 
-Deno.test("verifyClientAssertion: rejects unknown client", async () => {
+Deno.test("verifyClientAssertion: rejects non-whitelisted client", async () => {
   const { sign, verify } = await setup();
-  const assertion = await sign({ iss: "attacker", sub: "attacker" });
+  const assertion = await sign({
+    iss: "https://attacker.example",
+    sub: "https://attacker.example",
+  });
   await assertRejects(
     () => verify(assertion),
     ClientAssertionError,
-    "Unknown client",
+    "Unauthorized client",
   );
 });
 
@@ -120,7 +125,7 @@ Deno.test("verifyClientAssertion: rejects replayed jti", async () => {
 
 Deno.test("verifyClientAssertion: rejects assertion signed by another key", async () => {
   const { verify } = await setup();
-  // Sign with a key that is NOT registered for CLIENT_ID.
+  // Sign with a key that is NOT in the client's published JWKS.
   const other = await generateKeyPair("ES256", { extractable: true });
   const now = Math.floor(Date.now() / 1000);
   const forged = await new SignJWT({
@@ -134,12 +139,4 @@ Deno.test("verifyClientAssertion: rejects assertion signed by another key", asyn
     .setExpirationTime(now + 60)
     .sign(other.privateKey);
   await assertRejects(() => verify(forged), ClientAssertionError);
-});
-
-Deno.test("buildRpClientRegistry: rejects entry without keys", () => {
-  assertThrows(
-    () => buildRpClientRegistry([{ clientId: "x" }]),
-    TypeError,
-    "no public keys",
-  );
 });

@@ -78,11 +78,9 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 #### レート制限（subscription 単位の flood 防止）
 
 1つの subscription に短時間で大量の通知が飛ばないよう、固定ウィンドウのレート
-制限を全送信経路（RP
-起点・自己テスト共通）に適用する。`PUSH_RATE_WINDOW_SECONDS` （既定 60
-秒）あたり `PUSH_MAX_PER_WINDOW`（既定 1）件まで。上限超過分は **エラーにせず
-skip** し、レスポンスの該当エントリに `throttled: true` が立つ
-（`PUSH_MAX_PER_WINDOW=0` で無効化）。
+制限を全送信経路（RP 起点・自己テスト共通）に適用する。**60 秒あたり 1
+件**まで（固定）。上限超過分は **エラーにせず skip** し、レスポンスの該当
+エントリに `throttled: true` が立つ。
 
 ### RPサーバ起点の通知 (`POST /rp/notifications`)
 
@@ -90,41 +88,25 @@ skip** し、レスポンスの該当エントリに `throttled: true` が立つ
 鍵）を経由せず、**RPサーバ自身**から通知を送る経路。 DPoP
 セッションは使えないので、RP は **`private_key_jwt` クライアントアサーション**
 ([RFC 7521] / [RFC 7523]) で認証する。**共通鍵は不要** — IdP は RP
-の公開鍵だけを 保持し、RP の秘密鍵で署名された JWS を検証する。
+の秘密鍵で署名された JWS を、RP 自身が公開する JWKS で検証する（IdP が公開鍵を
+保持しない＝ RP が自分の JWKS を更新するだけで鍵ローテーションできる）。
 
-事前に IdP の `RP_PUSH_CLIENTS` 環境変数へ RP
-の公開鍵を登録する（鍵ローテーション時 は新旧を並べる）:
-
-```json
-[
-  {
-    "clientId": "rp.example.com",
-    "keys": [
-      {
-        "kty": "EC",
-        "crv": "P-256",
-        "x": "…",
-        "y": "…",
-        "alg": "ES256",
-        "kid": "…"
-      }
-    ]
-  }
-]
-```
+専用の登録は不要。RP の `clientId` は **その RP の origin**
+で、`AUTHORIZE_WHITELIST` に含まれていれば許可される。IdP は検証鍵を RP の
+`${clientId}/.well-known/jwks.json` から取得する（IdP 側の JWKS 配布と対称）。
 
 RP 側は秘密鍵でクライアントアサーションを署名し、`Authorization` ヘッダに載せて
 POST する:
 
 ```ts
-import { calculateJwkThumbprint, SignJWT } from "jose";
+import { SignJWT } from "jose";
 
-// privateKey: RP の ES256 秘密鍵 (CryptoKey)。kid は登録済 JWK と一致させる。
+// privateKey: RP の ES256 秘密鍵 (CryptoKey)。kid は RP の JWKS と一致させる。
 const now = Math.floor(Date.now() / 1000);
 const assertion = await new SignJWT({})
   .setProtectedHeader({ alg: "ES256", typ: "client-assertion+jwt", kid })
-  .setIssuer("rp.example.com") // = clientId
-  .setSubject("rp.example.com") // = clientId
+  .setIssuer("https://rp.example.com") // = clientId (origin, 要 AUTHORIZE_WHITELIST)
+  .setSubject("https://rp.example.com") // = clientId
   .setAudience("https://id.kbn.one") // = IDP_ORIGIN
   .setIssuedAt(now)
   .setExpirationTime(now + 60)
@@ -192,11 +174,6 @@ mise use -g deno
 - `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use `/authorize`
   and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
 - `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
-- `PUSH_MAX_PER_WINDOW` (1つの subscription
-  に送れる通知数の上限／ウィンドウ。既定 `1`、`0` で無効)
-- `PUSH_RATE_WINDOW_SECONDS` (上記ウィンドウの長さ（秒）。既定 `60`)
-- `RP_PUSH_CLIENTS` (JSON: RPサーバ起点通知を許可する RP の `clientId`
-  と公開鍵。 下記「RPサーバ起点の通知」参照)
 
 ## Project layout
 

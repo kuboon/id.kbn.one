@@ -1,95 +1,36 @@
 /**
- * Registry of RP (relying party) servers allowed to authenticate to the IdP
- * with a `private_key_jwt` client assertion (RFC 7521 / RFC 7523).
+ * Authorize RP servers for `private_key_jwt` client authentication using the
+ * existing `AUTHORIZE_WHITELIST`.
  *
- * Each client registers one or more **public** EC P-256 JWKs. The IdP never
- * holds a shared secret — it only verifies signatures made by the RP's
- * private key, so a leaked registry exposes nothing sensitive and each RP can
- * rotate keys independently (list the new key alongside the old during a
- * rollover).
- *
- * Configured via the `RP_PUSH_CLIENTS` env var as a JSON array:
- *
- * ```json
- * [
- *   {
- *     "clientId": "rp.example.com",
- *     "keys": [
- *       { "kty": "EC", "crv": "P-256", "x": "…", "y": "…",
- *         "alg": "ES256", "kid": "…" }
- *     ]
- *   }
- * ]
- * ```
- *
- * A single key may also be given as `"jwk": { … }` instead of `"keys": [ … ]`.
+ * An RP's `clientId` is its origin (e.g. `https://rp.example.com`). It is
+ * allowed iff that origin is in `AUTHORIZE_WHITELIST`, and its public key is
+ * fetched from the RP's own JWKS at `${origin}/.well-known/jwks.json` — the
+ * mirror image of how an RP verifies the IdP. There is no separate key
+ * registry: the RP rotates keys by updating its own JWKS.
  */
 
-import { createLocalJWKSet, type JWTVerifyGetKey } from "jose";
+import { createRemoteJWKSet, type JWTVerifyGetKey } from "jose";
 
-export interface RpClient {
-  readonly clientId: string;
-  /** jose key resolver over the client's registered public JWK(s). */
-  readonly keys: JWTVerifyGetKey;
-}
+import { authorizeWhitelist } from "../../config.ts";
 
-export interface RpClientRegistry {
-  get(clientId: string): RpClient | undefined;
-  readonly size: number;
-}
+/** True when `clientId` (an origin) is a whitelisted RP. */
+export const isAllowedRpClient = (clientId: string): boolean =>
+  authorizeWhitelist.includes(clientId);
 
-interface RawClientEntry {
-  clientId?: unknown;
-  keys?: unknown;
-  jwk?: unknown;
-}
-
-const isJwk = (value: unknown): value is JsonWebKey =>
-  !!value && typeof value === "object" && !Array.isArray(value);
+const jwksCache = new Map<string, JWTVerifyGetKey>();
 
 /**
- * Build a registry from a parsed JSON value. Throws `TypeError` on malformed
- * input so misconfiguration fails loudly at startup rather than silently
- * rejecting every RP at request time.
+ * jose key resolver over the RP's published JWKS. `createRemoteJWKSet`
+ * fetches lazily and caches/rotates keys on its own, so the result is reused
+ * per origin.
+ *
+ * @throws {TypeError} if `clientId` is not a valid absolute origin.
  */
-export const buildRpClientRegistry = (input: unknown): RpClientRegistry => {
-  const clients = new Map<string, RpClient>();
-  if (input === undefined || input === null) {
-    return { get: (id) => clients.get(id), size: 0 };
+export const rpKeySet = (clientId: string): JWTVerifyGetKey => {
+  let set = jwksCache.get(clientId);
+  if (!set) {
+    set = createRemoteJWKSet(new URL("/.well-known/jwks.json", clientId));
+    jwksCache.set(clientId, set);
   }
-  if (!Array.isArray(input)) {
-    throw new TypeError("RP_PUSH_CLIENTS must be a JSON array");
-  }
-
-  for (const raw of input as RawClientEntry[]) {
-    const clientId = raw?.clientId;
-    if (typeof clientId !== "string" || !clientId.trim()) {
-      throw new TypeError("RP client entry is missing a string clientId");
-    }
-    const keys: JsonWebKey[] = Array.isArray(raw.keys)
-      ? raw.keys.filter(isJwk)
-      : isJwk(raw.jwk)
-      ? [raw.jwk]
-      : [];
-    if (!keys.length) {
-      throw new TypeError(`RP client "${clientId}" has no public keys`);
-    }
-    clients.set(clientId, {
-      clientId,
-      keys: createLocalJWKSet({ keys }),
-    });
-  }
-
-  return { get: (id) => clients.get(id), size: clients.size };
-};
-
-let cached: RpClientRegistry | undefined;
-
-/** Lazily parse `RP_PUSH_CLIENTS` once and cache the resulting registry. */
-export const rpClientRegistry = (): RpClientRegistry => {
-  if (!cached) {
-    const json = Deno.env.get("RP_PUSH_CLIENTS")?.trim();
-    cached = buildRpClientRegistry(json ? JSON.parse(json) : undefined);
-  }
-  return cached;
+  return set;
 };

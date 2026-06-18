@@ -5,18 +5,21 @@
  * The assertion is a compact JWS the RP signs with its **private** key:
  *
  * - `typ` header: `client-assertion+jwt` (guards against token confusion)
- * - `alg`: `ES256`, with a `kid` selecting the registered public key
- * - `iss` and `sub`: the RP's `clientId`
+ * - `alg`: `ES256`, with a `kid` selecting one of the RP's published keys
+ * - `iss` and `sub`: the RP's `clientId` (= its origin, must be whitelisted)
  * - `aud`: the IdP origin (so an assertion can't be replayed at another host)
  * - `exp`, `iat`, `jti`: short-lived and single-use (replay-protected)
+ *
+ * The RP's public key is taken from its own JWKS (`isAllowedRpClient` /
+ * `rpKeySet`), so there is no separate key registry on the IdP.
  */
 
-import { decodeJwt, jwtVerify } from "jose";
+import { decodeJwt, jwtVerify, type JWTVerifyGetKey } from "jose";
 
 import { idpOrigin } from "../../config.ts";
 import { DenoKvJtiStore } from "../../repository/deno-kv-jti-store.ts";
 import { getKvInstance } from "../../kvInstance.ts";
-import { type RpClientRegistry, rpClientRegistry } from "./clients.ts";
+import { isAllowedRpClient, rpKeySet } from "./clients.ts";
 
 export const CLIENT_ASSERTION_TYP = "client-assertion+jwt";
 
@@ -37,8 +40,10 @@ const getDefaultReplay = (): ReplayCheck => {
 export interface VerifyClientAssertionOptions {
   /** Expected `aud`. Defaults to the IdP origin. */
   audience?: string;
-  /** Client registry to resolve keys from. Defaults to the env-derived one. */
-  registry?: RpClientRegistry;
+  /** Whether `clientId` is an allowed RP. Defaults to the whitelist check. */
+  isAllowed?: (clientId: string) => boolean;
+  /** Resolve the RP's verification key(s). Defaults to the RP's remote JWKS. */
+  keysFor?: (clientId: string) => JWTVerifyGetKey;
   /** Replay detector. Defaults to the shared KV-backed JTI store. */
   replay?: ReplayCheck;
 }
@@ -46,20 +51,21 @@ export interface VerifyClientAssertionOptions {
 /**
  * Verify a client assertion and return the authenticated `clientId`.
  *
- * @throws {ClientAssertionError} when the assertion is malformed, signed by an
- * unregistered/unknown client, fails signature/claim validation, or replays a
+ * @throws {ClientAssertionError} when the assertion is malformed, comes from a
+ * non-whitelisted client, fails signature/claim validation, or replays a
  * previously seen `jti`.
  */
 export const verifyClientAssertion = async (
   assertion: string,
   opts: VerifyClientAssertionOptions = {},
 ): Promise<{ clientId: string }> => {
-  const registry = opts.registry ?? rpClientRegistry();
   const audience = opts.audience ?? idpOrigin;
+  const isAllowed = opts.isAllowed ?? isAllowedRpClient;
+  const keysFor = opts.keysFor ?? rpKeySet;
   const replay = opts.replay ?? getDefaultReplay();
 
-  // Read the unverified `iss` only to select which registered key to verify
-  // against — the signature check below still requires that client's key.
+  // Read the unverified `iss` only to pick the client — the signature check
+  // below still requires that client's key.
   let issuer: string | undefined;
   try {
     issuer = decodeJwt(assertion).iss;
@@ -69,17 +75,22 @@ export const verifyClientAssertion = async (
   if (!issuer) {
     throw new ClientAssertionError("Client assertion is missing iss");
   }
+  if (!isAllowed(issuer)) {
+    throw new ClientAssertionError(`Unauthorized client: ${issuer}`);
+  }
 
-  const client = registry.get(issuer);
-  if (!client) {
-    throw new ClientAssertionError(`Unknown client: ${issuer}`);
+  let keys: JWTVerifyGetKey;
+  try {
+    keys = keysFor(issuer);
+  } catch {
+    throw new ClientAssertionError(`Invalid client origin: ${issuer}`);
   }
 
   let payload: { jti?: string };
   try {
-    ({ payload } = await jwtVerify(assertion, client.keys, {
-      issuer: client.clientId,
-      subject: client.clientId,
+    ({ payload } = await jwtVerify(assertion, keys, {
+      issuer,
+      subject: issuer,
       audience,
       algorithms: ["ES256"],
       typ: CLIENT_ASSERTION_TYP,
@@ -99,5 +110,5 @@ export const verifyClientAssertion = async (
     throw new ClientAssertionError("Client assertion replayed");
   }
 
-  return { clientId: client.clientId };
+  return { clientId: issuer };
 };
