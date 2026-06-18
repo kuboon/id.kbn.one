@@ -80,7 +80,7 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 1つの subscription に短時間で大量の通知が飛ばないよう、固定ウィンドウのレート
 制限を全送信経路（RP
 起点・自己テスト共通）に適用する。`PUSH_RATE_WINDOW_SECONDS` （既定 60
-秒）あたり `PUSH_MAX_PER_WINDOW`（既定 10）件まで。上限超過分は **エラーにせず
+秒）あたり `PUSH_MAX_PER_WINDOW`（既定 1）件まで。上限超過分は **エラーにせず
 skip** し、レスポンスの該当エントリに `throttled: true` が立つ
 （`PUSH_MAX_PER_WINDOW=0` で無効化）。
 
@@ -193,7 +193,7 @@ mise use -g deno
   and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
 - `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
 - `PUSH_MAX_PER_WINDOW` (1つの subscription
-  に送れる通知数の上限／ウィンドウ。既定 `10`、`0` で無効)
+  に送れる通知数の上限／ウィンドウ。既定 `1`、`0` で無効)
 - `PUSH_RATE_WINDOW_SECONDS` (上記ウィンドウの長さ（秒）。既定 `60`)
 - `RP_PUSH_CLIENTS` (JSON: RPサーバ起点通知を許可する RP の `clientId`
   と公開鍵。 下記「RPサーバ起点の通知」参照)

@@ -23,7 +23,7 @@ const positiveIntEnv = (name: string, fallback: number): number => {
  * the window are throttled (skipped) so a device can't be flooded. A limit of
  * `0` disables throttling.
  */
-const pushRateLimit = positiveIntEnv("PUSH_MAX_PER_WINDOW", 10);
+const pushRateLimit = positiveIntEnv("PUSH_MAX_PER_WINDOW", 1);
 const pushRateWindowMs = positiveIntEnv("PUSH_RATE_WINDOW_SECONDS", 60) * 1000;
 
 export {
