@@ -27,3 +27,10 @@ export const pushUserIndexRepoForUser = (
   userId: string,
 ): DenoKvRepo<UserIndexValue> =>
   new DenoKvRepo<UserIndexValue>(["push", "user", "subscriptions", userId]);
+
+/**
+ * Fixed-window send counters keyed by `${subscriptionId}:${windowId}`, used to
+ * rate-limit notifications to a single subscription. Entries expire on their
+ * own, so no cleanup is needed.
+ */
+export const pushRateLimitRepo = new DenoKvRepo<number>(["push", "ratelimit"]);

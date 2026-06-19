@@ -1,28 +1,25 @@
 /**
- * /push/* — VAPID key, subscriptions CRUD, and notification dispatch.
+ * /push/* — VAPID key, subscriptions CRUD, and the device self-test.
  *
  * Every endpoint here is exposed to the `cors:` route group so RP frontends
- * on a different origin can manage and trigger notifications for the
- * signed-in user.
+ * on a different origin can read the VAPID public key and manage the
+ * signed-in user's subscriptions. Sending app notifications is always
+ * server-initiated — see `controllers/rp-push.ts` (`POST /rp/notifications`).
  */
 
 import type { RequestContext } from "@remix-run/fetch-router";
 import { type } from "arktype";
-import { Urgency } from "@negrel/webpush";
 
 import { pushContact } from "../config.ts";
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
 import {
-  type PushNotificationPayload,
   pushService,
   type PushSubscriptionMetadata,
   type StoredPushSubscription,
 } from "../lib/push/service.ts";
 import {
-  type PushNotificationContent,
   pushSubscriptionBodySchema,
-  sendNotificationBodySchema,
   subscriptionIdParamSchema,
   testNotificationBodySchema,
   updateMetadataBodySchema,
@@ -97,24 +94,6 @@ const validateParams = <T>(
   }
   return result;
 };
-
-const toServicePayload = (
-  content: PushNotificationContent,
-): PushNotificationPayload => ({
-  title: content.title,
-  body: content.body,
-  url: content.url,
-  icon: content.icon,
-  badge: content.badge,
-  tag: content.tag,
-  requireInteraction: content.requireInteraction,
-  data: content.data && typeof content.data === "object"
-    ? content.data as Record<string, unknown>
-    : undefined,
-  urgency: content.urgency as Urgency | undefined,
-  ttl: content.ttl,
-  topic: content.topic,
-});
 
 export const pushController = {
   actions: {
@@ -217,6 +196,7 @@ export const pushController = {
           subscription: serialize(result.subscription),
           removed: result.removed ?? false,
           warnings: result.warnings ?? [],
+          throttled: result.throttled ?? false,
         }));
       } catch (error) {
         return errorResponse(
@@ -226,48 +206,6 @@ export const pushController = {
             : "Failed to send notification",
         );
       }
-    },
-
-    async sendNotification(context: RequestContext) {
-      const { id: userId } = context.get(User);
-      const body = await validateBody(
-        context.request,
-        sendNotificationBodySchema,
-      );
-      if (body instanceof Response) return body;
-
-      const payload = toServicePayload(body.notification);
-
-      const targets = body.subscriptionId
-        ? [body.subscriptionId]
-        : (await pushService.listSubscriptions(userId)).map((s) => s.id);
-
-      if (targets.length === 0) {
-        return setNoStore(Response.json({ results: [] }));
-      }
-
-      const settled = await Promise.allSettled(
-        targets.map((id) => pushService.sendNotification(userId, id, payload)),
-      );
-
-      const results = settled.map((r, i) =>
-        r.status === "fulfilled"
-          ? {
-            subscriptionId: targets[i],
-            ok: true,
-            removed: r.value.removed ?? false,
-            warnings: r.value.warnings ?? [],
-          }
-          : {
-            subscriptionId: targets[i],
-            ok: false,
-            error: r.reason instanceof Error
-              ? r.reason.message
-              : String(r.reason),
-          }
-      );
-
-      return setNoStore(Response.json({ results }));
     },
   },
 };

@@ -17,6 +17,7 @@ import { homeAction } from "./controllers/home.tsx";
 import { jwksAction } from "./controllers/jwks.ts";
 import { meAction } from "./controllers/me.tsx";
 import { pushController } from "./controllers/push.ts";
+import { rpPushController } from "./controllers/rp-push.ts";
 import { sessionAction, sessionLogoutAction } from "./controllers/session.ts";
 import { webauthnController } from "./lib/webauthn/controller.ts";
 import { routes } from "./routes.ts";
@@ -24,6 +25,7 @@ import {
   authMiddleware,
   corsMiddlewares,
   middleware,
+  rpApiMiddleware,
   userApiMiddleware,
 } from "#server/middlewares.ts";
 
@@ -50,6 +52,14 @@ router.map(routes.userApi, {
     bindSession: bindSessionAction,
     accountDelete: accountDeleteAction,
     credentials: credentialsController,
+  },
+});
+
+// rpApi: layer — server-to-server (private_key_jwt). RpClient in context.
+router.map(routes.rpApi, {
+  middleware: rpApiMiddleware,
+  actions: {
+    sendNotification: rpPushController.sendNotification,
   },
 });
 

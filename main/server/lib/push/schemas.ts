@@ -40,8 +40,11 @@ export const pushNotificationContentSchema = type({
   "topic?": "string>0",
 });
 
-export const sendNotificationBodySchema = type({
-  "subscriptionId?": "string>0",
+// RP-server fan-out: target users by id. The notification is delivered to
+// every registered device of each named user. A non-empty list is enforced
+// in the controller.
+export const rpSendNotificationBodySchema = type({
+  userIds: "string>0[]",
   notification: pushNotificationContentSchema,
 });
 
@@ -54,4 +57,4 @@ export type UpdateMetadataBody = typeof updateMetadataBodySchema.infer;
 export type TestNotificationBody = typeof testNotificationBodySchema.infer;
 export type PushNotificationContent =
   typeof pushNotificationContentSchema.infer;
-export type SendNotificationBody = typeof sendNotificationBodySchema.infer;
+export type RpSendNotificationBody = typeof rpSendNotificationBodySchema.infer;

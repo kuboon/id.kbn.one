@@ -8,10 +8,12 @@ import {
 } from "@negrel/webpush";
 import type { PushSubscriptionPayload } from "./schemas.ts";
 import {
+  pushRateLimitRepo,
   pushSubscriptionRepo,
   pushUserIndexRepoForUser,
 } from "../../repositories.ts";
 import { getSigningKey } from "../signing-key.ts";
+import { PushRateLimiter } from "./rate-limit.ts";
 
 const encoder = new TextEncoder();
 
@@ -68,6 +70,9 @@ export interface PushNotificationResult {
   subscription: StoredPushSubscription;
   removed?: boolean;
   warnings?: string[];
+  /** True when the send was skipped because the subscription's rate limit
+   * for the current window was already reached. */
+  throttled?: boolean;
 }
 
 interface PushServiceErrorInfo {
@@ -84,6 +89,7 @@ export class PushService {
     private readonly userIndexRepoForUser: typeof pushUserIndexRepoForUser,
     private readonly applicationServer: ApplicationServer,
     private readonly vapidPublicKey: string,
+    private readonly rateLimiter: PushRateLimiter,
   ) {}
 
   static async create(): Promise<PushService> {
@@ -97,6 +103,7 @@ export class PushService {
       pushUserIndexRepoForUser,
       applicationServer,
       publicKey,
+      new PushRateLimiter(pushRateLimitRepo),
     );
   }
 
@@ -325,6 +332,12 @@ export class PushService {
     const subscription = await this.getSubscription(userId, id);
     if (!subscription) {
       throw new Error("Subscription not found");
+    }
+
+    // Per-subscription flood guard: skip (don't fail) when this device has
+    // already hit its limit for the current window.
+    if (!(await this.rateLimiter.tryAcquire(id))) {
+      return { subscription, throttled: true };
     }
 
     const subscriber = this.applicationServer.subscribe({

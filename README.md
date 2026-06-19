@@ -68,6 +68,75 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 [RFC 7519]: https://www.rfc-editor.org/rfc/rfc7519
 [RFC 9449]: https://www.rfc-editor.org/rfc/rfc9449
 
+## Push 通知
+
+通知の送信は **常にサーバ起点** で行う（`POST /rp/notifications`）。ブラウザ
+（エンドユーザ）からの送信エンドポイントは無い。`/push/*` はブラウザからの
+購読管理（VAPID 公開鍵取得・subscription の CRUD・デバイス自己テスト
+`POST /push/notifications/test`）のみを担う。
+
+#### レート制限（subscription 単位の flood 防止）
+
+1つの subscription に短時間で大量の通知が飛ばないよう、固定ウィンドウのレート
+制限を全送信経路（RP 起点・自己テスト共通）に適用する。**60 秒あたり 1
+件**まで（固定）。上限超過分は **エラーにせず skip** し、レスポンスの該当
+エントリに `throttled: true` が立つ。
+
+### RPサーバ起点の通知 (`POST /rp/notifications`)
+
+ブラウザ（エンドユーザの DPoP
+鍵）を経由せず、**RPサーバ自身**から通知を送る経路。 DPoP
+セッションは使えないので、RP は **`private_key_jwt` クライアントアサーション**
+([RFC 7521] / [RFC 7523]) で認証する。**共通鍵は不要** — IdP は RP
+の秘密鍵で署名された JWS を、RP 自身が公開する JWKS で検証する（IdP が公開鍵を
+保持しない＝ RP が自分の JWKS を更新するだけで鍵ローテーションできる）。
+
+専用の登録は不要。RP の `clientId` は **その RP の origin**
+で、`AUTHORIZE_WHITELIST` に含まれていれば許可される。IdP は検証鍵を RP の
+`${clientId}/.well-known/jwks.json` から取得する（IdP 側の JWKS 配布と対称）。
+
+RP 側は秘密鍵でクライアントアサーションを署名し、`Authorization` ヘッダに載せて
+POST する:
+
+```ts
+import { SignJWT } from "jose";
+
+// privateKey: RP の ES256 秘密鍵 (CryptoKey)。kid は RP の JWKS と一致させる。
+const now = Math.floor(Date.now() / 1000);
+const assertion = await new SignJWT({})
+  .setProtectedHeader({ alg: "ES256", typ: "client-assertion+jwt", kid })
+  .setIssuer("https://rp.example.com") // = clientId (origin, 要 AUTHORIZE_WHITELIST)
+  .setSubject("https://rp.example.com") // = clientId
+  .setAudience("https://id.kbn.one") // = IDP_ORIGIN
+  .setIssuedAt(now)
+  .setExpirationTime(now + 60)
+  .setJti(crypto.randomUUID()) // 単回利用（リプレイ防止）
+  .sign(privateKey);
+
+const res = await fetch("https://id.kbn.one/rp/notifications", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    authorization: `Bearer ${assertion}`,
+  },
+  body: JSON.stringify({
+    // 宛先: userIds（1つ以上）。名指しした各ユーザの全デバイスへ配信。
+    userIds: ["user-1", "user-2"],
+    notification: { title: "Hi", body: "Notification from RP server" },
+  }),
+});
+// → { results: [{ userId, subscriptionId, ok, throttled, removed, warnings }
+//                 | { userId, subscriptionId, ok: false, error } ] }
+```
+
+登録済みの RP は任意のユーザに送信できる。宛先（ユーザの全デバイス）は 1
+リクエストあたり最大 500、送信は同時実行 10 のワーカープールで処理する（push
+サービスのレート制限・アウトバウンド接続上限への配慮）。それ以上はリクエスト
+分割で。
+
+[RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
+[RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523
+
 ## 技術スタック
 
 - ランタイム: **Deno** (`Deno.bundle`, `Deno.openKv`)

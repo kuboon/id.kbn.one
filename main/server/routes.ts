@@ -29,13 +29,21 @@ export const routes = route({
       delete: del("/:credentialId"),
     }),
   }),
+  // `rpApi:` — server-to-server endpoints authenticated by a `private_key_jwt`
+  // client assertion (no browser / DPoP, no CORS). A registered RP may push to
+  // any user.
+  rpApi: route("rp", {
+    sendNotification: post("/notifications"),
+  }),
+
   cors: route({
     session: get("/session"),
     sessionLogout: post("/session/logout"),
 
     // All push endpoints are CORS-enabled so RP frontends on different
-    // origins can read the VAPID public key, manage subscriptions, and
-    // trigger notifications for the signed-in user.
+    // origins can read the VAPID public key and manage subscriptions for
+    // the signed-in user. Actually sending notifications is always
+    // server-initiated via `rpApi:` (`POST /rp/notifications`).
     push: route("push", {
       vapidKey: get("/vapid-key"),
       listSubscriptions: get("/subscriptions"),
@@ -43,7 +51,6 @@ export const routes = route({
       updateSubscription: patch("/subscriptions/:id"),
       deleteSubscription: del("/subscriptions/:id"),
       testNotification: post("/notifications/test"),
-      sendNotification: post("/notifications"),
     }),
   }),
 });
