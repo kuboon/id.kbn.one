@@ -25,6 +25,16 @@ const parsePushData = (event) => {
   }
 };
 
+// Apply the app-icon badge count (App Badging API). No-op when unsupported or
+// not installed. A missing/invalid count leaves the existing badge untouched;
+// `0` clears it. The RP controls the value (including when to clear).
+const applyBadge = (count) => {
+  if (!("setAppBadge" in self.navigator)) return Promise.resolve();
+  const n = typeof count === "number" && count >= 0 ? Math.floor(count) : null;
+  if (n === null) return Promise.resolve();
+  return n > 0 ? self.navigator.setAppBadge(n) : self.navigator.clearAppBadge();
+};
+
 self.addEventListener("push", (event) => {
   const data = parsePushData(event);
   const title = typeof data.title === "string" && data.title.trim()
@@ -42,7 +52,10 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    applyBadge(data.badgeCount),
+  ]));
 });
 
 self.addEventListener("notificationclick", (event) => {

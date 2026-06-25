@@ -60,7 +60,10 @@ export interface PushNotificationPayload {
   body: string;
   url?: string;
   icon?: string;
+  /** Notification badge image (Web Notifications API `badge`). */
   badge?: string;
+  /** App-icon badge count (App Badging API `setAppBadge`). `0` clears it. */
+  badgeCount?: number;
   tag?: string;
   requireInteraction?: boolean;
   data?: Record<string, unknown>;
@@ -356,6 +359,7 @@ export class PushService {
       url: payload.url,
       icon: payload.icon,
       badge: payload.badge,
+      badgeCount: payload.badgeCount,
       tag: payload.tag,
       requireInteraction: payload.requireInteraction ?? false,
       data: {
