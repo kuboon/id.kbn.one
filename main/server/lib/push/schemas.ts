@@ -31,7 +31,10 @@ export const pushNotificationContentSchema = type({
   body: "string>0",
   "url?": "string>0",
   "icon?": "string>0",
+  // Notification badge image (Web Notifications API `badge`).
   "badge?": "string>0",
+  // App-icon badge count (App Badging API `setAppBadge`). `0` clears it.
+  "badgeCount?": "number.integer>=0",
   "tag?": "string>0",
   "requireInteraction?": "boolean",
   "data?": "unknown",

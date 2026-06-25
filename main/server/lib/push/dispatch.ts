@@ -67,6 +67,7 @@ export const toServicePayload = (
   url: content.url,
   icon: content.icon,
   badge: content.badge,
+  badgeCount: content.badgeCount,
   tag: content.tag,
   requireInteraction: content.requireInteraction,
   data: content.data && typeof content.data === "object"
