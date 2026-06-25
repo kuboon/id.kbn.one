@@ -60,9 +60,23 @@ const serialize = (subscription: StoredPushSubscription) => ({
   expirationTime: subscription.expirationTime,
   keys: subscription.keys,
   metadata: subscription.metadata,
+  origin: subscription.origin,
   createdAt: subscription.createdAt,
   updatedAt: subscription.updatedAt,
 });
+
+/** Canonical origin from the request's `Origin` header, or undefined. The
+ * header is browser-controlled (not spoofable by page JS cross-origin), so it
+ * reliably identifies the RP frontend that registered the subscription. */
+const requestOrigin = (request: Request): string | undefined => {
+  const raw = request.headers.get("origin");
+  if (!raw) return undefined;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return undefined;
+  }
+};
 
 const errorResponse = (status: number, message: string): Response =>
   Response.json({ message }, { status });
@@ -124,6 +138,7 @@ export const pushController = {
           userId,
           body.subscription,
           sanitizeMetadata(body.metadata),
+          requestOrigin(context.request),
         );
         return setNoStore(Response.json({ subscription: serialize(stored) }));
       } catch (error) {
