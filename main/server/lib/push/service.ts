@@ -50,6 +50,9 @@ export interface StoredPushSubscription {
   createdAt: number;
   updatedAt: number;
   metadata: PushSubscriptionMetadata;
+  /** Origin the subscription was registered from (the RP frontend's `Origin`
+   * header). Used to scope RP-server sends to their own domain. */
+  origin?: string;
 }
 
 export interface PushNotificationPayload {
@@ -115,6 +118,7 @@ export class PushService {
     userId: string,
     subscription: PushSubscriptionPayload,
     metadata: PushSubscriptionMetadata = {},
+    origin?: string,
   ): Promise<StoredPushSubscription> {
     const id = await hashSubscriptionEndpoint(subscription.endpoint);
     const now = Date.now();
@@ -136,6 +140,7 @@ export class PushService {
           ...metadata,
           lastUpdatedAt: now,
         },
+        origin: origin ?? current?.origin,
       };
       return record;
     });

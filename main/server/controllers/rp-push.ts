@@ -12,6 +12,7 @@ import { type } from "arktype";
 import { setNoStore } from "../middleware/auth.ts";
 import { RpClient } from "../middleware/rp.ts";
 import { pushService } from "../lib/push/service.ts";
+import { originMatchesClient } from "../lib/rp/clients.ts";
 import { rpSendNotificationBodySchema } from "../lib/push/schemas.ts";
 import {
   mapWithConcurrency,
@@ -31,9 +32,8 @@ interface Target {
 
 export const rpPushController = {
   async sendNotification(context: RequestContext) {
-    // `RpClient` is set by `requireRpClient`; reading it asserts the route is
-    // wired behind that middleware.
-    context.get(RpClient);
+    // `RpClient` (set by `requireRpClient`) is the authenticated RP origin.
+    const { clientId } = context.get(RpClient);
 
     let raw: unknown;
     try {
@@ -53,11 +53,14 @@ export const rpPushController = {
 
     const payload = toServicePayload(body.notification);
 
-    // Expand each user to their registered devices.
+    // Expand each user to their registered devices, restricted to
+    // subscriptions registered from the calling RP's own domain (or a
+    // subdomain). Devices registered from other RPs are not reachable.
     const targets: Target[] = [];
     for (const userId of userIds) {
       const subs = await pushService.listSubscriptions(userId);
       for (const sub of subs) {
+        if (!originMatchesClient(sub.origin, clientId)) continue;
         targets.push({ userId, subscriptionId: sub.id });
       }
     }

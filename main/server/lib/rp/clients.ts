@@ -17,6 +17,28 @@ import { authorizeWhitelist } from "../../config.ts";
 export const isAllowedRpClient = (clientId: string): boolean =>
   authorizeWhitelist.includes(clientId);
 
+/**
+ * Whether a subscription registered from `subscriptionOrigin` belongs to the
+ * RP identified by `clientId` — i.e. registered from the RP's own domain or a
+ * subdomain of it. Scheme/port are ignored; matching is by hostname. Returns
+ * false for a missing or unparseable origin.
+ */
+export const originMatchesClient = (
+  subscriptionOrigin: string | undefined,
+  clientId: string,
+): boolean => {
+  if (!subscriptionOrigin) return false;
+  let subHost: string;
+  let rpHost: string;
+  try {
+    subHost = new URL(subscriptionOrigin).hostname;
+    rpHost = new URL(clientId).hostname;
+  } catch {
+    return false;
+  }
+  return subHost === rpHost || subHost.endsWith("." + rpHost);
+};
+
 const jwksCache = new Map<string, JWTVerifyGetKey>();
 
 /**
