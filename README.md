@@ -75,6 +75,11 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 購読管理（VAPID 公開鍵取得・subscription の CRUD・デバイス自己テスト
 `POST /push/notifications/test`）のみを担う。
 
+なお `GET /push/subscriptions`（一覧）は、別オリジンの RP フロントエンドから
+呼ばれた場合、その RP の**ドメイン（＋サブドメイン）から登録された subscription
+のみ**を返す（`Origin` ヘッダで判定）。IdP 自身（同一オリジン / `IDP_ORIGIN`）
+からの呼び出しは全件返す（`/me` の管理用）。
+
 #### レート制限（subscription 単位の flood 防止）
 
 1つの subscription に短時間で大量の通知が飛ばないよう、固定ウィンドウのレート

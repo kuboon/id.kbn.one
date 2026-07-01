@@ -18,6 +18,16 @@ export const isAllowedRpClient = (clientId: string): boolean =>
   authorizeWhitelist.includes(clientId);
 
 /**
+ * Whether the caller is the IdP itself rather than a cross-origin RP. True
+ * when there is no `Origin` (same-origin request, e.g. the IdP's own `/me`
+ * page) or it equals the IdP origin. Such callers are not domain-scoped.
+ */
+export const callerIsIdp = (
+  callerOrigin: string | undefined,
+  idp: string,
+): boolean => !callerOrigin || callerOrigin === idp;
+
+/**
  * Whether a subscription registered from `subscriptionOrigin` belongs to the
  * RP identified by `clientId` — i.e. registered from the RP's own domain or a
  * subdomain of it. Scheme/port are ignored; matching is by hostname. Returns

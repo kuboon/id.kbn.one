@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 
-import { originMatchesClient } from "./clients.ts";
+import { callerIsIdp, originMatchesClient } from "./clients.ts";
 
 const CLIENT = "https://rp.example.com";
 
@@ -30,4 +30,15 @@ Deno.test("originMatchesClient: missing or invalid origin is false", () => {
   assertEquals(originMatchesClient(undefined, CLIENT), false);
   assertEquals(originMatchesClient("", CLIENT), false);
   assertEquals(originMatchesClient("not a url", CLIENT), false);
+});
+
+Deno.test("callerIsIdp: same-origin (no Origin) or the IdP origin is the IdP", () => {
+  const IDP = "https://id.kbn.one";
+  assert(callerIsIdp(undefined, IDP));
+  assert(callerIsIdp(IDP, IDP));
+});
+
+Deno.test("callerIsIdp: a cross-origin RP is not the IdP", () => {
+  const IDP = "https://id.kbn.one";
+  assertEquals(callerIsIdp("https://rp.example.com", IDP), false);
 });
