@@ -2,7 +2,7 @@ import type { Middleware } from "@remix-run/fetch-router";
 import { staticFiles } from "@remix-run/static-middleware";
 import { cors } from "@remix-run/cors-middleware";
 
-import { authorizeWhitelist, idpOrigin } from "./config.ts";
+import { idpOrigin, originAllowlist } from "./config.ts";
 import { dpop } from "./middleware/dpop.ts";
 import { AuthRequiredError } from "./middleware/auth.ts";
 import { requireUser } from "./middleware/user.ts";
@@ -10,12 +10,7 @@ import { requireRpClient } from "./middleware/rp.ts";
 
 const allowedOrigins = (origin: string): string | undefined => {
   if (idpOrigin && origin === idpOrigin) return origin;
-  for (const allowed of authorizeWhitelist) {
-    if (origin === allowed || origin.endsWith("." + allowed)) {
-      return origin;
-    }
-  }
-  return undefined;
+  return originAllowlist.originAllowed(origin) ? origin : undefined;
 };
 
 const bundledDir = new URL("../bundled", import.meta.url).pathname;

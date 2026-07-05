@@ -8,22 +8,13 @@
 
 import type { RequestHandler } from "@remix-run/fetch-router";
 import { Authorize } from "../../client/authorize.tsx";
-import { authorizeWhitelist } from "../config.ts";
+import { originAllowlist } from "../config.ts";
 import { renderPage } from "../utils/render.tsx";
 
 const jktPattern = /^[A-Za-z0-9_-]{43}$/;
 
-const isAllowedRedirectUri = (redirectUri: string): boolean => {
-  let url: URL;
-  try {
-    url = new URL(redirectUri);
-  } catch {
-    return false;
-  }
-  return authorizeWhitelist.some((x) =>
-    url.hostname === x || url.hostname.endsWith("." + x)
-  );
-};
+const isAllowedRedirectUri = (redirectUri: string): boolean =>
+  originAllowlist.originAllowed(redirectUri);
 
 export const authorizeAction: RequestHandler<
   Record<string, never>
