@@ -3,19 +3,20 @@
  * existing `AUTHORIZE_WHITELIST`.
  *
  * An RP's `clientId` is its origin (e.g. `https://rp.example.com`). It is
- * allowed iff that origin is in `AUTHORIZE_WHITELIST`, and its public key is
- * fetched from the RP's own JWKS at `${origin}/.well-known/jwks.json` — the
- * mirror image of how an RP verifies the IdP. There is no separate key
- * registry: the RP rotates keys by updating its own JWKS.
+ * allowed iff its host is whitelisted by `AUTHORIZE_WHITELIST` (the host or a
+ * subdomain of it), and its public key is fetched from the RP's own JWKS at
+ * `${origin}/.well-known/jwks.json` — the mirror image of how an RP verifies
+ * the IdP. There is no separate key registry: the RP rotates keys by updating
+ * its own JWKS.
  */
 
 import { createRemoteJWKSet, type JWTVerifyGetKey } from "jose";
 
-import { authorizeWhitelist } from "../../config.ts";
+import { originAllowlist } from "../../config.ts";
 
-/** True when `clientId` (an origin) is a whitelisted RP. */
+/** True when `clientId` (an origin) is a whitelisted RP host or subdomain. */
 export const isAllowedRpClient = (clientId: string): boolean =>
-  authorizeWhitelist.includes(clientId);
+  originAllowlist.originAllowed(clientId);
 
 /**
  * Whether the caller is the IdP itself rather than a cross-origin RP. True

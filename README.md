@@ -206,8 +206,11 @@ mise use -g deno
 - `RP_ID` (relying party id for WebAuthn, e.g. `localhost`)
 - `RP_NAME` (relying party display name, e.g. `My ID Provider`)
 - `IDP_ORIGIN` (this server's own origin, e.g. `http://localhost:8000`)
-- `AUTHORIZE_WHITELIST` (comma-separated RP origins allowed to use `/authorize`
-  and CORS, e.g. `http://localhost:3000,https://rp.example.com`)
+- `AUTHORIZE_WHITELIST` (comma-separated RP **ホスト名**。指定ホストとその
+  **サブドメイン**を許可する（`/authorize`
+  redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
+  origin での指定も可（hostname に正規化）。 例:
+  `kbn.one,kuboon-tokyo.deno.net,localhost`）
 - `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
 
 ## Project layout
