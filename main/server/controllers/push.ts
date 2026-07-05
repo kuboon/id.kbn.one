@@ -10,9 +10,10 @@
 import type { RequestContext } from "@remix-run/fetch-router";
 import { type } from "arktype";
 
-import { pushContact } from "../config.ts";
+import { idpOrigin, pushContact } from "../config.ts";
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
+import { callerIsIdp, originMatchesClient } from "../lib/rp/clients.ts";
 import {
   pushService,
   type PushSubscriptionMetadata,
@@ -121,8 +122,15 @@ export const pushController = {
     async listSubscriptions(context: RequestContext) {
       const { id: userId } = context.get(User);
       const subscriptions = await pushService.listSubscriptions(userId);
+      // A cross-origin RP frontend only sees devices registered from its own
+      // domain (or a subdomain). The IdP itself (same-origin / IDP_ORIGIN)
+      // sees all of the user's devices.
+      const caller = requestOrigin(context.request);
+      const visible = caller && !callerIsIdp(caller, idpOrigin)
+        ? subscriptions.filter((s) => originMatchesClient(s.origin, caller))
+        : subscriptions;
       return setNoStore(
-        Response.json({ subscriptions: subscriptions.map(serialize) }),
+        Response.json({ subscriptions: visible.map(serialize) }),
       );
     },
 
