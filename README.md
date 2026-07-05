@@ -96,8 +96,10 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 の秘密鍵で署名された JWS を、RP 自身が公開する JWKS で検証する（IdP が公開鍵を
 保持しない＝ RP が自分の JWKS を更新するだけで鍵ローテーションできる）。
 
-専用の登録は不要。RP の `clientId` は **その RP の origin**
-で、`AUTHORIZE_WHITELIST` に含まれていれば許可される。IdP は検証鍵を RP の
+専用の登録は不要。RP の `clientId`（= JWT の `iss`/`sub`）は **その RP の
+origin**（`https://rp.example.com`）または **ホスト名のみ**（`rp.example.com`、
+スキーム無しの場合は `https://` とみなす）で、`AUTHORIZE_WHITELIST` の
+ホスト＋サブドメインに一致すれば許可される。IdP は検証鍵を RP の
 `${clientId}/.well-known/jwks.json` から取得する（IdP 側の JWKS 配布と対称）。
 
 RP 側は秘密鍵でクライアントアサーションを署名し、`Authorization` ヘッダに載せて

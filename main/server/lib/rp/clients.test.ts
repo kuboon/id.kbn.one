@@ -1,8 +1,27 @@
 import { assert, assertEquals } from "@std/assert";
 
-import { callerIsIdp, originMatchesClient } from "./clients.ts";
+import { callerIsIdp, clientOrigin, originMatchesClient } from "./clients.ts";
 
 const CLIENT = "https://rp.example.com";
+
+Deno.test("clientOrigin: bare host becomes an https origin", () => {
+  assertEquals(clientOrigin("rp.example.com"), "https://rp.example.com");
+});
+
+Deno.test("clientOrigin: a full origin is returned unchanged", () => {
+  assertEquals(
+    clientOrigin("https://rp.example.com"),
+    "https://rp.example.com",
+  );
+  assertEquals(clientOrigin("http://localhost:3000"), "http://localhost:3000");
+});
+
+Deno.test("originMatchesClient: a bare-host clientId (iss without scheme) matches", () => {
+  const bare = "rp.example.com";
+  assert(originMatchesClient("https://rp.example.com", bare));
+  assert(originMatchesClient("https://app.rp.example.com", bare));
+  assertEquals(originMatchesClient("https://evil.com", bare), false);
+});
 
 Deno.test("originMatchesClient: exact host matches", () => {
   assert(originMatchesClient("https://rp.example.com", CLIENT));
