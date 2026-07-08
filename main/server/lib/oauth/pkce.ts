@@ -3,8 +3,6 @@
  * authorization spec.
  */
 
-import { encodeBase64Url } from "@std/encoding/base64url";
-
 /** RFC 7636 §4.1 `code_verifier` charset and length. */
 const VERIFIER_RE = /^[A-Za-z0-9\-._~]{43,128}$/;
 
@@ -14,7 +12,10 @@ export const s256Challenge = async (verifier: string): Promise<string> => {
     "SHA-256",
     new TextEncoder().encode(verifier),
   );
-  return encodeBase64Url(new Uint8Array(digest));
+  return new Uint8Array(digest).toBase64({
+    alphabet: "base64url",
+    omitPadding: true,
+  });
 };
 
 /**
