@@ -10,6 +10,12 @@ export const routes = route({
   // Public JWKS for verifiers (RFC 7517). No DPoP, no auth.
   jwks: get("/.well-known/jwks.json"),
 
+  // OAuth 2.1 Authorization Server for MCP clients. Public (no DPoP).
+  oauthMetadata: get("/.well-known/oauth-authorization-server"),
+  oauth: route("oauth", {
+    token: post("/token"),
+  }),
+
   // `auth:` — DPoP-bound passkey + raw session ops. Logical grouping only;
   // each URL stays at its original path because `route(defs)` uses the "/"
   // base.

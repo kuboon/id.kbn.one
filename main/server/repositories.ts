@@ -34,3 +34,10 @@ export const pushUserIndexRepoForUser = (
  * own, so no cleanup is needed.
  */
 export const pushRateLimitRepo = new DenoKvRepo<number>(["push", "ratelimit"]);
+
+/**
+ * "Consumed" markers keyed by JWT `jti`, making OAuth authorization codes
+ * single-use and giving refresh tokens rotation with reuse detection. Values
+ * expire with the token, so no cleanup is needed.
+ */
+export const oauthConsumedRepo = new DenoKvRepo<boolean>(["oauth", "consumed"]);
