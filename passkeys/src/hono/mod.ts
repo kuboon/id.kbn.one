@@ -112,7 +112,10 @@ export const createPasskeysRouter = (
             (err as unknown as { status?: number }).status === 401
           ) {
             const message = "Credential not found";
-            const res = Response.json({ message });
+            const rpId = (err as unknown as { rpId?: unknown }).rpId;
+            const res = Response.json(
+              typeof rpId === "string" ? { message, rpId } : { message },
+            );
             throw new HTTPException(401, { message, res });
           }
           throw jsonError(400, "Authentication could not be verified");

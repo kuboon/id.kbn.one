@@ -189,6 +189,7 @@ export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
       if (!storedCredential) {
         class NotFoundError extends Error {
           status = 401;
+          rpId = expectedRPID;
         }
         throw new NotFoundError("Credential not found");
       }

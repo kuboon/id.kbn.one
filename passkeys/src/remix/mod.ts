@@ -46,8 +46,12 @@ export const getRequestUrl = (request: Request): URL => {
   }
 };
 
-const jsonError = (status: number, message: string): Response =>
-  new Response(JSON.stringify({ message }), {
+const jsonError = (
+  status: number,
+  message: string,
+  extra?: Record<string, unknown>,
+): Response =>
+  new Response(JSON.stringify({ message, ...extra }), {
     status,
     headers: { "content-type": "application/json" },
   });
@@ -157,7 +161,12 @@ export function createPasskeysActions(
           err instanceof Error && "status" in err &&
           (err as { status?: number }).status === 401
         ) {
-          return jsonError(401, "Credential not found");
+          const rpId = (err as { rpId?: unknown }).rpId;
+          return jsonError(
+            401,
+            "Credential not found",
+            typeof rpId === "string" ? { rpId } : undefined,
+          );
         }
         return jsonError(400, "Authentication could not be verified");
       }
