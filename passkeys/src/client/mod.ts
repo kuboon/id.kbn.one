@@ -92,6 +92,7 @@ const postJson = async <T = unknown>(
   try {
     if (hasJsonContentType(response)) {
       const data = await response.json();
+      details = data;
       if (data && typeof data === "object" && "message" in data) {
         const message_ = (data as { message?: unknown }).message;
         if (typeof message_ === "string") message = message_.trim();

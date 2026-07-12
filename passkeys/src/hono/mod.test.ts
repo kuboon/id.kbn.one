@@ -49,6 +49,26 @@ Deno.test("PasskeyAppType RPC - authenticate/options endpoint", async () => {
   }
 });
 
+Deno.test("PasskeyAppType RPC - authenticate/verify returns rpId for unknown credential", async () => {
+  const optionsRes = await client.authenticate.options.$post();
+  assertEquals(optionsRes.status, 200);
+  const { sessionToken } = await optionsRes.json();
+
+  const verifyRes = await client.authenticate.verify.$post({
+    json: {
+      credential: { id: "unknown-credential-id" },
+      sessionToken,
+    },
+  });
+
+  assertEquals(verifyRes.status, 401);
+  const body = await verifyRes.json() as { message?: string; rpId?: string };
+  assertEquals(body.message, "Credential not found");
+  // rpId lets the client call PublicKeyCredential.signalUnknownCredential so
+  // the stale passkey can be removed from the user's device.
+  assertEquals(body.rpId, "localhost");
+});
+
 Deno.test("PasskeyAppType RPC - type safety check", () => {
   // This test verifies that the types are correctly inferred
   const client = hc<PasskeyAppType>("http://localhost");
