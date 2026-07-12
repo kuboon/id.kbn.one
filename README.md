@@ -172,6 +172,49 @@ URL）は別物で、通知自体に出すバッジ画像（Web Notifications AP
 [RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
 [RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523
 
+## MCP 認可サーバ (OAuth 2.1) — 実装中
+
+別ドメインの **remote MCP サーバ**（= OAuth リソースサーバ）の認証に、この IdP
+を **OAuth 2.1 認可サーバ**として使うための実装。passkey
+認証をログイン段に用いる。
+
+クライアント識別は **DCR ではなく CIMD（Client ID Metadata
+Document）**：`client_id` はクライアントが自己公開する HTTPS メタデータ URL
+で、AS がそれを fetch・検証する （RP の JWKS を fetch
+するのと同じ設計。クライアント登録・保存は不要）。
+
+トークン（認可コード / アクセス / リフレッシュ）はすべて **ES256 署名
+JWT**。ランダム
+生成＋保存はせず、有効性は署名で判定。リフレッシュは**ローテーション＋再利用検知**
+（使用済み `jti` のみ KV に記録）。アクセストークンは `aud` を対象 MCP
+サーバに束縛 （RFC 8707）。
+
+**実装済み (Phase 1):**
+
+- `GET /.well-known/oauth-authorization-server`（RFC 8414 メタデータ）
+- `POST /oauth/token`（`authorization_code`＋PKCE(S256) / `refresh_token`
+  ローテーション）
+- CIMD 解決＋検証・PKCE・署名トークンのライブラリ（`lib/oauth/`）
+
+**未実装 (Phase 2):** `GET /oauth/authorize`（passkey ログイン＋同意 →
+認可コード）と、 RS 側の
+`/.well-known/oauth-protected-resource`＋トークン検証スニペット。フロー全体は
+Phase 2 で通る。
+
+RS（別ドメインの MCP サーバ）側の検証は既存の JWKS 配布を流用：
+
+```ts
+import { createRemoteJWKSet, jwtVerify } from "jose";
+const JWKS = createRemoteJWKSet(
+  new URL("https://id.kbn.one/.well-known/jwks.json"),
+);
+const { payload } = await jwtVerify(bearer, JWKS, {
+  issuer: "https://id.kbn.one",
+  audience: "https://mcp.example.com", // このリソースサーバの識別子
+});
+// payload.sub = userId, payload.scope など
+```
+
 ## 技術スタック
 
 - ランタイム: **Deno** (`Deno.bundle`, `Deno.openKv`)
