@@ -17,6 +17,7 @@ import { homeAction } from "./controllers/home.tsx";
 import { jwksAction } from "./controllers/jwks.ts";
 import { meAction } from "./controllers/me.tsx";
 import { oauthController } from "./controllers/oauth.ts";
+import { profileUpdateAction } from "./controllers/profile.ts";
 import { pushController } from "./controllers/push.ts";
 import { rpPushController } from "./controllers/rp-push.ts";
 import { sessionAction, sessionLogoutAction } from "./controllers/session.ts";
@@ -61,6 +62,7 @@ router.map(routes.userApi, {
   actions: {
     bindSession: bindSessionAction,
     accountDelete: accountDeleteAction,
+    profileUpdate: profileUpdateAction,
     credentials: credentialsController,
   },
 });

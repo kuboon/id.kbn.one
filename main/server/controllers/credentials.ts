@@ -8,6 +8,7 @@ import { type } from "arktype";
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
 import { credentialRepository } from "../lib/passkey.ts";
+import { getUserProfile } from "../lib/user-profile.ts";
 
 const credentialIdParam = type({ credentialId: "string" });
 const updateNicknameBody = type({ nickname: "string>0" });
@@ -16,10 +17,15 @@ export const credentialsController = {
   actions: {
     async list(context: RequestContext) {
       const { id: userId } = context.get(User);
-      const credentials = await credentialRepository.getCredentialsByUserId(
+      const [credentials, profile] = await Promise.all([
+        credentialRepository.getCredentialsByUserId(userId),
+        getUserProfile(userId),
+      ]);
+      return setNoStore(Response.json({
         userId,
-      );
-      return setNoStore(Response.json({ userId, credentials }));
+        nickname: profile?.nickname ?? "",
+        credentials,
+      }));
     },
 
     async update(context: RequestContext) {

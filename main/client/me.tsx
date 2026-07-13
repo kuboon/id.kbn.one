@@ -34,7 +34,7 @@ type AlertKind = "info" | "success" | "warning" | "error";
 
 interface User {
   id: string;
-  username: string;
+  nickname: string;
 }
 
 interface Credential {
@@ -55,6 +55,8 @@ export interface MeProps {
 
 const CREDENTIAL_INPUT_ID = "rmx-credential-edit-input";
 const PUSH_DEVICE_INPUT_ID = "rmx-push-device-edit-input";
+const PROFILE_INPUT_ID = "rmx-profile-edit-input";
+const NICKNAME_MAX_LENGTH = 64;
 
 const isClientEnv = typeof globalThis !== "undefined" &&
   typeof (globalThis as { document?: unknown }).document !== "undefined" &&
@@ -102,6 +104,7 @@ export const Me = clientEntry(
 
     let credentialEdit: { id: string; original: string } | null = null;
     let pushDeviceEdit: { id: string; original: string } | null = null;
+    let profileEdit: { original: string } | null = null;
 
     const busy = {
       logout: false,
@@ -160,11 +163,15 @@ export const Me = clientEntry(
       if (!r.ok) throw new Error(await extractErrorMessage(r));
       const data = await r.json() as {
         userId?: string;
+        nickname?: unknown;
         credentials?: unknown;
       };
       if (!data?.userId) throw new Error("アカウントが見つかりません。");
       return {
-        user: { id: data.userId, username: data.userId },
+        user: {
+          id: data.userId,
+          nickname: typeof data.nickname === "string" ? data.nickname : "",
+        },
         credentials: Array.isArray(data.credentials)
           ? data.credentials as Credential[]
           : [],
@@ -179,6 +186,40 @@ export const Me = clientEntry(
           e instanceof Error && e.message
             ? e.message
             : "アカウントを更新できません。",
+          "error",
+        );
+      }
+      handle.update();
+    };
+
+    const saveNickname = async (raw: string) => {
+      if (!fetchDpop || !account) return;
+      const nickname = raw.trim();
+      if (!nickname) {
+        setStatus("ユーザー名を入力してください。", "error");
+        return;
+      }
+      try {
+        const r = await fetchDpop("/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nickname }),
+        });
+        if (!r.ok) throw new Error(await extractErrorMessage(r));
+        const data = await r.json() as { profile?: { nickname?: string } };
+        const finalName = data?.profile?.nickname?.trim() || nickname;
+        account.user.nickname = finalName;
+        profileEdit = null;
+        setStatus(
+          `ユーザー名を「${finalName}」に更新しました。`,
+          "success",
+          true,
+        );
+      } catch (e) {
+        setStatus(
+          e instanceof Error && e.message
+            ? `ユーザー名の更新に失敗しました: ${e.message}`
+            : "ユーザー名の更新に失敗しました。",
           "error",
         );
       }
@@ -452,12 +493,39 @@ export const Me = clientEntry(
                     <div class="label">
                       <span class="label-text">ユーザー名</span>
                     </div>
+                    <div class="flex gap-2">
+                      <input
+                        type="text"
+                        name="nickname"
+                        readonly
+                        placeholder="未設定"
+                        value={account.user.nickname}
+                        class="input input-bordered flex-1"
+                      />
+                      <button
+                        type="button"
+                        class="btn btn-outline"
+                        mix={[on("click", () => {
+                          profileEdit = {
+                            original: account?.user.nickname ?? "",
+                          };
+                          handle.update();
+                        })]}
+                      >
+                        変更
+                      </button>
+                    </div>
+                  </label>
+                  <label class="form-control w-full max-w-sm">
+                    <div class="label">
+                      <span class="label-text">ユーザーID</span>
+                    </div>
                     <input
                       type="text"
-                      name="username"
+                      name="userId"
                       readonly
-                      value={account.user.username}
-                      class="input input-bordered"
+                      value={account.user.id}
+                      class="input input-bordered font-mono text-sm"
                     />
                   </label>
                 </div>
@@ -783,6 +851,65 @@ export const Me = clientEntry(
                 class="modal-backdrop"
                 mix={[on("click", () => {
                   pushDeviceEdit = null;
+                  handle.update();
+                })]}
+              />
+            </div>
+          )}
+
+          {profileEdit && (
+            <div class="modal modal-open" role="dialog" aria-modal="true">
+              <div class="modal-box space-y-4">
+                <h2 class="text-lg font-semibold">ユーザー名を変更</h2>
+                <label class="form-control w-full">
+                  <div class="label">
+                    <span class="label-text">ユーザー名</span>
+                  </div>
+                  <input
+                    id={PROFILE_INPUT_ID}
+                    type="text"
+                    placeholder="未設定"
+                    autocomplete="off"
+                    required
+                    maxlength={NICKNAME_MAX_LENGTH}
+                    value={profileEdit.original}
+                    class="input input-bordered"
+                  />
+                </label>
+                <div class="modal-action">
+                  <button
+                    type="button"
+                    class="btn btn-ghost"
+                    mix={[on("click", () => {
+                      profileEdit = null;
+                      handle.update();
+                    })]}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    mix={[on("click", () => {
+                      if (!profileEdit) {
+                        return;
+                      }
+                      const input = document.getElementById(
+                        PROFILE_INPUT_ID,
+                      ) as HTMLInputElement | null;
+                      if (input) {
+                        void saveNickname(input.value);
+                      }
+                    })]}
+                  >
+                    保存
+                  </button>
+                </div>
+              </div>
+              <div
+                class="modal-backdrop"
+                mix={[on("click", () => {
+                  profileEdit = null;
                   handle.update();
                 })]}
               />

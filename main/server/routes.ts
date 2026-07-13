@@ -28,6 +28,7 @@ export const routes = route({
   userApi: route({
     bindSession: post("/bind_session"),
     accountDelete: del("/account"),
+    profileUpdate: patch("/profile"),
 
     credentials: route("credentials", {
       list: get("/"),
