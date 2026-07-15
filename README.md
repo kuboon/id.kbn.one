@@ -172,7 +172,7 @@ URL）は別物で、通知自体に出すバッジ画像（Web Notifications AP
 [RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
 [RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523
 
-## MCP 認可サーバ (OAuth 2.1) — 実装中
+## MCP 認可サーバ (OAuth 2.1)
 
 別ドメインの **remote MCP サーバ**（= OAuth リソースサーバ）の認証に、この IdP
 を **OAuth 2.1 認可サーバ**として使うための実装。passkey
@@ -189,17 +189,24 @@ JWT**。ランダム
 （使用済み `jti` のみ KV に記録）。アクセストークンは `aud` を対象 MCP
 サーバに束縛 （RFC 8707）。
 
-**実装済み (Phase 1):**
+**エンドポイント:**
 
 - `GET /.well-known/oauth-authorization-server`（RFC 8414 メタデータ）
+- `GET /oauth/authorize` — パラメータ検証（`response_type=code`／PKCE `S256`／
+  RFC 8707 `resource`）＋ CIMD でクライアント解決・`redirect_uri` 照合 →
+  **passkey ログイン＋同意** → 認可コードを `redirect_uri?code&state`
+  へ。検証済みリクエストは
+  短命の署名トークンに載せて同意画面へ渡すので、承認時に CIMD を再取得しない。
 - `POST /oauth/token`（`authorization_code`＋PKCE(S256) / `refresh_token`
-  ローテーション）
-- CIMD 解決＋検証・PKCE・署名トークンのライブラリ（`lib/oauth/`）
+  ローテーション＋再利用検知）
 
-**未実装 (Phase 2):** `GET /oauth/authorize`（passkey ログイン＋同意 →
-認可コード）と、 RS 側の
-`/.well-known/oauth-protected-resource`＋トークン検証スニペット。フロー全体は
-Phase 2 で通る。
+MCP クライアントの認可リクエスト例：
+`GET /oauth/authorize?response_type=code&client_id=<CIMD URL>&redirect_uri=<cb>&code_challenge=<S256>&code_challenge_method=S256&resource=https://mcp.example.com&scope=mcp&state=<s>`
+
+**RS 側（別ドメインの MCP サーバ）で実装が必要:**
+`/.well-known/oauth-protected-resource` （RFC 9728、`authorization_servers`
+にこの IdP を記載）と、401 時の `WWW-Authenticate`、 Bearer
+トークン検証（下記）。
 
 RS（別ドメインの MCP サーバ）側の検証は既存の JWKS 配布を流用：
 

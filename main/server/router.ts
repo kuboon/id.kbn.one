@@ -17,6 +17,10 @@ import { homeAction } from "./controllers/home.tsx";
 import { jwksAction } from "./controllers/jwks.ts";
 import { meAction } from "./controllers/me.tsx";
 import { oauthController } from "./controllers/oauth.ts";
+import {
+  oauthApproveAction,
+  oauthAuthorizeAction,
+} from "./controllers/oauth-authorize.tsx";
 import { pushController } from "./controllers/push.ts";
 import { rpPushController } from "./controllers/rp-push.ts";
 import { sessionAction, sessionLogoutAction } from "./controllers/session.ts";
@@ -43,6 +47,7 @@ router.get(routes.oauthMetadata, oauthController.metadata);
 router.map(routes.oauth, {
   middleware: [],
   actions: {
+    authorize: oauthAuthorizeAction,
     token: oauthController.token,
   },
 });
@@ -61,6 +66,7 @@ router.map(routes.userApi, {
   actions: {
     bindSession: bindSessionAction,
     accountDelete: accountDeleteAction,
+    oauthApprove: oauthApproveAction,
     credentials: credentialsController,
   },
 });
