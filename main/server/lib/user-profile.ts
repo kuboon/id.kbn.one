@@ -6,12 +6,12 @@
 
 import { DenoKvRepo } from "@kbn/kv/denoKv.ts";
 
+export { NICKNAME_MAX_LENGTH } from "../../client/lib/profile.ts";
+
 export interface UserProfile {
   /** User-chosen display name. Trimmed, non-empty, at most 64 chars. */
   nickname: string;
 }
-
-export const NICKNAME_MAX_LENGTH = 64;
 
 const userProfileRepo = new DenoKvRepo<UserProfile>(["user", "profile"]);
 

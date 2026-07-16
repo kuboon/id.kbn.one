@@ -29,6 +29,7 @@ import {
   type PushManager,
   pushSummaryText,
 } from "./lib/push/mod.ts";
+import { NICKNAME_MAX_LENGTH } from "./lib/profile.ts";
 
 type AlertKind = "info" | "success" | "warning" | "error";
 
@@ -56,7 +57,6 @@ export interface MeProps {
 const CREDENTIAL_INPUT_ID = "rmx-credential-edit-input";
 const PUSH_DEVICE_INPUT_ID = "rmx-push-device-edit-input";
 const PROFILE_INPUT_ID = "rmx-profile-edit-input";
-const NICKNAME_MAX_LENGTH = 64;
 
 const isClientEnv = typeof globalThis !== "undefined" &&
   typeof (globalThis as { document?: unknown }).document !== "undefined" &&
