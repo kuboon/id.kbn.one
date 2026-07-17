@@ -6,7 +6,12 @@
 
 import { DenoKvRepo } from "@kbn/kv/denoKv.ts";
 
-export { NICKNAME_MAX_LENGTH } from "../../client/lib/profile.ts";
+/**
+ * Maximum length of a user's display nickname. Declared here (server side) and
+ * handed to the profile island as a serializable prop, so the browser needs no
+ * copy of the constant.
+ */
+export const NICKNAME_MAX_LENGTH = 64;
 
 export interface UserProfile {
   /** User-chosen display name. Trimmed, non-empty, at most 64 chars. */
