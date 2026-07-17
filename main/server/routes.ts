@@ -13,6 +13,7 @@ export const routes = route({
   // OAuth 2.1 Authorization Server for MCP clients. Public (no DPoP).
   oauthMetadata: get("/.well-known/oauth-authorization-server"),
   oauth: route("oauth", {
+    authorize: get("/authorize"),
     token: post("/token"),
   }),
 
@@ -28,6 +29,8 @@ export const routes = route({
   userApi: route({
     bindSession: post("/bind_session"),
     accountDelete: del("/account"),
+    // OAuth consent approval — needs a DPoP-bound signed-in user.
+    oauthApprove: post("/oauth/authorize/approve"),
 
     credentials: route("credentials", {
       list: get("/"),

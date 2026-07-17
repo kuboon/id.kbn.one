@@ -11,6 +11,7 @@ const CLIENT_ENTRIES = [
   "index.tsx",
   "me.tsx",
   "authorize.tsx",
+  "oauth-authorize.tsx",
   "sw.js",
   "rp.ts",
 ] as const;

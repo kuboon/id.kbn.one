@@ -20,10 +20,12 @@ import { getSigningKey } from "../signing-key.ts";
 import { oauthConsumedRepo } from "../../repositories.ts";
 import { verifyPkceS256 } from "./pkce.ts";
 
+const AUTHZ_REQ_TYP = "oauth-authz-request+jwt";
 const CODE_TYP = "oauth-authz-code+jwt";
 const ACCESS_TYP = "at+jwt";
 const REFRESH_TYP = "oauth-refresh+jwt";
 
+const AUTHZ_REQ_TTL_S = 600; // 10 min to log in + consent
 const CODE_TTL_S = 60;
 const ACCESS_TTL_S = 3600;
 const REFRESH_TTL_S = 60 * 60 * 24 * 30; // 30 days
@@ -73,6 +75,94 @@ const consumeOnce = async (jti: string, ttlS: number): Promise<boolean> => {
     return true;
   }, { expireIn: Math.max(ttlS, 1) * 1000 });
   return first && result.ok;
+};
+
+export interface AuthzRequest {
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  resource: string;
+  scope: string;
+  state?: string;
+}
+
+/**
+ * Sign the validated authorization request (from `GET /oauth/authorize`) into a
+ * short-lived token. It is carried by the consent page and presented back to
+ * `POST /oauth/authorize/approve`, so the request cannot be tampered with and
+ * the CIMD client does not need to be re-fetched to mint the code.
+ */
+export const issueAuthzRequest = async (
+  req: AuthzRequest,
+): Promise<string> => {
+  const now = Math.floor(Date.now() / 1000);
+  return await sign(AUTHZ_REQ_TYP, {
+    iss: idpOrigin,
+    client_id: req.clientId,
+    redirect_uri: req.redirectUri,
+    code_challenge: req.codeChallenge,
+    resource: req.resource,
+    scope: req.scope,
+    state: req.state,
+    iat: now,
+    exp: now + AUTHZ_REQ_TTL_S,
+  });
+};
+
+const buildRedirect = (
+  redirectUri: string,
+  params: Record<string, string | undefined>,
+): string => {
+  const url = new URL(redirectUri);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) url.searchParams.set(key, value);
+  }
+  return url.toString();
+};
+
+export interface CompleteAuthorizationInput {
+  requestToken: string;
+  userId: string;
+  decision: "approve" | "deny";
+}
+
+/**
+ * Finish an authorization: verify the signed request, then build the redirect
+ * back to the client — with a fresh authorization `code` on approval, or an
+ * `access_denied` error otherwise. `state` is echoed back either way.
+ */
+export const completeAuthorization = async (
+  input: CompleteAuthorizationInput,
+): Promise<{ redirect: string }> => {
+  let req: JWTPayload;
+  try {
+    req = await verify(input.requestToken, AUTHZ_REQ_TYP);
+  } catch {
+    throw new OAuthError(
+      "invalid_request",
+      400,
+      "invalid authorization request",
+    );
+  }
+
+  const redirectUri = String(req.redirect_uri);
+  const state = typeof req.state === "string" ? req.state : undefined;
+
+  if (input.decision !== "approve") {
+    return {
+      redirect: buildRedirect(redirectUri, { error: "access_denied", state }),
+    };
+  }
+
+  const code = await issueAuthCode({
+    sub: input.userId,
+    clientId: String(req.client_id),
+    redirectUri,
+    codeChallenge: String(req.code_challenge),
+    resource: String(req.resource),
+    scope: String(req.scope ?? ""),
+  });
+  return { redirect: buildRedirect(redirectUri, { code, state }) };
 };
 
 export interface AuthCodeInput {
