@@ -47,6 +47,11 @@ interface Credential {
 interface Account {
   user: User;
   credentials: Credential[];
+  /**
+   * The user's own display name — distinct from `Credential.nickname`, which
+   * names one device. Empty when unset; RPs then fall back to the userId.
+   */
+  nickname: string;
 }
 
 export interface MeProps {
@@ -55,6 +60,8 @@ export interface MeProps {
 
 const CREDENTIAL_INPUT_ID = "rmx-credential-edit-input";
 const PUSH_DEVICE_INPUT_ID = "rmx-push-device-edit-input";
+const NICKNAME_INPUT_ID = "rmx-nickname-input";
+const NICKNAME_MAX_LENGTH = 40;
 
 const isClientEnv = typeof globalThis !== "undefined" &&
   typeof (globalThis as { document?: unknown }).document !== "undefined" &&
@@ -102,11 +109,19 @@ export const Me = clientEntry(
 
     let credentialEdit: { id: string; original: string } | null = null;
     let pushDeviceEdit: { id: string; original: string } | null = null;
+    /**
+     * Nickname field state. Held here rather than read off the DOM at save
+     * time: any `handle.update()` (a toast, a push-state change) re-renders the
+     * input from state, which would otherwise discard what the user typed.
+     * `null` = not yet loaded / follow `account.nickname`.
+     */
+    let nicknameDraft: string | null = null;
 
     const busy = {
       logout: false,
       deleteAccount: false,
       addPasskey: false,
+      saveNickname: false,
     };
 
     let fetchDpop: typeof fetch | null = null;
@@ -143,11 +158,15 @@ export const Me = clientEntry(
       handle.update();
     };
 
-    const getSession = async (): Promise<{ userId?: string } | null> => {
+    const getSession = async (): Promise<
+      { userId?: string; nickname?: string | null } | null
+    > => {
       if (!fetchDpop) return null;
       try {
         const r = await fetchDpop("/session");
-        return r.ok ? await r.json() as { userId?: string } : null;
+        return r.ok
+          ? await r.json() as { userId?: string; nickname?: string | null }
+          : null;
       } catch {
         return null;
       }
@@ -163,12 +182,52 @@ export const Me = clientEntry(
         credentials?: unknown;
       };
       if (!data?.userId) throw new Error("アカウントが見つかりません。");
+      // The nickname lives on the session payload; keep whatever we already
+      // have so a credentials-only reload doesn't blank the field.
+      const nickname = (await getSession())?.nickname ?? account?.nickname ??
+        "";
       return {
         user: { id: data.userId, username: data.userId },
         credentials: Array.isArray(data.credentials)
           ? data.credentials as Credential[]
           : [],
+        nickname,
       };
+    };
+
+    const saveNickname = async () => {
+      if (!fetchDpop || busy.saveNickname) return;
+      const nickname = (nicknameDraft ?? account?.nickname ?? "")
+        .trim().slice(0, NICKNAME_MAX_LENGTH);
+      busy.saveNickname = true;
+      handle.update();
+      try {
+        const r = await fetchDpop("/account", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nickname }),
+        });
+        if (!r.ok) throw new Error(await extractErrorMessage(r));
+        const data = await r.json() as { nickname?: string | null };
+        if (account) account.nickname = data.nickname ?? "";
+        nicknameDraft = data.nickname ?? "";
+        setStatus(
+          data.nickname
+            ? `ニックネームを「${data.nickname}」に変更しました。`
+            : "ニックネームを削除しました。",
+          "success",
+        );
+      } catch (e) {
+        setStatus(
+          e instanceof Error && e.message
+            ? e.message
+            : "ニックネームを保存できません。",
+          "error",
+        );
+      } finally {
+        busy.saveNickname = false;
+        handle.update();
+      }
     };
 
     const reloadAccount = async () => {
@@ -459,6 +518,49 @@ export const Me = clientEntry(
                       value={account.user.username}
                       class="input input-bordered"
                     />
+                  </label>
+                  <label class="form-control w-full max-w-sm">
+                    <div class="label">
+                      <span class="label-text">ニックネーム</span>
+                    </div>
+                    <div class="join">
+                      <input
+                        id={NICKNAME_INPUT_ID}
+                        type="text"
+                        name="nickname"
+                        maxlength={NICKNAME_MAX_LENGTH}
+                        placeholder="表示名（未設定）"
+                        value={nicknameDraft ?? account.nickname}
+                        class="input input-bordered join-item flex-1"
+                        mix={[
+                          on("input", (e) => {
+                            nicknameDraft = (e.target as HTMLInputElement)
+                              .value;
+                          }),
+                          on("keydown", (e) => {
+                            if (e.key === "Enter" && !e.isComposing) {
+                              e.preventDefault();
+                              void saveNickname();
+                            }
+                          }),
+                        ]}
+                      />
+                      <button
+                        type="button"
+                        disabled={busy.saveNickname}
+                        class="btn btn-primary join-item"
+                        mix={[on("click", () => {
+                          void saveNickname();
+                        })]}
+                      >
+                        保存
+                      </button>
+                    </div>
+                    <div class="label">
+                      <span class="label-text-alt text-base-content/60">
+                        連携アプリに渡される表示名です。空にすると削除します。
+                      </span>
+                    </div>
                   </label>
                 </div>
               </div>

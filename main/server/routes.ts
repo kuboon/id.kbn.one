@@ -28,6 +28,7 @@ export const routes = route({
   // `context.get(User)` (id + logout()) instead of touching DPoP directly.
   userApi: route({
     bindSession: post("/bind_session"),
+    accountUpdate: patch("/account"),
     accountDelete: del("/account"),
     // OAuth consent approval — needs a DPoP-bound signed-in user.
     oauthApprove: post("/oauth/authorize/approve"),

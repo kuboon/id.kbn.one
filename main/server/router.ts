@@ -9,7 +9,10 @@
 
 import { createRouter } from "@remix-run/fetch-router";
 
-import { accountDeleteAction } from "./controllers/account.ts";
+import {
+  accountDeleteAction,
+  accountUpdateAction,
+} from "./controllers/account.ts";
 import { authorizeAction } from "./controllers/authorize.tsx";
 import { bindSessionAction } from "./controllers/bind-session.ts";
 import { credentialsController } from "./controllers/credentials.ts";
@@ -65,6 +68,7 @@ router.map(routes.userApi, {
   middleware: userApiMiddleware,
   actions: {
     bindSession: bindSessionAction,
+    accountUpdate: accountUpdateAction,
     accountDelete: accountDeleteAction,
     oauthApprove: oauthApproveAction,
     credentials: credentialsController,
