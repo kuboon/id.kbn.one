@@ -34,7 +34,6 @@ type AlertKind = "info" | "success" | "warning" | "error";
 
 interface User {
   id: string;
-  username: string;
 }
 
 interface Credential {
@@ -187,7 +186,7 @@ export const Me = clientEntry(
       const nickname = (await getSession())?.nickname ?? account?.nickname ??
         "";
       return {
-        user: { id: data.userId, username: data.userId },
+        user: { id: data.userId },
         credentials: Array.isArray(data.credentials)
           ? data.credentials as Credential[]
           : [],
@@ -507,23 +506,27 @@ export const Me = clientEntry(
               <div class="card bg-base-100">
                 <div class="card-body">
                   <h2 class="card-title">プロフィール情報</h2>
-                  <label class="form-control w-full max-w-sm">
-                    <div class="label">
-                      <span class="label-text">ユーザー名</span>
-                    </div>
+                  {
+                    /*
+                    daisyUI 5 では form-control / label-text が廃止され、.label は
+                    入力欄の中で使う inline-flex になった。フィールドの縦積みは
+                    fieldset（display:grid）+ fieldset-legend / fieldset-label で
+                    組む。
+                  */
+                  }
+                  <fieldset class="fieldset w-full max-w-sm">
+                    <legend class="fieldset-legend">ユーザーID</legend>
                     <input
                       type="text"
-                      name="username"
+                      name="userId"
                       readonly
-                      value={account.user.username}
-                      class="input input-bordered"
+                      value={account.user.id}
+                      class="input input-bordered w-full font-mono"
                     />
-                  </label>
-                  <label class="form-control w-full max-w-sm">
-                    <div class="label">
-                      <span class="label-text">ニックネーム</span>
-                    </div>
-                    <div class="join">
+                  </fieldset>
+                  <fieldset class="fieldset w-full max-w-sm">
+                    <legend class="fieldset-legend">ニックネーム</legend>
+                    <div class="join w-full">
                       <input
                         id={NICKNAME_INPUT_ID}
                         type="text"
@@ -556,12 +559,10 @@ export const Me = clientEntry(
                         保存
                       </button>
                     </div>
-                    <div class="label">
-                      <span class="label-text-alt text-base-content/60">
-                        連携アプリに渡される表示名です。空にすると削除します。
-                      </span>
-                    </div>
-                  </label>
+                    <p class="fieldset-label">
+                      連携アプリに渡される表示名です。空にすると削除します。
+                    </p>
+                  </fieldset>
                 </div>
               </div>
 
