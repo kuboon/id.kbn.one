@@ -40,6 +40,8 @@ export const Authorize = clientEntry(
     };
     let phase: "probing" | "needs-action" | "redirecting" | "error" = "probing";
     const busy = { signin: false, register: false };
+    let registerMode = false;
+    const REGISTER_INPUT_ID = "register-username";
     let fetchDpop: typeof fetch | null = null;
     let passkeyClient: ReturnType<typeof createClient> | null = null;
 
@@ -113,12 +115,11 @@ export const Authorize = clientEntry(
       }
     };
 
-    const createAccount = async () => {
+    const createAccount = async (rawUserId: string) => {
       if (busy.signin || busy.register || !passkeyClient) return;
-      const userId = prompt("パスキーに登録するユーザー名を入力してください:")
-        ?.trim();
+      const userId = rawUserId.trim();
       if (!userId) {
-        setStatus("ユーザー名が入力されませんでした。", "info");
+        setStatus("ユーザー名を入力してください。", "info");
         return;
       }
       busy.register = true;
@@ -187,16 +188,58 @@ export const Authorize = clientEntry(
                 >
                   パスキーでサインイン
                 </button>
-                <button
-                  type="button"
-                  disabled={busy.signin || busy.register}
-                  class="btn btn-outline btn-block"
-                  mix={[on("click", () => {
-                    void createAccount();
-                  })]}
-                >
-                  アカウントを作成
-                </button>
+                {!registerMode
+                  ? (
+                    <button
+                      type="button"
+                      disabled={busy.signin || busy.register}
+                      class="btn btn-outline btn-block"
+                      mix={[on("click", () => {
+                        registerMode = true;
+                        handle.update();
+                      })]}
+                    >
+                      アカウントを作成
+                    </button>
+                  )
+                  : (
+                    <div class="flex flex-col gap-2">
+                      <input
+                        id={REGISTER_INPUT_ID}
+                        type="text"
+                        placeholder="ユーザー名"
+                        autocomplete="username"
+                        class="input input-bordered w-full"
+                        disabled={busy.register}
+                      />
+                      <div class="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={busy.signin || busy.register}
+                          class="btn btn-primary flex-1"
+                          mix={[on("click", () => {
+                            const input = document.getElementById(
+                              REGISTER_INPUT_ID,
+                            ) as HTMLInputElement | null;
+                            void createAccount(input?.value ?? "");
+                          })]}
+                        >
+                          登録
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy.register}
+                          class="btn btn-ghost flex-1"
+                          mix={[on("click", () => {
+                            registerMode = false;
+                            handle.update();
+                          })]}
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                    </div>
+                  )}
               </div>
             )}
           </div>
