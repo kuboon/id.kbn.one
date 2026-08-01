@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 
 import { init } from "./mod.ts";
 import {
@@ -118,19 +118,20 @@ Deno.test("getOrCreateKeyPair generates only once under concurrency", async () =
   assertEquals(x, y);
 });
 
-Deno.test("init() falls back for stores without getOrCreateKeyPair", async () => {
+Deno.test("init() throws for stores without getOrCreateKeyPair", async () => {
   const map = new Map<string, CryptoKeyPair>();
-  // A minimal legacy store implementing only the two required methods.
-  const legacy: KeyRepository = {
+  // A store missing the atomic method — silently racing is worse than failing.
+  const incomplete = {
     getKeyPair: () => Promise.resolve(map.get("default")),
-    saveKeyPair: (kp) => {
+    saveKeyPair: (kp: CryptoKeyPair) => {
       map.set("default", kp);
       return Promise.resolve();
     },
-  };
-  const { thumbprint } = await init({ keyStore: legacy, fetch: noopFetch });
-  assert(thumbprint);
-  const again = await init({ keyStore: legacy, fetch: noopFetch });
-  // Second init reuses the persisted key.
-  assertEquals(again.thumbprint, thumbprint);
+  } as unknown as KeyRepository;
+
+  await assertRejects(
+    () => init({ keyStore: incomplete, fetch: noopFetch }),
+    TypeError,
+    "getOrCreateKeyPair",
+  );
 });

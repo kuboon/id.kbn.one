@@ -23,11 +23,10 @@ export interface KeyRepository {
    * converge on a single key — the losers discard their freshly generated
    * candidate and adopt the winner's.
    *
-   * Optional: when a store does not implement it, {@link init} falls back to a
-   * non-atomic `getKeyPair` → `generate` → `saveKeyPair`, which can race under
-   * parallel initialization and leave callers holding different keys.
+   * Required, because a non-atomic get→create can leave parallel callers
+   * holding different keys; `init()` throws if a store omits it.
    */
-  getOrCreateKeyPair?(
+  getOrCreateKeyPair(
     generate: () => Promise<CryptoKeyPair>,
   ): Promise<CryptoKeyPair>;
 }
