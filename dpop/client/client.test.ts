@@ -1,5 +1,10 @@
+import { assert, assertEquals } from "@std/assert";
+
 import { init } from "./mod.ts";
-import { InMemoryKeyRepository } from "./client_keystore.ts";
+import {
+  InMemoryKeyRepository,
+  type KeyRepository,
+} from "./client_keystore.ts";
 
 function base64UrlDecodeToString(input: string): string {
   let s = input.replace(/-/g, "+").replace(/_/g, "/");
@@ -77,4 +82,55 @@ Deno.test("apiCall attaches DPoP header and preserves other headers", async () =
 
   // ensure original header preserved
   if (headers.get("X-Test") !== "1") throw new Error("existing header lost");
+});
+
+const noopFetch: typeof fetch = () => Promise.resolve(new Response("ok"));
+
+Deno.test("parallel init() on a shared store converge on one key", async () => {
+  const keyStore = new InMemoryKeyRepository();
+  const [a, b, c] = await Promise.all([
+    init({ keyStore, fetch: noopFetch }),
+    init({ keyStore, fetch: noopFetch }),
+    init({ keyStore, fetch: noopFetch }),
+  ]);
+  // All callers hold the same key (same public thumbprint).
+  assertEquals(a.thumbprint, b.thumbprint);
+  assertEquals(b.thumbprint, c.thumbprint);
+  assert(await keyStore.getKeyPair());
+});
+
+Deno.test("getOrCreateKeyPair generates only once under concurrency", async () => {
+  const keyStore = new InMemoryKeyRepository();
+  let generated = 0;
+  const generate = () => {
+    generated++;
+    return crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["sign", "verify"],
+    ) as Promise<CryptoKeyPair>;
+  };
+  const [x, y] = await Promise.all([
+    keyStore.getOrCreateKeyPair(generate),
+    keyStore.getOrCreateKeyPair(generate),
+  ]);
+  assertEquals(generated, 1);
+  assertEquals(x, y);
+});
+
+Deno.test("init() falls back for stores without getOrCreateKeyPair", async () => {
+  const map = new Map<string, CryptoKeyPair>();
+  // A minimal legacy store implementing only the two required methods.
+  const legacy: KeyRepository = {
+    getKeyPair: () => Promise.resolve(map.get("default")),
+    saveKeyPair: (kp) => {
+      map.set("default", kp);
+      return Promise.resolve();
+    },
+  };
+  const { thumbprint } = await init({ keyStore: legacy, fetch: noopFetch });
+  assert(thumbprint);
+  const again = await init({ keyStore: legacy, fetch: noopFetch });
+  // Second init reuses the persisted key.
+  assertEquals(again.thumbprint, thumbprint);
 });

@@ -140,15 +140,22 @@ export async function init(
 ): Promise<
   { fetchDpop: FetchLike; thumbprint: string; publicJwk: JsonWebKey }
 > {
-  opts.keyStore ??= new IndexedDbKeyRepository();
+  const keyStore = opts.keyStore ?? new IndexedDbKeyRepository();
   const useFetch = opts.fetch ?? fetch.bind(globalThis);
 
-  let keyPair_ = await opts.keyStore.getKeyPair();
-  if (!keyPair_) {
-    keyPair_ = await generateKeyPair();
-    await opts.keyStore.saveKeyPair(keyPair_);
+  // Prefer the atomic get-or-create so parallel `init()` calls converge on one
+  // key. Stores that don't implement it fall back to the non-atomic path.
+  let keyPair: CryptoKeyPair;
+  if (keyStore.getOrCreateKeyPair) {
+    keyPair = await keyStore.getOrCreateKeyPair(generateKeyPair);
+  } else {
+    let existing = await keyStore.getKeyPair();
+    if (!existing) {
+      existing = await generateKeyPair();
+      await keyStore.saveKeyPair(existing);
+    }
+    keyPair = existing;
   }
-  const keyPair = keyPair_;
 
   const publicJwk = stripPrivateFields(
     await crypto.subtle.exportKey("jwk", keyPair.publicKey),

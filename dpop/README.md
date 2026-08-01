@@ -173,7 +173,12 @@ const { fetchDpop } = await init({ keyStore: new InMemoryKeyRepository() });
 ```
 
 Implement `KeyRepository` to back your keys with anything you like (e.g.
-encrypted storage on native apps).
+encrypted storage on native apps). To stay correct when `init()` may run
+concurrently (multiple bundles or tabs), also implement the optional
+`getOrCreateKeyPair(generate)` so a get→create happens atomically — otherwise
+`init()` falls back to a non-atomic path that can leave parallel callers with
+different keys. The built-in `IndexedDbKeyRepository` does this inside a single
+readwrite transaction.
 
 ## What this library does **not** do
 
