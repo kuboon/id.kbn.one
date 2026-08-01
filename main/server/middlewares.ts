@@ -30,6 +30,12 @@ const corsMiddleware = cors({
   origin: (origin) => allowedOrigins(origin) ?? false,
   credentials: true,
   allowedHeaders: ["content-type", "dpop", "authorization"],
+  // Every RP call carries a `DPoP` header, which is not CORS-safelisted, so
+  // the browser preflights it. Without a Max-Age it falls back to the browser
+  // default (5s in Chrome) and re-preflights on essentially every page load —
+  // a whole extra cross-origin round trip before the RP can even ask who the
+  // user is. 2h is Chrome's cap; other browsers clamp to their own maximum.
+  maxAge: 7200,
 });
 
 /**
