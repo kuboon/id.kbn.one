@@ -140,15 +140,18 @@ export async function init(
 ): Promise<
   { fetchDpop: FetchLike; thumbprint: string; publicJwk: JsonWebKey }
 > {
-  opts.keyStore ??= new IndexedDbKeyRepository();
+  const keyStore = opts.keyStore ?? new IndexedDbKeyRepository();
   const useFetch = opts.fetch ?? fetch.bind(globalThis);
 
-  let keyPair_ = await opts.keyStore.getKeyPair();
-  if (!keyPair_) {
-    keyPair_ = await generateKeyPair();
-    await opts.keyStore.saveKeyPair(keyPair_);
+  // Atomic get-or-create: parallel `init()` calls must converge on one key.
+  // A non-atomic fallback would silently hand callers different keys, so a
+  // store that lacks it is a programming error rather than a degraded mode.
+  if (typeof keyStore.getOrCreateKeyPair !== "function") {
+    throw new TypeError(
+      "KeyRepository must implement getOrCreateKeyPair() so concurrent init() calls converge on a single key.",
+    );
   }
-  const keyPair = keyPair_;
+  const keyPair = await keyStore.getOrCreateKeyPair(generateKeyPair);
 
   const publicJwk = stripPrivateFields(
     await crypto.subtle.exportKey("jwk", keyPair.publicKey),

@@ -85,10 +85,10 @@ Deno.test("jwtVerify: rejects tampered signature", async () => {
   const JWKS = createLocalJWKSet(await fetchJwks());
   const token = await signJwt(baseClaims());
   const [h, p, s] = token.split(".");
-  // Flip one byte of the signature segment.
-  const tampered = `${h}.${p}.${s.slice(0, -2)}${
-    s.slice(-2) === "AA" ? "AB" : "AA"
-  }`;
+  // Flip a leading character of the signature segment. The *last* base64url
+  // character of a 64-byte signature carries 2 unused bits, so editing it can
+  // decode to the very same bytes and leave the signature valid.
+  const tampered = `${h}.${p}.${s[0] === "A" ? "B" : "A"}${s.slice(1)}`;
   await assertRejects(
     () => jwtVerify(tampered, JWKS, { issuer: "https://idp.example.com" }),
     Error,

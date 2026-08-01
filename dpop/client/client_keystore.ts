@@ -16,6 +16,19 @@ export interface KeyRepository {
   getKeyPair(): Promise<CryptoKeyPair | undefined>;
   /** Persist a key pair, overwriting any previous value. */
   saveKeyPair(keyPair: CryptoKeyPair): Promise<void>;
+  /**
+   * Atomically return the stored key pair, or persist and return the result of
+   * `generate()` if none exists yet. Concurrency-safe: when several callers
+   * race (e.g. parallel `init()` calls in different bundles or tabs), they all
+   * converge on a single key — the losers discard their freshly generated
+   * candidate and adopt the winner's.
+   *
+   * Required, because a non-atomic get→create can leave parallel callers
+   * holding different keys; `init()` throws if a store omits it.
+   */
+  getOrCreateKeyPair(
+    generate: () => Promise<CryptoKeyPair>,
+  ): Promise<CryptoKeyPair>;
 }
 
 /**
@@ -24,6 +37,7 @@ export interface KeyRepository {
  */
 export class InMemoryKeyRepository implements KeyRepository {
   private store = new Map<string, CryptoKeyPair>();
+  private creating?: Promise<CryptoKeyPair>;
 
   getKeyPair(): Promise<CryptoKeyPair | undefined> {
     return Promise.resolve(this.store.get("default"));
@@ -32,6 +46,19 @@ export class InMemoryKeyRepository implements KeyRepository {
   saveKeyPair(keyPair: CryptoKeyPair): Promise<void> {
     this.store.set("default", keyPair);
     return Promise.resolve();
+  }
+
+  getOrCreateKeyPair(
+    generate: () => Promise<CryptoKeyPair>,
+  ): Promise<CryptoKeyPair> {
+    const existing = this.store.get("default");
+    if (existing) return Promise.resolve(existing);
+    // Share a single in-flight generation so concurrent callers converge.
+    this.creating ??= generate().then((keyPair) => {
+      this.store.set("default", keyPair);
+      return keyPair;
+    });
+    return this.creating;
   }
 }
 
@@ -78,6 +105,36 @@ export class IndexedDbKeyRepository implements KeyRepository {
     return new Promise((resolve, reject) => {
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getOrCreateKeyPair(
+    generate: () => Promise<CryptoKeyPair>,
+  ): Promise<CryptoKeyPair> {
+    const existing = await this.getKeyPair();
+    if (existing) return existing;
+
+    // Generate BEFORE opening the transaction: an IndexedDB transaction
+    // auto-commits once the microtask queue drains with no pending request, so
+    // awaiting a non-IDB promise mid-transaction would kill it. Inside the tx
+    // we only chain synchronous IDB requests (get → put).
+    const candidate = await generate();
+    const db = await this.openDb();
+    return new Promise<CryptoKeyPair>((resolve, reject) => {
+      const tx = db.transaction("keys", "readwrite");
+      const store = tx.objectStore("keys");
+      const get = store.get("default");
+      get.onsuccess = () => {
+        const current = get.result as CryptoKeyPair | undefined;
+        if (current) {
+          resolve(current); // lost the race — adopt the winner's key
+          return;
+        }
+        const put = store.put(candidate, "default");
+        put.onsuccess = () => resolve(candidate);
+        put.onerror = () => reject(put.error);
+      };
+      get.onerror = () => reject(get.error);
     });
   }
 }
