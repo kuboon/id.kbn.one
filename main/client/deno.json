@@ -5,7 +5,7 @@
     "jsxImportSource": "@remix-run/ui"
   },
   "imports": {
-    "@kuboon/dpop": "jsr:@kuboon/dpop@^0.1.2",
+    "@kuboon/dpop": "jsr:@kuboon/dpop@^0.2.0",
     "@remix-run/ui": "npm:@remix-run/ui@^0.1.1"
   }
 }
