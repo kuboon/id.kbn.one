@@ -13,13 +13,14 @@ const actions = createPasskeysActions({
   rpID,
   rpName,
   storage: credentialRepository,
-  getUserId: (context) =>
-    context.has(DpopSession)
-      ? sessionUserId(context.get(DpopSession))
-      : undefined,
+  // The passkey actions take a plain `RequestContext`, so `get` is
+  // optional-typed — narrow on the value rather than `has`.
+  getUserId: (context) => {
+    const session = context.get(DpopSession);
+    return session ? sessionUserId(session) : undefined;
+  },
   updateSession: (context, userId) => {
-    if (!context.has(DpopSession)) return;
-    context.get(DpopSession).set("userId", userId);
+    context.get(DpopSession)?.set("userId", userId);
   },
 });
 

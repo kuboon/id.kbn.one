@@ -8,7 +8,7 @@
  * POST /session/logout — clears the session.
  */
 
-import type { RequestContext } from "@remix-run/fetch-router";
+import type { CorsContext } from "../middlewares.ts";
 
 import { idpOrigin } from "../config.ts";
 import { signJwt } from "../lib/jwt.ts";
@@ -41,7 +41,7 @@ const issueToken = async (
 };
 
 export const sessionAction = async (
-  context: RequestContext,
+  context: CorsContext,
 ): Promise<Response> => {
   const session = context.has(DpopSession)
     ? context.get(DpopSession)
@@ -55,7 +55,7 @@ export const sessionAction = async (
   return setNoStore(Response.json({ userId, jws, nickname }));
 };
 
-export const sessionLogoutAction = (context: RequestContext): Response => {
+export const sessionLogoutAction = (context: CorsContext): Response => {
   if (!context.has(DpopSession)) {
     throw new AuthRequiredError("Invalid DPoP proof");
   }

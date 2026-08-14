@@ -7,7 +7,7 @@
  * server-initiated — see `controllers/rp-push.ts` (`POST /rp/notifications`).
  */
 
-import type { RequestContext } from "@remix-run/fetch-router";
+import type { CorsContext } from "../middlewares.ts";
 import { type } from "arktype";
 
 import { idpOrigin, pushContact } from "../config.ts";
@@ -112,14 +112,14 @@ const validateParams = <T>(
 
 export const pushController = {
   actions: {
-    vapidKey(_context: RequestContext) {
+    vapidKey(_context: CorsContext) {
       return setNoStore(Response.json({
         publicKey: pushService.getPublicKey(),
         contact: pushContact,
       }));
     },
 
-    async listSubscriptions(context: RequestContext) {
+    async listSubscriptions(context: CorsContext) {
       const { id: userId } = context.get(User);
       const subscriptions = await pushService.listSubscriptions(userId);
       // A cross-origin RP frontend only sees devices registered from its own
@@ -134,7 +134,7 @@ export const pushController = {
       );
     },
 
-    async upsertSubscription(context: RequestContext) {
+    async upsertSubscription(context: CorsContext) {
       const { id: userId } = context.get(User);
       const body = await validateBody(
         context.request,
@@ -159,7 +159,7 @@ export const pushController = {
       }
     },
 
-    async updateSubscription(context: RequestContext) {
+    async updateSubscription(context: CorsContext) {
       const { id: userId } = context.get(User);
       const param = validateParams(context.params, subscriptionIdParamSchema);
       if (param instanceof Response) return param;
@@ -194,7 +194,7 @@ export const pushController = {
       }
     },
 
-    async deleteSubscription(context: RequestContext) {
+    async deleteSubscription(context: CorsContext) {
       const { id: userId } = context.get(User);
       const param = validateParams(context.params, subscriptionIdParamSchema);
       if (param instanceof Response) return param;
@@ -203,7 +203,7 @@ export const pushController = {
       return setNoStore(Response.json({ success: true }));
     },
 
-    async testNotification(context: RequestContext) {
+    async testNotification(context: CorsContext) {
       const { id: userId } = context.get(User);
       const body = await validateBody(
         context.request,

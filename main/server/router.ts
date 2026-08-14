@@ -56,11 +56,12 @@ router.map(routes.oauth, {
 });
 
 // auth: layer — DPoP-bound passkey + raw session ops.
-router.map(routes.auth, {
+// A controller's `actions` only covers route leaves, so nested route groups
+// (webauthn, credentials, push) are mapped with their own `router.map` call
+// carrying the same layer middleware.
+router.map(routes.auth.webauthn, {
   middleware: authMiddleware,
-  actions: {
-    webauthn: webauthnController,
-  },
+  ...webauthnController,
 });
 
 // userApi: layer — authenticated user APIs (User in context).
@@ -71,8 +72,11 @@ router.map(routes.userApi, {
     accountUpdate: accountUpdateAction,
     accountDelete: accountDeleteAction,
     oauthApprove: oauthApproveAction,
-    credentials: credentialsController,
   },
+});
+router.map(routes.userApi.credentials, {
+  middleware: userApiMiddleware,
+  ...credentialsController,
 });
 
 // rpApi: layer — server-to-server (private_key_jwt). RpClient in context.
@@ -88,8 +92,11 @@ router.map(routes.cors, {
   actions: {
     session: sessionAction,
     sessionLogout: sessionLogoutAction,
-    push: pushController,
   },
+});
+router.map(routes.cors.push, {
+  middleware: corsMiddlewares,
+  ...pushController,
 });
 
 export default router;

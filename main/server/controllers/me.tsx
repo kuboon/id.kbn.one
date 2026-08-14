@@ -8,6 +8,6 @@ import type { RequestHandler } from "@remix-run/fetch-router";
 import { Me } from "../../client/me.tsx";
 import { renderPage } from "../utils/render.tsx";
 
-export const meAction: RequestHandler<Record<string, never>> = (
+export const meAction: RequestHandler = (
   context,
 ) => renderPage(context, <Me />);

@@ -1,4 +1,4 @@
-import type { Middleware } from "@remix-run/fetch-router";
+import type { Middleware, MiddlewareContext } from "@remix-run/fetch-router";
 import { staticFiles } from "@remix-run/static-middleware";
 import { cors } from "@remix-run/cors-middleware";
 
@@ -78,3 +78,17 @@ export const corsMiddlewares = [dpop, requireUser] as const;
  * or browser session here.
  */
 export const rpApiMiddleware = [requireRpClient] as const;
+
+/**
+ * Request-context types produced by each layer's middleware chain.
+ *
+ * `context.get(key)` only narrows to a non-optional value when the context
+ * type carries the entry the middleware declared, so handlers annotate their
+ * `context` with the type of the layer they are mounted under — e.g. a
+ * `userApi:` handler takes {@link UserApiContext} and gets a `User` back from
+ * `context.get(User)` rather than `User | undefined`.
+ */
+export type AuthContext = MiddlewareContext<typeof authMiddleware>;
+export type UserApiContext = MiddlewareContext<typeof userApiMiddleware>;
+export type CorsContext = MiddlewareContext<typeof corsMiddlewares>;
+export type RpApiContext = MiddlewareContext<typeof rpApiMiddleware>;

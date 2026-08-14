@@ -7,7 +7,7 @@
  * user and logs them out (clears the userId on the bound DPoP session).
  */
 
-import type { RequestContext } from "@remix-run/fetch-router";
+import type { UserApiContext } from "../middlewares.ts";
 import { type } from "arktype";
 
 import { User } from "../middleware/user.ts";
@@ -18,7 +18,7 @@ import { deleteProfile, setNickname } from "../lib/profile.ts";
 const updateAccountBody = type({ nickname: "string" });
 
 export const accountUpdateAction = async (
-  context: RequestContext,
+  context: UserApiContext,
 ): Promise<Response> => {
   const user = context.get(User);
   let raw: unknown;
@@ -38,7 +38,7 @@ export const accountUpdateAction = async (
 };
 
 export const accountDeleteAction = async (
-  context: RequestContext,
+  context: UserApiContext,
 ): Promise<Response> => {
   const user = context.get(User);
   await credentialRepository.deleteCredentialsByUserId(user.id);

@@ -2,7 +2,7 @@
  * /credentials/* — list, rename, and delete the signed-in user's passkeys.
  */
 
-import type { RequestContext } from "@remix-run/fetch-router";
+import type { UserApiContext } from "../middlewares.ts";
 import { type } from "arktype";
 
 import { setNoStore } from "../middleware/auth.ts";
@@ -14,7 +14,7 @@ const updateNicknameBody = type({ nickname: "string>0" });
 
 export const credentialsController = {
   actions: {
-    async list(context: RequestContext) {
+    async list(context: UserApiContext) {
       const { id: userId } = context.get(User);
       const credentials = await credentialRepository.getCredentialsByUserId(
         userId,
@@ -22,7 +22,7 @@ export const credentialsController = {
       return setNoStore(Response.json({ userId, credentials }));
     },
 
-    async update(context: RequestContext) {
+    async update(context: UserApiContext) {
       const { id: userId } = context.get(User);
       const param = credentialIdParam(context.params);
       if (param instanceof type.errors) {
@@ -54,7 +54,7 @@ export const credentialsController = {
       return setNoStore(Response.json({ credential }));
     },
 
-    async delete(context: RequestContext) {
+    async delete(context: UserApiContext) {
       const { id: userId } = context.get(User);
       const param = credentialIdParam(context.params);
       if (param instanceof type.errors) {
