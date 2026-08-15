@@ -4,7 +4,7 @@
  * logged-in user.
  */
 
-import type { RequestContext } from "@remix-run/fetch-router";
+import type { UserApiContext } from "../middlewares.ts";
 import { type } from "arktype";
 
 import { setNoStore } from "../middleware/auth.ts";
@@ -16,7 +16,7 @@ const bindSessionBody = type({
 });
 
 export const bindSessionAction = async (
-  context: RequestContext,
+  context: UserApiContext,
 ): Promise<Response> => {
   const { id: userId } = context.get(User);
   let raw: unknown;

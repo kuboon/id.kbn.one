@@ -12,6 +12,8 @@
 import type { RequestContext } from "@remix-run/fetch-router";
 import { type } from "arktype";
 
+import type { UserApiContext } from "../middlewares.ts";
+
 import { OAuthAuthorize } from "../../client/oauth-authorize.tsx";
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
@@ -130,7 +132,7 @@ const approveBody = type({
 });
 
 export const oauthApproveAction = async (
-  context: RequestContext,
+  context: UserApiContext,
 ): Promise<Response> => {
   const { id: userId } = context.get(User);
   let raw: unknown;

@@ -26,7 +26,7 @@ export interface RpClient {
 
 export const RpClient = createContextKey<RpClient>();
 
-type WithRpClientTransform = readonly [readonly [typeof RpClient, RpClient]];
+type WithRpClientTransform = { key: typeof RpClient; value: RpClient };
 
 const bearer = (request: Request): string | undefined => {
   const header = request.headers.get("authorization");
@@ -35,11 +35,10 @@ const bearer = (request: Request): string | undefined => {
   return match?.[1]?.trim() || undefined;
 };
 
-export const requireRpClient: Middleware<
-  "ANY",
-  Record<never, never>,
-  WithRpClientTransform
-> = async (context, next) => {
+export const requireRpClient: Middleware<WithRpClientTransform> = async (
+  context,
+  next,
+) => {
   const assertion = bearer(context.request);
   if (!assertion) {
     throw new AuthRequiredError("Missing client assertion");

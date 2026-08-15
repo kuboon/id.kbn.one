@@ -6,7 +6,7 @@
  * notification is delivered to every device the named users have registered.
  */
 
-import type { RequestContext } from "@remix-run/fetch-router";
+import type { RpApiContext } from "../middlewares.ts";
 import { type } from "arktype";
 
 import { setNoStore } from "../middleware/auth.ts";
@@ -31,7 +31,7 @@ interface Target {
 }
 
 export const rpPushController = {
-  async sendNotification(context: RequestContext) {
+  async sendNotification(context: RpApiContext) {
     // `RpClient` (set by `requireRpClient`) is the authenticated RP origin.
     const { clientId } = context.get(RpClient);
 

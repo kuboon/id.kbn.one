@@ -16,9 +16,7 @@ const jktPattern = /^[A-Za-z0-9_-]{43}$/;
 const isAllowedRedirectUri = (redirectUri: string): boolean =>
   originAllowlist.originAllowed(redirectUri);
 
-export const authorizeAction: RequestHandler<
-  Record<string, never>
-> = (context) => {
+export const authorizeAction: RequestHandler = (context) => {
   const url = new URL(context.request.url);
   const dpopJkt = url.searchParams.get("dpop_jkt") ?? "";
   const redirectUri = url.searchParams.get("redirect_uri") ?? "";

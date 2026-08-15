@@ -25,17 +25,18 @@ export interface User {
 
 export const User = createContextKey<User>();
 
-type WithUserContextTransform = readonly [readonly [typeof User, User]];
+type WithUserContextTransform = { key: typeof User; value: User };
 
-export const requireUser: Middleware<
-  "ANY",
-  Record<never, never>,
-  WithUserContextTransform
-> = (context, next) => {
-  if (!context.has(DpopSession)) {
+export const requireUser: Middleware<WithUserContextTransform> = (
+  context,
+  next,
+) => {
+  // `get` is optional-typed here: this middleware runs before its own
+  // transform is applied, so the context does not yet carry the DPoP entry.
+  const session = context.get(DpopSession);
+  if (!session) {
     throw new AuthRequiredError("Invalid DPoP proof");
   }
-  const session = context.get(DpopSession);
   const userId = sessionUserId(session);
   if (!userId) throw new AuthRequiredError();
   context.set(User, {

@@ -57,13 +57,14 @@ export interface DpopSessionMiddlewareOptions {
   clockSkewSeconds?: number;
 }
 
-type SetDpopSessionContextTransform = readonly [
-  readonly [typeof DpopSession, DpopSession],
-];
+type SetDpopSessionContextTransform = {
+  key: typeof DpopSession;
+  value: DpopSession;
+};
 
 export function dpopSession(
   options: DpopSessionMiddlewareOptions,
-): Middleware<"ANY", Record<string, never>, SetDpopSessionContextTransform> {
+): Middleware<SetDpopSessionContextTransform> {
   const { sessionStorage } = options;
   const replayDetector = options.replayDetector ?? new InMemoryReplayDetector();
   const maxAgeSeconds = options.maxAgeSeconds ?? 300;

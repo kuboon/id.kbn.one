@@ -1,6 +1,6 @@
 {
   "name": "@kuboon/passkeys",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "exports": {
     ".": "./src/client/mod.ts",
     "./hono": "./src/hono/mod.ts",

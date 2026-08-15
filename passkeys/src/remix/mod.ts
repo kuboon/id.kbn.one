@@ -8,6 +8,16 @@
  */
 
 import type { RequestContext, RequestHandler } from "@remix-run/fetch-router";
+
+/**
+ * Any request context, whatever entries the surrounding middleware added. The
+ * bare `RequestContext` default carries no entries and is invariant, so these
+ * actions would not be mountable under a layer that adds context values (e.g.
+ * a DPoP session).
+ */
+// Mirrors fetch-router's own internal `AnyContext`, which it does not export.
+// deno-lint-ignore no-explicit-any
+type AnyRequestContext = RequestContext<any, any>;
 import { type } from "arktype";
 
 import { createPasskeysCore } from "../core/mod.ts";
@@ -18,10 +28,10 @@ export interface PasskeysActionsOptions {
   rpName: string;
   storage: PasskeyRepository;
   /** Returns the currently signed-in user, if any. */
-  getUserId: (context: RequestContext) => string | undefined;
+  getUserId: (context: AnyRequestContext) => string | undefined;
   /** Persists the signed-in user after successful registration / auth. */
   updateSession: (
-    context: RequestContext,
+    context: AnyRequestContext,
     userId: string,
   ) => Promise<void> | void;
 }
@@ -81,10 +91,10 @@ const validateReqBody = async <T>(
 };
 
 export interface PasskeysActions {
-  registerOptions: RequestHandler;
-  registerVerify: RequestHandler;
-  authenticateOptions: RequestHandler;
-  authenticateVerify: RequestHandler;
+  registerOptions: RequestHandler<AnyRequestContext>;
+  registerVerify: RequestHandler<AnyRequestContext>;
+  authenticateOptions: RequestHandler<AnyRequestContext>;
+  authenticateVerify: RequestHandler<AnyRequestContext>;
 }
 
 export function createPasskeysActions(

@@ -6,15 +6,22 @@
     "jsr:@hono/hono@^4.8.3": "4.12.14",
     "jsr:@hono/standard-validator@~0.2.2": "0.2.2",
     "jsr:@kuboon/tailwindcss-deno@~0.1.3": "0.1.3",
+    "jsr:@negrel/http-ece@0.7.0": "0.7.0",
+    "jsr:@negrel/webpush@0.5": "0.5.0",
     "jsr:@panva/jose@^6.2.3": "6.2.3",
     "jsr:@simplewebauthn/browser@^13.2.2": "13.3.0",
     "jsr:@simplewebauthn/server@^13.2.2": "13.3.0",
     "jsr:@standard-schema/spec@1": "1.1.0",
+    "jsr:@std/assert@^1.0.19": "1.0.19",
+    "jsr:@std/bytes@1": "1.0.6",
+    "jsr:@std/encoding@1": "1.0.10",
     "jsr:@std/encoding@1.0.10": "1.0.10",
     "jsr:@std/encoding@^1.0.10": "1.0.10",
     "jsr:@std/fs@^1.0.21": "1.0.24",
+    "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@std/internal@^1.0.14": "1.0.14",
     "jsr:@std/media-types@^1.1.0": "1.1.0",
+    "jsr:@std/path@^1.1.3": "1.1.6",
     "jsr:@std/path@^1.1.4": "1.1.6",
     "jsr:@std/path@^1.1.5": "1.1.6",
     "jsr:@std/ulid@*": "1.0.0",
@@ -30,26 +37,27 @@
     "npm:@peculiar/asn1-schema@^2.6.0": "2.6.0",
     "npm:@peculiar/asn1-x509@^2.6.1": "2.6.1",
     "npm:@peculiar/x509@^1.14.3": "1.14.3",
-    "npm:@remix-run/cors-middleware@~0.1.2": "0.1.2",
-    "npm:@remix-run/fetch-router@0.18.2": "0.18.2",
-    "npm:@remix-run/html-template@0.3": "0.3.0",
-    "npm:@remix-run/html-template@0.3.0": "0.3.0",
+    "npm:@remix-run/cors-middleware@0.1.7": "0.1.7",
+    "npm:@remix-run/fetch-router@0.20.1": "0.20.1",
+    "npm:@remix-run/html-template@~0.3.1": "0.3.1",
     "npm:@remix-run/logger-middleware@~0.2.1": "0.2.1",
-    "npm:@remix-run/response@~0.3.3": "0.3.3",
+    "npm:@remix-run/response@~0.3.7": "0.3.8",
     "npm:@remix-run/session@0.4.1": "0.4.1",
-    "npm:@remix-run/session@~0.4.1": "0.4.1",
-    "npm:@remix-run/static-middleware@~0.4.8": "0.4.8",
-    "npm:@remix-run/ui@~0.1.1": "0.1.1",
+    "npm:@remix-run/session@~0.4.1": "0.4.2",
+    "npm:@remix-run/session@~0.4.2": "0.4.2",
+    "npm:@remix-run/static-middleware@0.4.13": "0.4.13",
+    "npm:@remix-run/ui@~0.1.1": "0.1.2",
+    "npm:@remix-run/ui@~0.1.2": "0.1.2",
     "npm:@tailwindcss/oxide@4.1.18": "4.1.18",
     "npm:@tailwindcss/oxide@^4.1.18": "4.1.18",
     "npm:@types/node@*": "24.2.0",
-    "npm:arktype@^2.2.0": "2.2.0",
-    "npm:daisyui@5.5.19": "5.5.19",
-    "npm:daisyui@^5.5.19": "5.5.19",
+    "npm:arktype@^2.2.3": "2.2.3",
+    "npm:daisyui@^5.7.16": "5.7.17",
     "npm:lightningcss@^1.31.1": "1.33.0",
     "npm:magic-string@~0.30.21": "0.30.21",
     "npm:source-map-js@^1.2.1": "1.2.1",
-    "npm:tailwindcss@^4.1.18": "4.3.3"
+    "npm:tailwindcss@^4.1.18": "4.3.3",
+    "npm:tailwindcss@^4.3.3": "4.3.3"
   },
   "jsr": {
     "@deno/loader@0.3.14": {
@@ -75,7 +83,22 @@
         "npm:lightningcss",
         "npm:magic-string",
         "npm:source-map-js",
-        "npm:tailwindcss"
+        "npm:tailwindcss@^4.1.18"
+      ]
+    },
+    "@negrel/http-ece@0.7.0": {
+      "integrity": "068e61ba6f52da5454051a283cc19621607f8dd6e74d55c01bb365b8c6644076",
+      "dependencies": [
+        "jsr:@std/bytes",
+        "jsr:@std/encoding@1"
+      ]
+    },
+    "@negrel/webpush@0.5.0": {
+      "integrity": "919ed5bf4d676923667c5278093f36ffb2efe7fe2f155b6d32723ea3b73fa693",
+      "dependencies": [
+        "jsr:@negrel/http-ece",
+        "jsr:@std/bytes",
+        "jsr:@std/encoding@1"
       ]
     },
     "@panva/jose@6.2.3": {
@@ -100,13 +123,22 @@
     "@standard-schema/spec@1.1.0": {
       "integrity": "2ccd54513cd9c960bd155ab569b1a901bc99c6f9ad29559d3f38a28c91c1822d"
     },
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.12"
+      ]
+    },
+    "@std/bytes@1.0.6": {
+      "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
+    },
     "@std/encoding@1.0.10": {
       "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
     },
     "@std/fs@1.0.24": {
       "integrity": "f3061b45b81673a2bece689da041df32d174be064c89eb6397fb5718d3fb7877",
       "dependencies": [
-        "jsr:@std/internal",
+        "jsr:@std/internal@^1.0.14",
         "jsr:@std/path@^1.1.5"
       ]
     },
@@ -119,7 +151,7 @@
     "@std/path@1.1.6": {
       "integrity": "c68485c2a4dfbb5ae3cc74fae4e8c4e5d874cf8a8ed12927917235c758b46cbe",
       "dependencies": [
-        "jsr:@std/internal"
+        "jsr:@std/internal@^1.0.14"
       ]
     },
     "@std/ulid@1.0.0": {
@@ -127,14 +159,14 @@
     }
   },
   "npm": {
-    "@ark/schema@0.56.0": {
-      "integrity": "sha512-ECg3hox/6Z/nLajxXqNhgPtNdHWC9zNsDyskwO28WinoFEnWow4IsERNz9AnXRhTZJnYIlAJ4uGn3nlLk65vZA==",
+    "@ark/schema@0.56.2": {
+      "integrity": "sha512-Qx4D2JFbBWpntiHZaTv7bGG4H/M2rigiknezKg/WVyDSaLdE4YCcWAOoFB7pjjDqHbbV2OqRfntm1nnXvwMexg==",
       "dependencies": [
         "@ark/util"
       ]
     },
-    "@ark/util@0.56.0": {
-      "integrity": "sha512-BghfRC8b9pNs3vBoDJhcta0/c1J1rsoS1+HgVUreMFPdhz/CRAKReAu57YEllNaSy98rWAdY1gE+gFup7OXpgA=="
+    "@ark/util@0.56.2": {
+      "integrity": "sha512-9kU2sUE38FZEGG7l3hamYMBieLYEJh2L1mrYD2eXpT+78EnQSV1bhjxJhnxGBMSTbtwpBSDNSK+K60WvaI/DTQ=="
     },
     "@esbuild/linux-x64@0.25.11": {
       "integrity": "sha512-HSFAT4+WYjIhrHxKBwGmOOSpphjYkcswF449j6EjsjbinTZbp8PJtjsVK1XFJStdzXdy/jaddAep2FGY+wyFAQ==",
@@ -297,34 +329,40 @@
         "tsyringe"
       ]
     },
-    "@remix-run/cors-middleware@0.1.2": {
-      "integrity": "sha512-+tyo+npF+6szzVorrApp0Ilx+UZUdHlSTu5HJG/Nh1zw/gavWEeMtBw9ZWEWz8EhZZ03vVYnTvlEUW5GRhW3TA==",
+    "@remix-run/cors-middleware@0.1.7": {
+      "integrity": "sha512-zbjwCFDwtHDSjyt6sgVVPkFiFfSkmkYPT74nrHClbF+pZx1ra+q93Rpcthbok0cv4IH1f0cagLbf8Jh+IEWNwA==",
       "dependencies": [
-        "@remix-run/fetch-router",
+        "@remix-run/fetch-router@0.20.1",
         "@remix-run/headers"
       ]
     },
     "@remix-run/fetch-router@0.18.2": {
       "integrity": "sha512-/yZkz81ZwzWcZR9od+PIOfwavsreC62TmRdSYESznThYYhVezLkvvRLvNh0v8hAaSOIzNkoLN/wc037m67mm4Q==",
       "dependencies": [
-        "@remix-run/route-pattern"
+        "@remix-run/route-pattern@0.20.1"
       ]
     },
-    "@remix-run/fs@0.4.3": {
-      "integrity": "sha512-4fT/28oF8VR99eJRK6jFw1YQ3X3KlKBt6fhfS/jFMq4OMQ2KOTUfLwLOTVGY3/utf1Am9mX359WBKYxdsIGoJA==",
+    "@remix-run/fetch-router@0.20.1": {
+      "integrity": "sha512-vxlIu4LHY5KyqOdlXFjJeUefUJxgc7499/cSsBl2bzhQnU5DayPHN/dklBOiG+U7GIYQMmObAinmubkwzaXyuw==",
+      "dependencies": [
+        "@remix-run/route-pattern@0.23.0"
+      ]
+    },
+    "@remix-run/fs@0.4.6": {
+      "integrity": "sha512-xxvixX/WyufRr6YrjPLGXvyE5Lzb5G/Y4tygk6McJ6nr59f3hO9w3aVc/lvsVPD7liYfM1EyMnmd4qIByJq9bg==",
       "dependencies": [
         "@remix-run/lazy-file",
         "@remix-run/mime"
       ]
     },
-    "@remix-run/headers@0.19.0": {
-      "integrity": "sha512-+62NbkXuXm9r/NdG6KfH9OCKofCWm8VjkrVPICiHKtRl8Gf2Vi6eFTN4mGgBlZRhd5mmEVRV4hTIn/JUSHDAOw=="
+    "@remix-run/headers@0.21.1": {
+      "integrity": "sha512-DRhRveigepAQDUIi0MrOFhpcl3/KTv/fkpIhulv7Asv1pUwM8RpY2ENjdI8lfii6Z3MEsWtYhGt6If8bi6bYpQ=="
     },
-    "@remix-run/html-template@0.3.0": {
-      "integrity": "sha512-aAMx68udtIk0fmCpCXHYscVeCDsRVEmEgh4XvtusPr3vkHu3jn4gx5oAxgsPXPdDmmD/d75SYyI0m/F+aLz5iQ=="
+    "@remix-run/html-template@0.3.1": {
+      "integrity": "sha512-4yhaBtfh1iVC1razTr+ehu1xmKia0zvE4GWQ6JF2IRiA3kmw+DlrdNFEFqx5Wn1eXAM0vxxcJLdLD7e0XMzH5A=="
     },
-    "@remix-run/lazy-file@5.0.3": {
-      "integrity": "sha512-3NIp4xRaxAwcDtRSXKm6qYeGX/DjFGNY4FVm0tdvvW2TFyuFbzBoYDQxo4PyEiLtlqkEaqqHTZTIe2SD+Dau+w==",
+    "@remix-run/lazy-file@5.0.6": {
+      "integrity": "sha512-jIeeqkqR+AgTEKls5WMPbiGyXhrkAJugN4ot/K9X74CLzO9uMbcFDKef7CWCfjN1s+551u+5LxNWLJx1nztuVg==",
       "dependencies": [
         "@remix-run/mime"
       ]
@@ -332,15 +370,15 @@
     "@remix-run/logger-middleware@0.2.1": {
       "integrity": "sha512-V1suiosYzMhX6urHkmT4o4EgqCk7RpZjfovJ0vtTyHEYU8m66Wm9JrvqYjV0ws9wzyUjAVb8FGBqwq7HKRDWzQ==",
       "dependencies": [
-        "@remix-run/fetch-router",
+        "@remix-run/fetch-router@0.18.2",
         "@remix-run/terminal"
       ]
     },
-    "@remix-run/mime@0.4.1": {
-      "integrity": "sha512-n0DUUwpHiDrtHCSw6YFbjeMjajj7STqwzK9PMJkQOHbvOarfPdQdRRMkRqYPBmhu6ABzb6sAdYRSrxPx50I5VQ=="
+    "@remix-run/mime@0.4.2": {
+      "integrity": "sha512-KpZZxBYIrLsvUtt2ZdwK+E2ClVmyvW11Nej6fPgwJpohBMpbCHtR78wtCTv0vqvK5ckLZ7ks2q4pV5dMYFypiA=="
     },
-    "@remix-run/response@0.3.3": {
-      "integrity": "sha512-hgqYDk557dYjLJ0W5Oa6cj5jtNc/5HpAV+jCYlW8+PvoO0gkQzwOJihaFbePCuGW7jhOAFeD4L+SlvV1TxvWpQ==",
+    "@remix-run/response@0.3.8": {
+      "integrity": "sha512-ydrfv+ykKBRQg6DTHU0mSbxbOcWc3m1O7UVivO5Rgrp+K1u4Z3nqbhaMDkHbCPEFhuv1sKlQwS0Z5ClO/jGAiQ==",
       "dependencies": [
         "@remix-run/headers",
         "@remix-run/html-template",
@@ -350,13 +388,19 @@
     "@remix-run/route-pattern@0.20.1": {
       "integrity": "sha512-SSwyX3hX/xZck5UXy0bN4ubsnRJeuEKqHjz4Cc3so32FECexdNk0Y+pg2YZNu7FLGpjBn5dBUQCOtjIXQQudUw=="
     },
+    "@remix-run/route-pattern@0.23.0": {
+      "integrity": "sha512-8eZfG9owfdvC1OqWemjyIqbFTjWbKTW8RrcbppXrnv1GHMIpFOQx9Ly6F1OXNM03aK1c923JypacoRjamyfVEw=="
+    },
     "@remix-run/session@0.4.1": {
       "integrity": "sha512-Bm6aKYgutb/raHZ3laloz8g/Qu7f3CeK3o4gUVDMxtEiAdWCzJamwHoTpGOc5+g1Kuy7z85v4M6nGrF06MFDSg=="
     },
-    "@remix-run/static-middleware@0.4.8": {
-      "integrity": "sha512-dXU4MzxW/r+/btjittqXu7CeRU2IR0Z9G55pu241bh3i9fMOdtw2hhzVpUaNNfOPGsFCTq7KDIxo+dPKfTah0A==",
+    "@remix-run/session@0.4.2": {
+      "integrity": "sha512-NGzu6/gC5xD/tq40W0WqzTt4JhCdSCIwDHM1aa13JBqb4Ml/Mb0kmXqjfOe/gBYfu6AA11nRQ/BJyr+VduTodA=="
+    },
+    "@remix-run/static-middleware@0.4.13": {
+      "integrity": "sha512-32oI2hbVR+GN/sduxOZSY1WNaEasKDm7X7o79eBGG5E78dV5mi0ijGLldHfAEazyRQyqeYzvG292RWUfkFJetA==",
       "dependencies": [
-        "@remix-run/fetch-router",
+        "@remix-run/fetch-router@0.20.1",
         "@remix-run/fs",
         "@remix-run/html-template",
         "@remix-run/mime",
@@ -366,8 +410,8 @@
     "@remix-run/terminal@0.1.0": {
       "integrity": "sha512-vxiiCm3yQTBeG4j9Lm4PVZElEdD7gBNm+Q2rqTGMlE4ImrWFoq7h2Jk1y3BMylNZYz0m3pzihQ5G2sbY1XtdLg=="
     },
-    "@remix-run/ui@0.1.1": {
-      "integrity": "sha512-yn5oL/uZ8izabJxjeKhVo9lBGhb+ZhOJHWk5Tu7YJL3RSxvP7BrO/ofrdWUcOXSsNxao3Lj+PF1lVmnTBf8nfQ==",
+    "@remix-run/ui@0.1.2": {
+      "integrity": "sha512-k7olhXoiLAOu4mqTiyM+oBPuCmVU2qsY9kO6oxLvS3nrcURKxHkmNVw2i/MPJ1/G2nm1dKJfqcoMXU04wu1Fbw==",
       "dependencies": [
         "@types/dom-navigation"
       ]
@@ -457,14 +501,14 @@
         "undici-types"
       ]
     },
-    "arkregex@0.0.5": {
-      "integrity": "sha512-ncYjBdLlh5/QnVsAA8De16Tc9EqmYM7y/WU9j+236KcyYNUXogpz3sC4ATIZYzzLxwI+0sEOaQLEmLmRleaEXw==",
+    "arkregex@0.0.8": {
+      "integrity": "sha512-PJcx6G1kQTgLKPUbeYlYecDRaKq15AMSGVajlKFYWlPeJRQL+j3dKE6tyMs40HZ99djS1l9Vhl3ezAHy9JBIqQ==",
       "dependencies": [
         "@ark/util"
       ]
     },
-    "arktype@2.2.0": {
-      "integrity": "sha512-t54MZ7ti5BhOEvzEkgKnWvqj+UbDfWig+DHr5I34xatymPusKLS0lQpNJd8M6DzmIto2QGszHfNKoFIT8tMCZQ==",
+    "arktype@2.2.3": {
+      "integrity": "sha512-7W+0RLTUNJiBFIIZXwOQxSR8Z273IAd6IvqBeG9+gHnQKFsIx2C0iOtGTmMrPnlX4qLXyc5+ll7A0BIj9WrbTg==",
       "dependencies": [
         "@ark/schema",
         "@ark/util",
@@ -479,8 +523,8 @@
         "tslib@2.8.1"
       ]
     },
-    "daisyui@5.5.19": {
-      "integrity": "sha512-pbFAkl1VCEh/MPCeclKL61I/MqRIFFhNU7yiXoDDRapXN4/qNCoMxeCCswyxEEhqL5eiTTfwHvucFtOE71C9sA=="
+    "daisyui@5.7.17": {
+      "integrity": "sha512-w5U5FdL9hH4/zh8eLXytWQt3c0DgHS1WDw+1yuQykT8nSIE9Vc5wkJVeDymD1JlRDLANDawvN4iIGVaxgV6Cjw=="
     },
     "detect-libc@2.1.2": {
       "integrity": "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="
@@ -604,17 +648,17 @@
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/ulid@1",
       "npm:@hexagon/base64@2.0.4",
-      "npm:@remix-run/cors-middleware@~0.1.2",
-      "npm:@remix-run/fetch-router@0.18.2",
-      "npm:@remix-run/html-template@0.3",
+      "npm:@remix-run/cors-middleware@0.1.7",
+      "npm:@remix-run/fetch-router@0.20.1",
+      "npm:@remix-run/html-template@~0.3.1",
       "npm:@remix-run/logger-middleware@~0.2.1",
-      "npm:@remix-run/response@~0.3.3",
-      "npm:@remix-run/session@~0.4.1",
-      "npm:@remix-run/static-middleware@~0.4.8",
-      "npm:@remix-run/ui@~0.1.1",
-      "npm:arktype@^2.2.0",
-      "npm:daisyui@^5.5.19",
-      "npm:tailwindcss@^4.1.18"
+      "npm:@remix-run/response@~0.3.7",
+      "npm:@remix-run/session@~0.4.2",
+      "npm:@remix-run/static-middleware@0.4.13",
+      "npm:@remix-run/ui@~0.1.2",
+      "npm:arktype@^2.2.3",
+      "npm:daisyui@^5.7.16",
+      "npm:tailwindcss@^4.3.3"
     ],
     "members": {
       "dpop": {
@@ -624,7 +668,7 @@
       },
       "dpop-session-middleware": {
         "dependencies": [
-          "npm:@remix-run/fetch-router@0.18.2",
+          "npm:@remix-run/fetch-router@0.20.1",
           "npm:@remix-run/session@~0.4.1"
         ]
       },
