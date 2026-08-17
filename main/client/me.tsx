@@ -20,6 +20,7 @@ import {
   clientEntry,
   type Handle,
   on,
+  ref,
   type SerializableValue,
 } from "@remix-run/ui";
 import { createClient } from "@kuboon/passkeys";
@@ -59,7 +60,6 @@ export interface MeProps {
 
 const CREDENTIAL_INPUT_ID = "rmx-credential-edit-input";
 const PUSH_DEVICE_INPUT_ID = "rmx-push-device-edit-input";
-const NICKNAME_INPUT_ID = "rmx-nickname-input";
 const NICKNAME_MAX_LENGTH = 40;
 
 const isClientEnv = typeof globalThis !== "undefined" &&
@@ -109,12 +109,14 @@ export const Me = clientEntry(
     let credentialEdit: { id: string; original: string } | null = null;
     let pushDeviceEdit: { id: string; original: string } | null = null;
     /**
-     * Nickname field state. Held here rather than read off the DOM at save
-     * time: any `handle.update()` (a toast, a push-state change) re-renders the
-     * input from state, which would otherwise discard what the user typed.
-     * `null` = not yet loaded / follow `account.nickname`.
+     * Live handle to the nickname field. The DOM owns the value: the input is
+     * seeded once with `defaultValue` and read back from here at save time.
+     * Binding `value=` to state instead would register it as a controlled
+     * input, and @remix-run/ui's reflection microtask would snap each
+     * keystroke back to the last rendered prop — the field stops accepting
+     * input.
      */
-    let nicknameDraft: string | null = null;
+    let nicknameInput: HTMLInputElement | undefined;
 
     const busy = {
       logout: false,
@@ -196,7 +198,7 @@ export const Me = clientEntry(
 
     const saveNickname = async () => {
       if (!fetchDpop || busy.saveNickname) return;
-      const nickname = (nicknameDraft ?? account?.nickname ?? "")
+      const nickname = (nicknameInput?.value ?? account?.nickname ?? "")
         .trim().slice(0, NICKNAME_MAX_LENGTH);
       busy.saveNickname = true;
       handle.update();
@@ -209,7 +211,10 @@ export const Me = clientEntry(
         if (!r.ok) throw new Error(await extractErrorMessage(r));
         const data = await r.json() as { nickname?: string | null };
         if (account) account.nickname = data.nickname ?? "";
-        nicknameDraft = data.nickname ?? "";
+        // Reflect the server-normalised value (trimmed/truncated) back into
+        // the field by writing the node directly — re-rendering can't do it,
+        // since a user-edited input ignores later `defaultValue` changes.
+        if (nicknameInput) nicknameInput.value = data.nickname ?? "";
         setStatus(
           data.nickname
             ? `ニックネームを「${data.nickname}」に変更しました。`
@@ -528,17 +533,15 @@ export const Me = clientEntry(
                     <legend class="fieldset-legend">ニックネーム</legend>
                     <div class="join w-full">
                       <input
-                        id={NICKNAME_INPUT_ID}
                         type="text"
                         name="nickname"
                         maxlength={NICKNAME_MAX_LENGTH}
                         placeholder="表示名（未設定）"
-                        value={nicknameDraft ?? account.nickname}
+                        defaultValue={account.nickname}
                         class="input input-bordered join-item flex-1"
                         mix={[
-                          on("input", (e) => {
-                            nicknameDraft = (e.target as HTMLInputElement)
-                              .value;
+                          ref((node) => {
+                            nicknameInput = node as HTMLInputElement;
                           }),
                           on("keydown", (e) => {
                             if (e.key === "Enter" && !e.isComposing) {
