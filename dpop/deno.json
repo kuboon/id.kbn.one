@@ -1,7 +1,7 @@
 {
   "name": "@kuboon/dpop",
   "license": "MIT",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "exports": {
     ".": "./client/mod.ts",
     "./types.ts": "./types.ts",
@@ -23,8 +23,5 @@
   "compilerOptions": {
     "strict": true,
     "lib": ["deno.ns", "deno.unstable", "dom"]
-  },
-  "imports": {
-    "@std/encoding": "jsr:@std/encoding@1.0.10"
   }
 }

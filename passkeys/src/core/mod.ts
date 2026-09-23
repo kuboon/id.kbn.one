@@ -1,4 +1,3 @@
-import { base64 } from "@hexagon/base64";
 import { createHmacHelpers } from "./hmac.ts";
 import {
   generateAuthenticationOptions,
@@ -17,10 +16,11 @@ import type {
 import { generateCredentialNickname } from "./generate-credential-nickname.ts";
 import type { PasskeyCredential, PasskeyMiddlewareOptions } from "./types.ts";
 
-const encodeBase64Url = (input: ArrayBuffer) =>
-  base64.fromArrayBuffer(input, true);
+const encodeBase64Url = (input: ArrayBuffer | Uint8Array) =>
+  (input instanceof Uint8Array ? input : new Uint8Array(input))
+    .toBase64({ alphabet: "base64url", omitPadding: true });
 const decodeBase64Url = (input: string) =>
-  new Uint8Array(base64.toArrayBuffer(input, true));
+  Uint8Array.fromBase64(input, { alphabet: "base64url" });
 
 export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
   const {
@@ -34,7 +34,7 @@ export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
     if (!signSecretPromise) {
       signSecretPromise = storage.getOrCreateSignSecret(() => {
         const bytes = crypto.getRandomValues(new Uint8Array(32));
-        return base64.fromArrayBuffer(bytes.buffer, true);
+        return encodeBase64Url(bytes);
       });
     }
     return await signSecretPromise;
@@ -106,7 +106,7 @@ export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
       const registrationCredential = registrationInfo.credential;
       const credentialId = registrationCredential.id;
       const credentialPublicKey = encodeBase64Url(
-        registrationCredential.publicKey.buffer,
+        registrationCredential.publicKey,
       );
 
       const existingCredentials = await storage.getCredentialsByUserId(userId);

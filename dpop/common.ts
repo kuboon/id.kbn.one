@@ -4,14 +4,12 @@
  *
  * @module
  */
-import { encodeBase64Url } from "@std/encoding/base64url";
-
 const toUint8Array = (input: ArrayBuffer | Uint8Array): Uint8Array =>
   input instanceof Uint8Array ? input : new Uint8Array(input);
 
 /** Base64url-encode a byte buffer (no padding). */
 export const base64UrlEncode = (input: ArrayBuffer | Uint8Array): string =>
-  encodeBase64Url(toUint8Array(input));
+  toUint8Array(input).toBase64({ alphabet: "base64url", omitPadding: true });
 
 /**
  * Normalize an HTTP method for use in the `htm` claim: trimmed and

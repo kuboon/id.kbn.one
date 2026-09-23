@@ -4,8 +4,8 @@
 helpers for both the client (proof generation) and the server (proof
 verification), built on the Web Crypto API.
 
-- Zero runtime dependencies beyond
-  [`@std/encoding`](https://jsr.io/@std/encoding)
+- Zero runtime dependencies — base64url goes through the native
+  `Uint8Array.prototype.toBase64` / `Uint8Array.fromBase64` methods
 - Uses the platform `crypto.subtle` — runs on Deno, Bun, Node ≥ 20, Cloudflare
   Workers, and modern browsers
 - Supports `ES256` (ECDSA P-256) keys — the profile required by DPoP-capable

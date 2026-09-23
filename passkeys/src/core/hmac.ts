@@ -1,9 +1,8 @@
-import { base64 } from "@hexagon/base64";
-
-const encodeBase64Url = (input: ArrayBuffer) =>
-  base64.fromArrayBuffer(input, true);
+const encodeBase64Url = (input: ArrayBuffer | Uint8Array) =>
+  (input instanceof Uint8Array ? input : new Uint8Array(input))
+    .toBase64({ alphabet: "base64url", omitPadding: true });
 const decodeBase64Url = (input: string) =>
-  new Uint8Array(base64.toArrayBuffer(input, true));
+  Uint8Array.fromBase64(input, { alphabet: "base64url" });
 
 export type SecretProvider = () => Promise<string>;
 
@@ -21,7 +20,7 @@ export interface TokenPayload {
 export function createHmacHelpers(getSecret: SecretProvider) {
   const signToken = async (obj: TokenPayload) => {
     const secretB64 = await getSecret();
-    const secret = new Uint8Array(base64.toArrayBuffer(secretB64, true));
+    const secret = decodeBase64Url(secretB64);
     const payload = new TextEncoder().encode(JSON.stringify(obj));
     const key = await crypto.subtle.importKey(
       "raw",
@@ -31,8 +30,8 @@ export function createHmacHelpers(getSecret: SecretProvider) {
       ["sign"],
     );
     const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, payload));
-    const payloadB64 = encodeBase64Url(payload.buffer);
-    const sigB64 = encodeBase64Url(sig.buffer);
+    const payloadB64 = encodeBase64Url(payload);
+    const sigB64 = encodeBase64Url(sig);
     return `${payloadB64}.${sigB64}`;
   };
 
@@ -43,7 +42,7 @@ export function createHmacHelpers(getSecret: SecretProvider) {
     const payload = decodeBase64Url(payloadB64);
     const sig = decodeBase64Url(sigB64);
     const secretB64 = await getSecret();
-    const secret = new Uint8Array(base64.toArrayBuffer(secretB64, true));
+    const secret = decodeBase64Url(secretB64);
     const key = await crypto.subtle.importKey(
       "raw",
       secret,
