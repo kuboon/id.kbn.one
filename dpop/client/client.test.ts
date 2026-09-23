@@ -7,13 +7,9 @@ import {
 } from "./client_keystore.ts";
 
 function base64UrlDecodeToString(input: string): string {
-  let s = input.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = s.length % 4;
-  if (pad) s += "=".repeat(4 - pad);
-  const bin = atob(s);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new TextDecoder().decode(bytes);
+  return new TextDecoder().decode(
+    Uint8Array.fromBase64(input, { alphabet: "base64url" }),
+  );
 }
 
 Deno.test("apiCall attaches DPoP header and preserves other headers", async () => {

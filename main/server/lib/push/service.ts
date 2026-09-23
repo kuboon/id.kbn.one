@@ -1,4 +1,3 @@
-import { fromArrayBuffer } from "@hexagon/base64";
 import { pushContact } from "../../config.ts";
 import {
   ApplicationServer,
@@ -26,7 +25,10 @@ const hashSubscriptionEndpoint = async (endpoint: string): Promise<string> => {
     "SHA-256",
     encoder.encode(endpoint),
   );
-  return fromArrayBuffer(digest, true);
+  return new Uint8Array(digest).toBase64({
+    alphabet: "base64url",
+    omitPadding: true,
+  });
 };
 
 export interface PushSubscriptionMetadata {

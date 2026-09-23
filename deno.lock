@@ -1,11 +1,11 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@deno/loader@~0.3.11": "0.3.14",
+    "jsr:@deno/loader@0.5": "0.5.0",
     "jsr:@hono/hono@^4.12.14": "4.12.14",
     "jsr:@hono/hono@^4.8.3": "4.12.14",
     "jsr:@hono/standard-validator@~0.2.2": "0.2.2",
-    "jsr:@kuboon/tailwindcss-deno@~0.1.3": "0.1.3",
+    "jsr:@kuboon/tailwindcss-deno@~0.1.3": "0.1.7",
     "jsr:@negrel/http-ece@0.7.0": "0.7.0",
     "jsr:@negrel/webpush@0.5": "0.5.0",
     "jsr:@panva/jose@^6.2.3": "6.2.3",
@@ -14,20 +14,18 @@
     "jsr:@standard-schema/spec@1": "1.1.0",
     "jsr:@std/assert@^1.0.19": "1.0.19",
     "jsr:@std/bytes@1": "1.0.6",
-    "jsr:@std/encoding@1": "1.0.10",
-    "jsr:@std/encoding@1.0.10": "1.0.10",
-    "jsr:@std/encoding@^1.0.10": "1.0.10",
+    "jsr:@std/encoding@1": "1.0.11",
+    "jsr:@std/encoding@^1.0.11": "1.0.11",
     "jsr:@std/fs@^1.0.21": "1.0.24",
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@std/internal@^1.0.14": "1.0.14",
     "jsr:@std/media-types@^1.1.0": "1.1.0",
     "jsr:@std/path@^1.1.3": "1.1.6",
-    "jsr:@std/path@^1.1.4": "1.1.6",
     "jsr:@std/path@^1.1.5": "1.1.6",
+    "jsr:@std/path@^1.1.6": "1.1.6",
     "jsr:@std/ulid@*": "1.0.0",
     "jsr:@std/ulid@1": "1.0.0",
     "npm:@esbuild/linux-x64@0.25.11": "0.25.11",
-    "npm:@hexagon/base64@2.0.4": "2.0.4",
     "npm:@hexagon/base64@^1.1.27": "1.1.28",
     "npm:@jridgewell/remapping@^2.3.5": "2.3.5",
     "npm:@levischuck/tiny-cbor@~0.2.2": "0.2.11",
@@ -53,15 +51,14 @@
     "npm:@types/node@*": "24.2.0",
     "npm:arktype@^2.2.3": "2.2.3",
     "npm:daisyui@^5.7.16": "5.7.17",
-    "npm:lightningcss@^1.31.1": "1.33.0",
-    "npm:magic-string@~0.30.21": "0.30.21",
+    "npm:lightningcss@^1.33.0": "1.33.0",
+    "npm:magic-string@^1.1.0": "1.4.1",
     "npm:source-map-js@^1.2.1": "1.2.1",
-    "npm:tailwindcss@^4.1.18": "4.3.3",
     "npm:tailwindcss@^4.3.3": "4.3.3"
   },
   "jsr": {
-    "@deno/loader@0.3.14": {
-      "integrity": "97bc63a6cc2d27a60bcdc953f588c5213331d866d44212eebb24cebfb9b011ca"
+    "@deno/loader@0.5.0": {
+      "integrity": "a6d94408de5e6bacac404f8f6963c8b8cc278cfd1a878aa2f06b34a083d6bfee"
     },
     "@hono/hono@4.12.14": {
       "integrity": "4eedba4b53f27c8e0db683d515e11ec3b88b8fdc1748e229cd7988d243ca018d"
@@ -73,17 +70,17 @@
         "jsr:@standard-schema/spec"
       ]
     },
-    "@kuboon/tailwindcss-deno@0.1.3": {
-      "integrity": "a062de4b032ce6c4fd70bc88a55247937a12314d45b43d07ece5f757fffd986c",
+    "@kuboon/tailwindcss-deno@0.1.7": {
+      "integrity": "5c46a5de34d4baf4ff5e894192669dcab43404cf368b75c816b38e7ac7a0b4ce",
       "dependencies": [
         "jsr:@deno/loader",
-        "jsr:@std/encoding@^1.0.10",
-        "jsr:@std/path@^1.1.4",
+        "jsr:@std/encoding@^1.0.11",
+        "jsr:@std/path@^1.1.6",
         "npm:@jridgewell/remapping",
         "npm:lightningcss",
         "npm:magic-string",
         "npm:source-map-js",
-        "npm:tailwindcss@^4.1.18"
+        "npm:tailwindcss"
       ]
     },
     "@negrel/http-ece@0.7.0": {
@@ -110,7 +107,7 @@
     "@simplewebauthn/server@13.3.0": {
       "integrity": "05673d6ba63ee4c8b0a0c6d417ebabb8ac20c75c323cdbab76eeea996a34d75b",
       "dependencies": [
-        "npm:@hexagon/base64@^1.1.27",
+        "npm:@hexagon/base64",
         "npm:@levischuck/tiny-cbor",
         "npm:@peculiar/asn1-android",
         "npm:@peculiar/asn1-ecc",
@@ -132,8 +129,8 @@
     "@std/bytes@1.0.6": {
       "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
     },
-    "@std/encoding@1.0.10": {
-      "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
+    "@std/encoding@1.0.11": {
+      "integrity": "e7cef2f0b3153bccc17431e7c864a1de03a4b6d9647389c43e08aaa775d37385"
     },
     "@std/fs@1.0.24": {
       "integrity": "f3061b45b81673a2bece689da041df32d174be064c89eb6397fb5718d3fb7877",
@@ -176,9 +173,6 @@
     "@hexagon/base64@1.1.28": {
       "integrity": "sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw=="
     },
-    "@hexagon/base64@2.0.4": {
-      "integrity": "sha512-H/ZY6rGyaEuk0mwQgZ3BVi9hMjFTYpBNFbmtOuec/pPibuGhCMXd8fGtwBaO0h44FkWMurysMsDrpkJsBRmoWQ=="
-    },
     "@jridgewell/gen-mapping@0.3.13": {
       "integrity": "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==",
       "dependencies": [
@@ -196,8 +190,8 @@
     "@jridgewell/resolve-uri@3.1.2": {
       "integrity": "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="
     },
-    "@jridgewell/sourcemap-codec@1.5.5": {
-      "integrity": "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="
+    "@jridgewell/sourcemap-codec@1.6.0": {
+      "integrity": "sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw=="
     },
     "@jridgewell/trace-mapping@0.3.31": {
       "integrity": "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==",
@@ -603,8 +597,8 @@
         "lightningcss-win32-x64-msvc"
       ]
     },
-    "magic-string@0.30.21": {
-      "integrity": "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==",
+    "magic-string@1.4.1": {
+      "integrity": "sha512-8lyCu36ErXR0J9uaGKlKQoiLZKmtI63YGLE8G2o9jyRPdr4X47LusSOwgOJOzcVtp81fTAAjxR7BwKz682Jhow==",
       "dependencies": [
         "@jridgewell/sourcemap-codec"
       ]
@@ -647,7 +641,6 @@
     "dependencies": [
       "jsr:@std/assert@^1.0.19",
       "jsr:@std/ulid@1",
-      "npm:@hexagon/base64@2.0.4",
       "npm:@remix-run/cors-middleware@0.1.7",
       "npm:@remix-run/fetch-router@0.20.1",
       "npm:@remix-run/html-template@~0.3.1",
@@ -661,11 +654,6 @@
       "npm:tailwindcss@^4.3.3"
     ],
     "members": {
-      "dpop": {
-        "dependencies": [
-          "jsr:@std/encoding@1.0.10"
-        ]
-      },
       "dpop-session-middleware": {
         "dependencies": [
           "npm:@remix-run/fetch-router@0.20.1",
@@ -686,7 +674,7 @@
       },
       "main/client": {
         "dependencies": [
-          "jsr:@kuboon/dpop@0.2",
+          "jsr:@kuboon/dpop@0.3",
           "npm:@remix-run/ui@~0.1.1"
         ]
       },
@@ -694,7 +682,6 @@
         "dependencies": [
           "jsr:@negrel/webpush@0.5",
           "jsr:@panva/jose@^6.2.3",
-          "jsr:@std/encoding@^1.0.10",
           "jsr:@std/media-types@^1.1.0"
         ]
       },

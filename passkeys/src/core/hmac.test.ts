@@ -1,11 +1,10 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import createHmacHelpers from "./hmac.ts";
-import { base64 } from "@hexagon/base64";
 
 const makeSecret = () => {
   const arr = new Uint8Array(32);
   for (let i = 0; i < arr.length; i++) arr[i] = i + 1;
-  return base64.fromArrayBuffer(arr.buffer, true);
+  return arr.toBase64({ alphabet: "base64url", omitPadding: true });
 };
 
 Deno.test("sign and verify roundtrip", async () => {

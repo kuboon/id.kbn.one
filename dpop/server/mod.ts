@@ -30,7 +30,6 @@ import {
   normalizeHtu,
   normalizeMethod,
 } from "../common.ts";
-import { decodeBase64Url } from "@std/encoding/base64url";
 
 export type { DpopProofRequest, VerifyDpopProofResult } from "./types.ts";
 export type {
@@ -43,7 +42,7 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 const base64UrlDecode = (input: string): Uint8Array =>
-  new Uint8Array(decodeBase64Url(input));
+  Uint8Array.fromBase64(input, { alphabet: "base64url" });
 
 const parseJwtSection = (segment: string) => {
   const bytes = base64UrlDecode(segment);

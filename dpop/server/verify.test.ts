@@ -1,7 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { verifyDpopProof, verifyDpopProofFromRequest } from "./mod.ts";
 import { base64UrlEncode } from "../common.ts";
-import { decodeBase64Url } from "@std/encoding/base64url";
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -228,7 +227,9 @@ Deno.test("verifyDpopProof - invalid signature", async () => {
   const proof = await createTestProof(keyPair);
   const parts = proof.split(".");
   // Tamper with payload
-  const payloadBytes = decodeBase64Url(parts[1]);
+  const payloadBytes = Uint8Array.fromBase64(parts[1], {
+    alphabet: "base64url",
+  });
   const payload = JSON.parse(textDecoder.decode(payloadBytes));
   payload.htm = "POST"; // Change something in the payload
   const tamperedPayload = base64UrlEncode(

@@ -7,7 +7,6 @@
  */
 
 import { calculateJwkThumbprint } from "jose";
-import { encodeBase64Url } from "@std/encoding/base64url";
 
 import { Secret } from "../secret.ts";
 
@@ -78,7 +77,10 @@ export const getSigningKey = (): Promise<SigningKey> => {
       };
       return {
         keyPair: { publicKey: publicCryptoKey, privateKey: privateCryptoKey },
-        publicKey: encodeBase64Url(new Uint8Array(rawPublic)),
+        publicKey: new Uint8Array(rawPublic).toBase64({
+          alphabet: "base64url",
+          omitPadding: true,
+        }),
         kid,
         publicJwk,
       };
