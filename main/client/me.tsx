@@ -653,7 +653,7 @@ export const Me = clientEntry(
                       <h2 class="card-title">通知</h2>
                       <p class="text-sm text-base-content/60">
                         {pushSummaryText({
-                          supported: push.supported,
+                          support: push.support,
                           permission: push.permission,
                           hasSubscription: push.currentId != null,
                         })}
@@ -749,13 +749,13 @@ export const Me = clientEntry(
                   )}
                   <button
                     type="button"
-                    disabled={!push.supported ||
-                      push.permission === "denied" ||
-                      push.loading}
+                    disabled={!push.supported || push.loading}
                     class="btn btn-primary btn-sm"
                     mix={[on("click", () => handlePushSubscribe())]}
                   >
-                    {push.currentId && push.permission === "granted"
+                    {push.support !== "ready"
+                      ? "通知を受け取る手順を見る"
+                      : push.currentId && push.permission === "granted"
                       ? "このデバイスを更新"
                       : "このデバイスへの通知を登録"}
                   </button>

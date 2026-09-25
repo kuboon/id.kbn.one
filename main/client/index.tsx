@@ -15,6 +15,11 @@ import {
 } from "@remix-run/ui";
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
+import {
+  detectPasskeyStatus,
+  type PasskeyStatus,
+} from "@kuboon/browser-how-to/passkeys";
+import { showPasskeyGuide } from "@kuboon/browser-how-to/passkeys/ui";
 
 type AlertKind = "info" | "success" | "warning" | "error";
 
@@ -30,10 +35,14 @@ export const Index = clientEntry(
   "/index.js#Index",
   function Index(handle: Handle<IndexProps>) {
     let status: { message: string; kind: AlertKind } = {
-      message: "パスキーの自動入力に対応しているか確認しています…",
+      message: "パスキーに対応しているか確認しています…",
       kind: "info",
     };
     let conditionalAvailable = false;
+    let passkeySupport: PasskeyStatus["support"] | null = null;
+    /** True when nothing on this device can complete a passkey ceremony. */
+    const passkeyBlocked = () =>
+      passkeySupport === "unsupported" || passkeySupport === "in-app-blocked";
     const busy = { signin: false, register: false };
     let registerMode = false;
     const REGISTER_INPUT_ID = "register-username";
@@ -64,41 +73,59 @@ export const Index = clientEntry(
       throw new Error("サインインできませんでした。もう一度お試しください。");
     };
 
-    const checkConditionalMediation = async () => {
-      if (
-        typeof PublicKeyCredential === "undefined" ||
-        typeof PublicKeyCredential.isConditionalMediationAvailable !==
-          "function"
-      ) {
-        conditionalAvailable = false;
-        setStatus(
-          "ご利用のブラウザーはまだパスキーの自動入力に対応していません。",
-          "warning",
-        );
-        return;
-      }
+    const checkPasskeySupport = async () => {
+      // `detectPasskeyStatus()` folds the capability probes together and, on
+      // top of them, recognises the in-app browsers that block WebAuthn
+      // outright — a case the raw feature checks cannot tell apart from a
+      // merely old browser.
       try {
-        const available = await PublicKeyCredential
-          .isConditionalMediationAvailable();
-        conditionalAvailable = available;
-        setStatus(
-          available
-            ? "このブラウザーではパスキーの自動入力が利用できます。"
-            : "パスキーの自動入力は無効です。手動でサインインできます。",
-          available ? "info" : "warning",
-        );
+        const status = await detectPasskeyStatus();
+        passkeySupport = status.support;
+        conditionalAvailable =
+          status.capabilities.conditionalMediationAvailable;
+        switch (status.support) {
+          case "full":
+            setStatus(
+              conditionalAvailable
+                ? "このブラウザーではパスキーの自動入力が利用できます。"
+                : "パスキーが利用できます。ボタンからサインインしてください。",
+            );
+            break;
+          case "cross-device-only":
+            setStatus(
+              "このデバイスにはパスキーを保存できません。スマートフォンのパスキーでサインインできます。",
+              "info",
+            );
+            break;
+          case "in-app-blocked":
+            setStatus(
+              "アプリ内ブラウザーではパスキーを利用できません。手順を確認してください。",
+              "warning",
+            );
+            break;
+          case "unsupported":
+            setStatus(
+              "ご利用のブラウザーはパスキーに対応していません。手順を確認してください。",
+              "warning",
+            );
+            break;
+        }
       } catch (error) {
-        console.error("Failed to detect conditional mediation:", error);
+        console.error("Failed to detect passkey support:", error);
+        passkeySupport = "unsupported";
         conditionalAvailable = false;
-        setStatus(
-          "パスキーの自動入力に対応しているか判定できませんでした。",
-          "error",
-        );
+        setStatus("パスキーに対応しているか判定できませんでした。", "error");
       }
     };
 
     const signIn = async () => {
       if (busy.signin || !passkeyClient) return;
+      if (passkeyBlocked()) {
+        // Device-specific remedy (leave the in-app browser, or use another
+        // device) — the guide walks through it.
+        showPasskeyGuide();
+        return;
+      }
       if (!conditionalAvailable) {
         setStatus(
           "このブラウザーではパスキーの自動入力が利用できません。アカウントを作成するかユーザー名でサインインしてください。",
@@ -176,7 +203,7 @@ export const Index = clientEntry(
       fetchDpop = dp.fetchDpop as unknown as typeof fetch;
       passkeyClient = createClient({ fetch: fetchDpop });
 
-      await checkConditionalMediation();
+      await checkPasskeySupport();
 
       const session = await getSession();
       if (session?.userId) {
@@ -264,6 +291,18 @@ export const Index = clientEntry(
             <div role="alert" class={`alert alert-${status.kind} alert-soft`}>
               <span>{status.message}</span>
             </div>
+
+            {passkeyBlocked() && (
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm btn-block"
+                mix={[on("click", () => {
+                  showPasskeyGuide();
+                })]}
+              >
+                パスキーを使う手順を見る
+              </button>
+            )}
           </div>
         </div>
       </main>

@@ -1,3 +1,6 @@
+import { detectPushStatus } from "@kuboon/browser-how-to/push";
+import { showPushGuide } from "@kuboon/browser-how-to/push/ui";
+
 import type {
   PushManagerDeps,
   PushManagerState,
@@ -38,6 +41,7 @@ export function createPushManager(deps: PushManagerDeps): PushManager {
 
   const state: PushManagerState = {
     supported: false,
+    support: "unsupported",
     permission: "default",
     subscriptions: [],
     currentId: null,
@@ -48,11 +52,15 @@ export function createPushManager(deps: PushManagerDeps): PushManager {
 
   const init = (): void => {
     if (!isClientEnv) return;
-    state.supported = "serviceWorker" in navigator &&
-      "PushManager" in window && "Notification" in window;
-    state.permission = typeof Notification !== "undefined"
-      ? Notification.permission
-      : "default";
+    // `detectPushStatus()` knows the cases a feature check cannot see — most
+    // importantly iOS, where the Push APIs exist in Safari but only actually
+    // deliver inside a home-screen-installed PWA ("needs-install").
+    const status = detectPushStatus();
+    state.support = status.support;
+    state.supported = status.support !== "unsupported";
+    state.permission = status.permission === "unsupported"
+      ? "default"
+      : status.permission;
   };
 
   const ensureRegistration = async (): Promise<ServiceWorkerRegistration> => {
@@ -134,6 +142,26 @@ export function createPushManager(deps: PushManagerDeps): PushManager {
 
   const subscribe = async (): Promise<void> => {
     if (state.loading) return;
+    // Re-check: the user may have installed the PWA, or changed the
+    // permission, since init(). Anything but "ready" has a device-specific
+    // remedy, so hand off to the guide rather than failing with a message the
+    // user cannot act on — on iOS "needs-install" it walks them through
+    // Add to Home Screen first, and in an in-app browser it offers a way out.
+    const status = detectPushStatus();
+    state.support = status.support;
+    state.permission = status.permission === "unsupported"
+      ? "default"
+      : status.permission;
+    if (status.support !== "ready") {
+      onChange();
+      if (status.support === "unsupported") {
+        setStatus("このブラウザーは通知に対応していません。", "warning");
+        return;
+      }
+      showPushGuide();
+      return;
+    }
+
     state.loading = true;
     onChange();
     try {
