@@ -5,6 +5,7 @@
     "jsr:@hono/hono@^4.12.14": "4.12.14",
     "jsr:@hono/hono@^4.8.3": "4.12.14",
     "jsr:@hono/standard-validator@~0.2.2": "0.2.2",
+    "jsr:@kuboon/browser-how-to@0.1": "0.1.0",
     "jsr:@kuboon/tailwindcss-deno@~0.1.3": "0.1.7",
     "jsr:@negrel/http-ece@0.7.0": "0.7.0",
     "jsr:@negrel/webpush@0.5": "0.5.0",
@@ -69,6 +70,9 @@
         "jsr:@hono/hono@^4.8.3",
         "jsr:@standard-schema/spec"
       ]
+    },
+    "@kuboon/browser-how-to@0.1.0": {
+      "integrity": "d8aa160f10b7b1e1c0be61d1c841aa25087c9488d8741e05478f8f40fbea535a"
     },
     "@kuboon/tailwindcss-deno@0.1.7": {
       "integrity": "5c46a5de34d4baf4ff5e894192669dcab43404cf368b75c816b38e7ac7a0b4ce",
@@ -674,6 +678,7 @@
       },
       "main/client": {
         "dependencies": [
+          "jsr:@kuboon/browser-how-to@0.1",
           "jsr:@kuboon/dpop@0.3",
           "npm:@remix-run/ui@~0.1.1"
         ]

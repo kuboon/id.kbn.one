@@ -1,3 +1,5 @@
+import type { PushStatus } from "@kuboon/browser-how-to/push";
+
 import type { PushSubscriptionMetadata } from "./types.ts";
 
 const isClientEnv = typeof globalThis !== "undefined" &&
@@ -37,15 +39,26 @@ export const collectPushMetadata = (): PushSubscriptionMetadata => {
 };
 
 export const pushSummaryText = (s: {
-  supported: boolean;
+  support: PushStatus["support"];
   permission: NotificationPermission;
   hasSubscription: boolean;
 }): string => {
-  if (s.supported && s.permission === "denied") {
-    return "通知がブロックされています。ブラウザーの設定から通知を許可してください。";
+  switch (s.support) {
+    case "unsupported":
+      return "このブラウザーは Web Push に対応していません。";
+    case "needs-install":
+      // iOS delivers Web Push only to a home-screen-installed PWA.
+      return "iPhone / iPad で通知を受け取るには、先にこのサイトをホーム画面に追加してください。下のボタンから手順を案内します。";
+    case "in-app-blocked":
+      return "アプリ内ブラウザーでは通知を登録できません。下のボタンから標準ブラウザーで開く手順を案内します。";
+    case "denied":
+      return "通知がブロックされています。下のボタンから解除手順を案内します。";
+    case "ready":
+      if (s.permission === "granted") {
+        return s.hasSubscription
+          ? "通知が許可されています。テスト通知を送信して動作を確認できます。"
+          : "通知が許可されています。このデバイスを登録してください。";
+      }
+      return "通知を許可するとサインイン時にスマートフォンへプッシュ通知を送れます。";
   }
-  if (s.supported && s.permission === "granted") {
-    return "通知が許可されています。テスト通知を送信して動作を確認できます。";
-  }
-  return "通知を許可するとサインイン時にスマートフォンへプッシュ通知を送れます。";
 };
