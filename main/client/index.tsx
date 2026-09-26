@@ -17,9 +17,11 @@ import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 import {
   detectPasskeyStatus,
-  type PasskeyStatus,
-} from "@kuboon/browser-how-to/passkeys";
-import { showPasskeyGuide } from "@kuboon/browser-how-to/passkeys/ui";
+  isPasskeyBlocked,
+  type PasskeySupport,
+  passkeySupportNotice,
+  showPasskeyGuide,
+} from "./lib/passkey-support.ts";
 
 type AlertKind = "info" | "success" | "warning" | "error";
 
@@ -39,10 +41,7 @@ export const Index = clientEntry(
       kind: "info",
     };
     let conditionalAvailable = false;
-    let passkeySupport: PasskeyStatus["support"] | null = null;
-    /** True when nothing on this device can complete a passkey ceremony. */
-    const passkeyBlocked = () =>
-      passkeySupport === "unsupported" || passkeySupport === "in-app-blocked";
+    let passkeySupport: PasskeySupport | null = null;
     const busy = { signin: false, register: false };
     let registerMode = false;
     const REGISTER_INPUT_ID = "register-username";
@@ -74,41 +73,20 @@ export const Index = clientEntry(
     };
 
     const checkPasskeySupport = async () => {
-      // `detectPasskeyStatus()` folds the capability probes together and, on
-      // top of them, recognises the in-app browsers that block WebAuthn
-      // outright — a case the raw feature checks cannot tell apart from a
-      // merely old browser.
       try {
         const status = await detectPasskeyStatus();
         passkeySupport = status.support;
         conditionalAvailable =
           status.capabilities.conditionalMediationAvailable;
-        switch (status.support) {
-          case "full":
-            setStatus(
-              conditionalAvailable
-                ? "このブラウザーではパスキーの自動入力が利用できます。"
-                : "パスキーが利用できます。ボタンからサインインしてください。",
-            );
-            break;
-          case "cross-device-only":
-            setStatus(
-              "このデバイスにはパスキーを保存できません。スマートフォンのパスキーでサインインできます。",
-              "info",
-            );
-            break;
-          case "in-app-blocked":
-            setStatus(
-              "アプリ内ブラウザーではパスキーを利用できません。手順を確認してください。",
-              "warning",
-            );
-            break;
-          case "unsupported":
-            setStatus(
-              "ご利用のブラウザーはパスキーに対応していません。手順を確認してください。",
-              "warning",
-            );
-            break;
+        const notice = passkeySupportNotice(status.support);
+        if (notice) {
+          setStatus(notice.message, notice.kind);
+        } else {
+          setStatus(
+            conditionalAvailable
+              ? "このブラウザーではパスキーの自動入力が利用できます。"
+              : "パスキーが利用できます。ボタンからサインインしてください。",
+          );
         }
       } catch (error) {
         console.error("Failed to detect passkey support:", error);
@@ -120,7 +98,7 @@ export const Index = clientEntry(
 
     const signIn = async () => {
       if (busy.signin || !passkeyClient) return;
-      if (passkeyBlocked()) {
+      if (isPasskeyBlocked(passkeySupport)) {
         // Device-specific remedy (leave the in-app browser, or use another
         // device) — the guide walks through it.
         showPasskeyGuide();
@@ -292,7 +270,7 @@ export const Index = clientEntry(
               <span>{status.message}</span>
             </div>
 
-            {passkeyBlocked() && (
+            {isPasskeyBlocked(passkeySupport) && (
               <button
                 type="button"
                 class="btn btn-ghost btn-sm btn-block"

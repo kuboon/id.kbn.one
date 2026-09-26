@@ -16,6 +16,14 @@ import {
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 
+import {
+  detectPasskeyStatus,
+  isPasskeyBlocked,
+  type PasskeySupport,
+  passkeySupportNotice,
+  showPasskeyGuide,
+} from "./lib/passkey-support.ts";
+
 type AlertKind = "info" | "success" | "warning" | "error";
 
 export interface AuthorizeProps {
@@ -39,6 +47,7 @@ export const Authorize = clientEntry(
       kind: "info",
     };
     let phase: "probing" | "needs-action" | "redirecting" | "error" = "probing";
+    let passkeySupport: PasskeySupport | null = null;
     const busy = { signin: false, register: false };
     let registerMode = false;
     const REGISTER_INPUT_ID = "register-username";
@@ -102,6 +111,10 @@ export const Authorize = clientEntry(
 
     const signIn = async () => {
       if (busy.signin || busy.register || !passkeyClient) return;
+      if (isPasskeyBlocked(passkeySupport)) {
+        showPasskeyGuide();
+        return;
+      }
       busy.signin = true;
       handle.update();
       try {
@@ -117,6 +130,10 @@ export const Authorize = clientEntry(
 
     const createAccount = async (rawUserId: string) => {
       if (busy.signin || busy.register || !passkeyClient) return;
+      if (isPasskeyBlocked(passkeySupport)) {
+        showPasskeyGuide();
+        return;
+      }
       const userId = rawUserId.trim();
       if (!userId) {
         setStatus("ユーザー名を入力してください。", "info");
@@ -147,7 +164,12 @@ export const Authorize = clientEntry(
           return;
         }
         phase = "needs-action";
-        setStatus("サインインしてください。");
+        // Users reach this page by following a link from an RP, so they often
+        // land here inside an in-app browser that cannot do WebAuthn at all.
+        passkeySupport = (await detectPasskeyStatus()).support;
+        const notice = passkeySupportNotice(passkeySupport);
+        if (notice) setStatus(notice.message, notice.kind);
+        else setStatus("サインインしてください。");
       } catch (error) {
         phase = "error";
         handleSigninError(error, "セッションの確認に失敗しました");
@@ -174,6 +196,18 @@ export const Authorize = clientEntry(
               <p class="text-sm text-base-content/70">
                 {rpOrigin} からのサインインリクエストです。
               </p>
+            )}
+
+            {isPasskeyBlocked(passkeySupport) && (
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm btn-block"
+                mix={[on("click", () => {
+                  showPasskeyGuide();
+                })]}
+              >
+                パスキーを使う手順を見る
+              </button>
             )}
 
             {phase === "needs-action" && (
