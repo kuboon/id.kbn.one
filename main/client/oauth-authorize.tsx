@@ -18,6 +18,14 @@ import {
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 
+import {
+  detectPasskeyStatus,
+  isPasskeyBlocked,
+  type PasskeySupport,
+  passkeySupportNotice,
+  showPasskeyGuide,
+} from "./lib/passkey-support.ts";
+
 type AlertKind = "info" | "success" | "warning" | "error";
 
 export interface OAuthAuthorizeProps {
@@ -44,6 +52,7 @@ export const OAuthAuthorize = clientEntry(
     };
     let phase: "probing" | "needs-login" | "consent" | "working" | "error" =
       "probing";
+    let passkeySupport: PasskeySupport | null = null;
     const busy = { signin: false, register: false, decision: false };
     let registerMode = false;
     const REGISTER_INPUT_ID = "register-username";
@@ -116,6 +125,10 @@ export const OAuthAuthorize = clientEntry(
 
     const signIn = async () => {
       if (busy.signin || busy.register || !passkeyClient) return;
+      if (isPasskeyBlocked(passkeySupport)) {
+        showPasskeyGuide();
+        return;
+      }
       busy.signin = true;
       handle.update();
       try {
@@ -132,6 +145,10 @@ export const OAuthAuthorize = clientEntry(
 
     const createAccount = async (rawUserId: string) => {
       if (busy.signin || busy.register || !passkeyClient) return;
+      if (isPasskeyBlocked(passkeySupport)) {
+        showPasskeyGuide();
+        return;
+      }
       const userId = rawUserId.trim();
       if (!userId) {
         setStatus("ユーザー名を入力してください。", "info");
@@ -161,7 +178,12 @@ export const OAuthAuthorize = clientEntry(
           afterLogin();
         } else {
           phase = "needs-login";
-          setStatus("続けるにはサインインしてください。");
+          // Reached by following a link from an MCP client, so an in-app
+          // browser that cannot do WebAuthn is a real possibility here too.
+          passkeySupport = (await detectPasskeyStatus()).support;
+          const notice = passkeySupportNotice(passkeySupport);
+          if (notice) setStatus(notice.message, notice.kind);
+          else setStatus("続けるにはサインインしてください。");
         }
       } catch (error) {
         phase = "error";
@@ -192,6 +214,18 @@ export const OAuthAuthorize = clientEntry(
             <div role="alert" class={`alert alert-${status.kind} alert-soft`}>
               <span>{status.message}</span>
             </div>
+
+            {isPasskeyBlocked(passkeySupport) && (
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm btn-block"
+                mix={[on("click", () => {
+                  showPasskeyGuide();
+                })]}
+              >
+                パスキーを使う手順を見る
+              </button>
+            )}
 
             {phase === "needs-login" && (
               <div class="flex flex-col gap-2">
