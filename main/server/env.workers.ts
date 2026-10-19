@@ -34,10 +34,17 @@ export const readEnv = (name: string): string | undefined => {
  */
 export const staticMiddleware = (): Middleware[] => [];
 
+/** Workers always store in D1; there is no Deno KV to fall back to. */
+export const hasD1 = true;
+
 /**
- * The D1 binding named `DB` in the Cloudflare configuration. There is no Deno
- * KV on Workers, so a missing binding is a deployment error and not something
- * to fall back from: every repository would silently lose its data.
+ * The D1 binding named `DB` in the Cloudflare configuration.
+ *
+ * Call this from a request, never at module scope: deploying runs the
+ * top-level scope to validate the Worker, and the binding is not attached
+ * during that pass. A missing binding at request time is a deployment error
+ * and not something to fall back from — every repository would silently lose
+ * its data — so it throws.
  */
 export const getD1Database = (): D1Like => {
   const db = (env as unknown as { DB?: D1Like }).DB;
