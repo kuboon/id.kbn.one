@@ -259,6 +259,64 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "d1 preflight: a 403 is reported as which of the two is wrong",
+  async () => {
+    const ACCOUNT = "ac92f36f0a2d84353b137574157f7480";
+    const forbidden = () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          errors: [{
+            message:
+              "The given account is not valid or is not authorized to access this service",
+          }],
+        }),
+        { status: 403 },
+      );
+    const accountsListing = (ids: string[]) =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: ids.map((id) => ({ id, name: `acct-${id.slice(0, 4)}` })),
+        }),
+        { status: 200 },
+      );
+
+    const client = (visible: string[]) =>
+      createD1HttpClient({
+        accountId: ACCOUNT,
+        databaseId: "db-1",
+        token: "tok-should-not-appear",
+        fetchImpl: ((url: string | URL) =>
+          Promise.resolve(
+            String(url).endsWith("/accounts")
+              ? accountsListing(visible)
+              : forbidden(),
+          )) as unknown as typeof fetch,
+      });
+
+    // The token is scoped to some other account: say so, and name what it can
+    // see, so the account id can be corrected without guessing.
+    const wrongAccount = await client(["0000"]).preflight().then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    assert(wrongAccount, "expected a rejection");
+    assert(wrongAccount.message.includes("wrong account"));
+    assert(wrongAccount.message.includes("0000"));
+    assert(!wrongAccount.message.includes("tok-should-not-appear"));
+
+    // The account is right, so it is the permission that is missing.
+    const wrongScope = await client([ACCOUNT]).preflight().then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    assert(wrongScope?.message.includes("missing D1"));
+    assert(wrongScope?.message.includes("Edit for the import"));
+  },
+);
+
 Deno.test("batchStatements: respects both the count and the byte budget", () => {
   const s = ["a;", "b;", "c;", "d;"];
   assertEquals(batchStatements(s, 2, 1000).map((b) => b.length), [2, 2]);

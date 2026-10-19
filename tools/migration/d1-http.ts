@@ -24,6 +24,13 @@ export interface D1HttpOptions {
 export interface D1HttpClient {
   /** Run statements in order, batched. Rejects on the first failing batch. */
   run(statements: readonly string[]): Promise<void>;
+  /**
+   * Check the credential against the destination database before anything is
+   * read or written. A bare 403 from D1 does not say whether the account id or
+   * the token's permissions are wrong, so on failure this asks the token which
+   * accounts it can see and reports which of the two it is.
+   */
+  preflight(): Promise<void>;
 }
 
 /** Split into batches that respect both a count and a byte budget. */
@@ -55,21 +62,71 @@ export const batchStatements = (
 export const createD1HttpClient = (opts: D1HttpOptions): D1HttpClient => {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const batchSize = opts.batchSize ?? 50;
-  const endpoint =
-    `https://api.cloudflare.com/client/v4/accounts/${opts.accountId}` +
-    `/d1/database/${opts.databaseId}/query`;
+  const api = "https://api.cloudflare.com/client/v4";
+  const database = `${api}/accounts/${opts.accountId}/d1/database/` +
+    opts.databaseId;
+  const endpoint = `${database}/query`;
+  const authorized = { authorization: `Bearer ${opts.token}` };
 
   return {
+    async preflight() {
+      const response = await fetchImpl(database, { headers: authorized });
+      if (response.ok) {
+        const body = await response.json().catch(() => null) as {
+          result?: { name?: string };
+        } | null;
+        console.log(
+          `  credential ok; database ${body?.result?.name ?? opts.databaseId}`,
+        );
+        return;
+      }
+
+      // Account ids and names identify, they do not authenticate; the token
+      // itself is never printed.
+      const lines = [
+        `cannot reach D1 database ${opts.databaseId} in account ` +
+        `${opts.accountId}: HTTP ${response.status} ` +
+        await summariseError(response),
+      ];
+      const accounts = await fetchImpl(`${api}/accounts`, {
+        headers: authorized,
+      }).catch(() => null);
+      const listed = accounts?.ok
+        ? ((await accounts.json().catch(() => null)) as {
+          result?: { id?: string; name?: string }[];
+        } | null)?.result ?? []
+        : null;
+
+      if (listed === null) {
+        lines.push(
+          "the token cannot list accounts either, so it is scoped to a " +
+            "different account or is missing D1 → Edit",
+        );
+      } else if (listed.length === 0) {
+        lines.push("the token can see no accounts at all");
+      } else {
+        lines.push(
+          "the token can see: " +
+            listed.map((a) => `${a.id} (${a.name})`).join(", "),
+        );
+        lines.push(
+          listed.some((a) => a.id === opts.accountId)
+            ? "that includes the account above, so the token is missing D1 " +
+              "(Read for this check, Edit for the import) on it"
+            : "the account above is not among them, so CLOUDFLARE_ACCOUNT_ID " +
+              "points at the wrong account",
+        );
+      }
+      throw new Error(lines.join("\n  "));
+    },
+
     async run(statements) {
       const batches = batchStatements(statements, batchSize, 80_000);
       let done = 0;
       for (const [i, batch] of batches.entries()) {
         const response = await fetchImpl(endpoint, {
           method: "POST",
-          headers: {
-            authorization: `Bearer ${opts.token}`,
-            "content-type": "application/json",
-          },
+          headers: { ...authorized, "content-type": "application/json" },
           body: JSON.stringify({ sql: batch.join("\n") }),
         });
 
@@ -79,7 +136,13 @@ export const createD1HttpClient = (opts: D1HttpOptions): D1HttpClient => {
           throw new Error(
             `D1 request failed on batch ${i + 1}/${batches.length} ` +
               `(statements ${done + 1}-${done + batch.length}): ` +
-              `HTTP ${response.status} ${detail}`,
+              `HTTP ${response.status} ${detail}` +
+              // The preflight already proved the account and a read; a 403 on
+              // a write leaves only the write permission.
+              (response.status === 403
+                ? " — the token reaches the database but cannot write to it, " +
+                  "so it is missing D1 → Edit"
+                : ""),
           );
         }
         const body = await response.json().catch(() => null) as {

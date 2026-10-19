@@ -32,7 +32,7 @@ import { parseArgs } from "@std/cli/parse-args";
 
 import { D1_KV_SCHEMA, encodeKey } from "@kbn/kv/d1.ts";
 
-import { createD1HttpClient } from "./d1-http.ts";
+import { createD1HttpClient, type D1HttpClient } from "./d1-http.ts";
 import {
   decodeKeyParts,
   decodeValue,
@@ -189,12 +189,42 @@ export const splitSchema = (schema: string): string[] =>
     s + ";"
   );
 
+/** The D1 destination, from the flags and the environment. */
+const d1Client = (
+  args: { "account-id"?: string; "database-id"?: string },
+): D1HttpClient => {
+  const token = Deno.env.get("CLOUDFLARE_API_TOKEN");
+  const accountId = args["account-id"] ?? Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
+  const databaseId = args["database-id"];
+  if (!token || !accountId || !databaseId) {
+    throw new Error(
+      "needs CLOUDFLARE_API_TOKEN, an account id " +
+        "(--account-id or CLOUDFLARE_ACCOUNT_ID) and --database-id",
+    );
+  }
+  return createD1HttpClient({ accountId, databaseId, token });
+};
+
 const main = async () => {
   const args = parseArgs(Deno.args, {
     string: ["in", "out", "account-id", "database-id"],
-    boolean: ["include-ephemeral", "dry-run", "apply", "skip-unstorable"],
+    boolean: [
+      "include-ephemeral",
+      "dry-run",
+      "apply",
+      "skip-unstorable",
+      "check-credentials",
+    ],
     default: { in: "./kv-export.jsonl", out: "./kv-import.sql" },
   });
+
+  // Checked before the export runs, so a broken credential does not cost a
+  // read of the production database.
+  if (args["check-credentials"]) {
+    console.log("checking the D1 credential...");
+    await d1Client(args).preflight();
+    return;
+  }
 
   const text = await Deno.readTextFile(args.in);
   const lines = text.split("\n").filter((l) => l.trim().length > 0);
@@ -255,18 +285,10 @@ const main = async () => {
   if (args["dry-run"]) return;
 
   if (args.apply) {
-    const token = Deno.env.get("CLOUDFLARE_API_TOKEN");
-    const accountId = args["account-id"] ??
-      Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
-    const databaseId = args["database-id"];
-    if (!token || !accountId || !databaseId) {
-      throw new Error(
-        "--apply needs CLOUDFLARE_API_TOKEN, an account id " +
-          "(--account-id or CLOUDFLARE_ACCOUNT_ID) and --database-id",
-      );
-    }
-    const client = createD1HttpClient({ accountId, databaseId, token });
-    console.log("\napplying schema...");
+    const client = d1Client(args);
+    console.log("\nchecking the D1 credential...");
+    await client.preflight();
+    console.log("applying schema...");
     await client.run(splitSchema(D1_KV_SCHEMA));
     console.log("applying data...");
     await client.run(statements);
