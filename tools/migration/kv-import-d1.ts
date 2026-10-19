@@ -5,10 +5,17 @@
  *     --in ./kv-export.jsonl --out ./kv-import.sql
  *   wrangler d1 execute <DB> --remote --file ./kv-import.sql
  *
- * SQL is emitted rather than written straight to D1 so the statements can be
- * reviewed, and applied with the same tool that owns the schema. Entries under
- * an ephemeral prefix are skipped: importing a stale replay or single-use
- * marker would reject fresh tokens, and an expired one protects nothing.
+ * By default SQL is written to a file so the statements can be reviewed before
+ * anything touches D1. Entries under an ephemeral prefix are skipped:
+ * importing a stale replay or single-use marker would reject fresh tokens,
+ * and an expired one protects nothing.
+ *
+ * With --apply the statements go straight to D1 over its REST API instead,
+ * which is what CI uses so the secret-bearing SQL never touches the disk:
+ *
+ *   CLOUDFLARE_API_TOKEN=... deno run -A tools/migration/kv-import-d1.ts \
+ *     --in ./kv-export.jsonl --apply \
+ *     --account-id <ACCOUNT_ID> --database-id <DATABASE_ID>
  *
  * Pass --include-ephemeral to override, and --dry-run to only see the summary.
  *
@@ -17,7 +24,9 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 
-import { encodeKey } from "@kbn/kv/d1.ts";
+import { D1_KV_SCHEMA, encodeKey } from "@kbn/kv/d1.ts";
+
+import { createD1HttpClient } from "./d1-http.ts";
 import {
   decodeKeyParts,
   type ExportedEntry,
@@ -43,10 +52,16 @@ export const insertStatement = (
     "version = kv.version + 1, expires_at = excluded.expires_at;";
 };
 
+/** The schema is one blob; D1 wants statements. */
+export const splitSchema = (schema: string): string[] =>
+  schema.split(";").map((s) => s.trim()).filter((s) => s.length > 0).map((s) =>
+    s + ";"
+  );
+
 const main = async () => {
   const args = parseArgs(Deno.args, {
-    string: ["in", "out"],
-    boolean: ["include-ephemeral", "dry-run"],
+    string: ["in", "out", "account-id", "database-id"],
+    boolean: ["include-ephemeral", "dry-run", "apply"],
     default: { in: "./kv-export.jsonl", out: "./kv-import.sql" },
   });
 
@@ -73,6 +88,26 @@ const main = async () => {
   for (const [prefix, n] of [...kept].sort()) console.log(`  ${prefix}: ${n}`);
 
   if (args["dry-run"]) return;
+
+  if (args.apply) {
+    const token = Deno.env.get("CLOUDFLARE_API_TOKEN");
+    const accountId = args["account-id"] ??
+      Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
+    const databaseId = args["database-id"];
+    if (!token || !accountId || !databaseId) {
+      throw new Error(
+        "--apply needs CLOUDFLARE_API_TOKEN, an account id " +
+          "(--account-id or CLOUDFLARE_ACCOUNT_ID) and --database-id",
+      );
+    }
+    const client = createD1HttpClient({ accountId, databaseId, token });
+    console.log("\napplying schema...");
+    await client.run(splitSchema(D1_KV_SCHEMA));
+    console.log("applying data...");
+    await client.run(statements);
+    console.log("done; nothing written to disk");
+    return;
+  }
 
   await Deno.writeTextFile(
     args.out,

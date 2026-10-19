@@ -1,0 +1,83 @@
+# Migrate the Deno KV data to Cloudflare D1.
+#
+# Manual dispatch only. This reads production data and writes to D1, so it must
+# never fire on a push.
+#
+# The export contains the JWS/VAPID signing key and the passkey sign secret, so
+# this job deliberately:
+#   - never uploads an artifact,
+#   - never writes the import SQL to disk (--apply posts it to D1 directly),
+#   - never echoes statements; a D1 failure is reported by index only.
+#
+# Required repository secrets:
+#   DENO_KV_ACCESS_TOKEN   Deno Deploy access token (read of the KV database)
+#   CLOUDFLARE_API_TOKEN   Cloudflare token with D1 edit on the account
+#   CLOUDFLARE_ACCOUNT_ID  Cloudflare account id
+name: Migrate KV to D1
+
+on:
+  workflow_dispatch:
+    inputs:
+      deno_database_id:
+        description: Deno Deploy KV database id (source)
+        required: true
+        default: ebf60f1f-4d3f-4402-ac49-fa60341278ed
+      d1_database_id:
+        description: Cloudflare D1 database id (destination)
+        required: true
+        default: 1ad1c197-5119-4392-bf55-e863fe70334e
+      dry_run:
+        description: Export and summarise only; write nothing to D1
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two imports interleave into the same database.
+  group: migrate-kv-to-d1
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: true
+
+      # Fail before touching production if the tooling itself is broken.
+      - name: Test the migration tooling
+        run: deno test -P --unstable-kv tools/migration/ kv/
+
+      - name: Export from Deno KV
+        env:
+          DENO_KV_ACCESS_TOKEN: ${{ secrets.DENO_KV_ACCESS_TOKEN }}
+        run: |
+          deno run -A --unstable-kv tools/migration/kv-export.ts \
+            --database "${{ inputs.deno_database_id }}" \
+            --out "$RUNNER_TEMP/kv-export.jsonl"
+
+      - name: Summarise what would be imported
+        run: |
+          deno run -A tools/migration/kv-import-d1.ts \
+            --in "$RUNNER_TEMP/kv-export.jsonl" --dry-run
+
+      - name: Import into D1
+        if: ${{ !inputs.dry_run }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          deno run -A tools/migration/kv-import-d1.ts \
+            --in "$RUNNER_TEMP/kv-export.jsonl" \
+            --apply --database-id "${{ inputs.d1_database_id }}"
+
+      # The runner is ephemeral, but do not rely on that for key material.
+      - name: Shred the export
+        if: always()
+        run: shred -u "$RUNNER_TEMP/kv-export.jsonl" 2>/dev/null || true

@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 
-import { D1Repo } from "@kbn/kv/d1.ts";
+import { D1_KV_SCHEMA, D1Repo } from "@kbn/kv/d1.ts";
 import { createSqliteD1 } from "../../kv/d1_sqlite_test_util.ts";
 
 import {
@@ -11,7 +11,8 @@ import {
   type ExportedEntry,
   isEphemeral,
 } from "./codec.ts";
-import { insertStatement, sqlString } from "./kv-import-d1.ts";
+import { insertStatement, splitSchema, sqlString } from "./kv-import-d1.ts";
+import { batchStatements, createD1HttpClient } from "./d1-http.ts";
 
 Deno.test("codec: key parts round-trip with their types", () => {
   const key = ["credential", 1, true, 9n];
@@ -166,5 +167,63 @@ Deno.test(
       db.close();
       kv.close();
     }
+  },
+);
+
+Deno.test("batchStatements: respects both the count and the byte budget", () => {
+  const s = ["a;", "b;", "c;", "d;"];
+  assertEquals(batchStatements(s, 2, 1000).map((b) => b.length), [2, 2]);
+  // One oversized statement still goes out on its own rather than being lost.
+  const big = "x".repeat(100);
+  assertEquals(batchStatements([big, big], 10, 120).map((b) => b.length), [
+    1,
+    1,
+  ]);
+  assertEquals(batchStatements([], 10, 100), []);
+  // Every statement survives batching.
+  assertEquals(batchStatements(s, 3, 1000).flat(), s);
+});
+
+Deno.test("splitSchema: yields runnable statements", () => {
+  const stmts = splitSchema(D1_KV_SCHEMA);
+  assert(stmts.length >= 2);
+  assert(stmts.every((s) => s.endsWith(";")));
+  assert(stmts.some((s) => s.includes("CREATE TABLE")));
+});
+
+Deno.test(
+  "d1 client: a failure never leaks the SQL (it carries the signing key)",
+  async () => {
+    const SECRET_SQL = "INSERT INTO kv VALUES ('secret-signing-key-material');";
+    const failing: typeof fetch = () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ success: false, errors: [{ message: "boom" }] }),
+          { status: 400 },
+        ),
+      );
+    const client = createD1HttpClient({
+      accountId: "acct",
+      databaseId: "db",
+      token: "tok-should-not-appear",
+      fetchImpl: failing,
+    });
+
+    const error = await client.run([SECRET_SQL]).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    assert(error, "expected a rejection");
+    assert(
+      !error.message.includes("secret-signing-key-material"),
+      `SQL leaked into the error: ${error.message}`,
+    );
+    assert(
+      !error.message.includes("tok-should-not-appear"),
+      "token leaked into the error",
+    );
+    // It still says enough to locate the failure.
+    assert(error.message.includes("boom"));
+    assert(error.message.includes("statements 1-1"));
   },
 );

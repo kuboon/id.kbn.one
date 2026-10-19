@@ -5,10 +5,10 @@
  * Run against production (needs a Deno Deploy access token):
  *
  *   DENO_KV_ACCESS_TOKEN=... deno run -A tools/migration/kv-export.ts \
- *     --url https://api.deno.com/databases/<DATABASE_ID>/connect \
- *     --out ./kv-export.jsonl
+ *     --database <DATABASE_ID> --out ./kv-export.jsonl
  *
- * Omit --url to read the local development database instead.
+ * `--database` is expanded to the v2 connect URL; pass `--url` to give one
+ * verbatim. Omit both to read the local development database instead.
  *
  * THE OUTPUT CONTAINS SECRETS — the JWS/VAPID signing key and the passkey
  * signing secret. Keep it out of git, off shared storage, and delete it once
@@ -21,13 +21,19 @@ import { parseArgs } from "@std/cli/parse-args";
 
 import { encodeKeyParts, encodeValue, type ExportedEntry } from "./codec.ts";
 
+/** Deno Deploy's KV connect endpoint for a database id (v2). */
+export const connectUrl = (databaseId: string): string =>
+  `https://api.deno.com/v2/databases/${databaseId}/connect`;
+
 const main = async () => {
   const args = parseArgs(Deno.args, {
-    string: ["url", "out"],
+    string: ["url", "database", "out"],
     default: { out: "./kv-export.jsonl" },
   });
 
-  const kv = args.url ? await Deno.openKv(args.url) : await Deno.openKv();
+  const url = args.url ??
+    (args.database ? connectUrl(args.database) : undefined);
+  const kv = url ? await Deno.openKv(url) : await Deno.openKv();
   const file = await Deno.open(args.out, {
     write: true,
     create: true,
