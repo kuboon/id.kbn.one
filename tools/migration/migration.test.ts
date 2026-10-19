@@ -314,6 +314,28 @@ Deno.test(
     );
     assert(wrongScope?.message.includes("missing D1"));
     assert(wrongScope?.message.includes("Edit for the import"));
+
+    // A 401 is a different diagnosis: the credential is rejected outright, so
+    // pointing at accounts and permissions would send you the wrong way.
+    const rejected = await createD1HttpClient({
+      accountId: ACCOUNT,
+      databaseId: "db-1",
+      token: "stale-token",
+      fetchImpl: (() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: false,
+              errors: [{ message: "Authentication error" }],
+            }),
+            { status: 401 },
+          ),
+        )) as unknown as typeof fetch,
+    }).preflight().then(() => null, (e: unknown) => e as Error);
+    assert(rejected, "expected a rejection");
+    assert(rejected.message.includes("not a valid token"));
+    assert(!rejected.message.includes("wrong account"));
+    assert(!rejected.message.includes("stale-token"));
   },
 );
 

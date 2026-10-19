@@ -82,12 +82,27 @@ export const createD1HttpClient = (opts: D1HttpOptions): D1HttpClient => {
       }
 
       // Account ids and names identify, they do not authenticate; the token
-      // itself is never printed.
+      // itself is never printed. The configured account id is masked in a CI
+      // log anyway, so what matters is whether it MATCHES one the token holds.
       const lines = [
         `cannot reach D1 database ${opts.databaseId} in account ` +
         `${opts.accountId}: HTTP ${response.status} ` +
         await summariseError(response),
       ];
+
+      // 401 is the credential being rejected outright; 403 is a credential
+      // that works but does not cover this account or this permission. Saying
+      // "wrong account or permission" for a 401 only sends you looking in the
+      // wrong place.
+      if (response.status === 401) {
+        lines.push(
+          "CLOUDFLARE_API_TOKEN is not a valid token: expired, revoked, or " +
+            "mis-copied (a truncated paste or a trailing newline does this). " +
+            "Create a new token with D1 → Edit and set the secret again.",
+        );
+        throw new Error(lines.join("\n  "));
+      }
+
       const accounts = await fetchImpl(`${api}/accounts`, {
         headers: authorized,
       }).catch(() => null);
@@ -111,10 +126,10 @@ export const createD1HttpClient = (opts: D1HttpOptions): D1HttpClient => {
         );
         lines.push(
           listed.some((a) => a.id === opts.accountId)
-            ? "that includes the account above, so the token is missing D1 " +
-              "(Read for this check, Edit for the import) on it"
-            : "the account above is not among them, so CLOUDFLARE_ACCOUNT_ID " +
-              "points at the wrong account",
+            ? "CLOUDFLARE_ACCOUNT_ID is one of them, so the token is missing " +
+              "D1 (Read for this check, Edit for the import) on it"
+            : "CLOUDFLARE_ACCOUNT_ID is none of them, so it points at the " +
+              "wrong account",
         );
       }
       throw new Error(lines.join("\n  "));
