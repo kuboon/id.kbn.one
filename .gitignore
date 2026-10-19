@@ -5,3 +5,4 @@ _data/
 main/bundled/
 kv-export.jsonl
 kv-import.sql
+main/worker/

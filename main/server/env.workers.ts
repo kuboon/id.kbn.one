@@ -12,7 +12,17 @@
 
 import { env } from "cloudflare:workers";
 
+import type { Middleware } from "@remix-run/fetch-router";
+
+import { D1Repo } from "@kbn/kv/d1.ts";
 import type { D1Like } from "@kbn/kv/d1.ts";
+import type { KvKey, KvOptions, KvRepo } from "@kbn/kv/types.ts";
+
+/**
+ * None: Workers Static Assets answers a matching path before the Worker is
+ * invoked at all, so the router never sees a request for a built asset.
+ */
+export const staticMiddleware = (): Middleware[] => [];
 
 export const readEnv = (name: string): string | undefined => {
   const value = (env as unknown as Record<string, unknown>)[name];
@@ -33,3 +43,11 @@ export const getD1Database = (): D1Like => {
   }
   return db;
 };
+
+/** Repositories over D1. The binding is resolved once, not per request. */
+const db = getD1Database();
+
+export const createRepo = <TVal>(
+  prefix: KvKey = [],
+  options: KvOptions = {},
+): KvRepo<TVal> => new D1Repo<TVal>(db, prefix, options);

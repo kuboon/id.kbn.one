@@ -2,14 +2,15 @@
  * Singleton repositories shared across controllers.
  *
  * Every key the app stores is declared here, so the set of prefixes is one
- * list rather than something to grep for — and so the backend (Deno KV or D1)
- * is chosen in a single place. See `kv-backend.ts`.
+ * list rather than something to grep for. Which backend holds them is the
+ * runtime's business: `createRepo` comes from `#env`, so it is Deno KV under
+ * Deno and D1 on Workers, and nothing below this line can tell.
  */
 
 import type { Session } from "@remix-run/session";
 import type { PasskeyCredential } from "@kuboon/passkeys/remix";
 
-import { createRepo } from "#server/kv-backend.ts";
+import { createRepo } from "#env";
 import type { UserProfile } from "./lib/profile.ts";
 import type {
   StoredPushSubscription,

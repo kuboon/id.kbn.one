@@ -1,0 +1,58 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "id-kbn-one",
+  "compatibility_date": "2026-10-19",
+
+  // Deno bundles the app, because the source resolves JSR specifiers and
+  // workspace import maps that esbuild knows nothing about. `deno task
+  // build:worker` writes this file and leaves `#env` unresolved on purpose,
+  // for the alias below to supply.
+  "main": "main/worker/worker.js",
+  "alias": {
+    "#env": "./main/server/env.workers.ts"
+  },
+
+  // Served straight from the edge, before the Worker is invoked, which is why
+  // the router has no static-file middleware on this runtime. `main/bundled`
+  // is a build artifact (git-ignored), so `deno task build` must run first.
+  "assets": {
+    "directory": "./main/bundled"
+  },
+
+  // Deno KV's replacement. D1 rather than Workers KV because the app needs
+  // compare-and-set: single-use OAuth codes, refresh-token reuse detection,
+  // DPoP replay rejection and push rate limiting all rest on it, and Workers
+  // KV would keep returning success while those guarantees quietly vanished.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "id-kbn-one",
+      "database_id": "1ad1c197-5119-4392-bf55-e863fe70334e"
+    }
+  ],
+
+  // D1 has no TTL of its own. Reads already treat an expired row as absent, so
+  // this only reclaims storage and a missed run costs nothing but space.
+  "triggers": {
+    "crons": ["23 4 * * *"]
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  // Public configuration, not secrets: the signing key lives in D1. A deploy
+  // replaces these, so they belong here rather than in the dashboard.
+  //
+  // AUTHORIZE_WHITELIST and RP_NAME are NOT set to their production values
+  // here — they were only ever in the Deno Deploy dashboard. Fill them in
+  // before the first deploy: an empty whitelist rejects every RP redirect
+  // (which is the safe direction, but no RP will be able to sign a user in).
+  "vars": {
+    "RP_ID": "id.kbn.one",
+    "IDP_ORIGIN": "https://id.kbn.one",
+    "RP_NAME": "TODO: set before deploying",
+    "AUTHORIZE_WHITELIST": "TODO: comma-separated RP hostnames",
+    "PUSH_CONTACT": "mailto:o@kbn.one"
+  }
+}

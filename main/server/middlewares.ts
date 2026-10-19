@@ -1,6 +1,7 @@
 import type { Middleware, MiddlewareContext } from "@remix-run/fetch-router";
-import { staticFiles } from "@remix-run/static-middleware";
 import { cors } from "@remix-run/cors-middleware";
+
+import { staticMiddleware } from "#env";
 
 import { idpOrigin, originAllowlist } from "./config.ts";
 import { dpop } from "./middleware/dpop.ts";
@@ -12,8 +13,6 @@ const allowedOrigins = (origin: string): string | undefined => {
   if (idpOrigin && origin === idpOrigin) return origin;
   return originAllowlist.originAllowed(origin) ? origin : undefined;
 };
-
-const bundledDir = new URL("../bundled", import.meta.url).pathname;
 
 const errorHandler: Middleware = async (_context, next) => {
   try {
@@ -49,7 +48,9 @@ const corsMiddleware = cors({
 export const middleware = [
   errorHandler,
   corsMiddleware,
-  staticFiles(bundledDir),
+  // Serving the built assets is the runtime's job where it has one: on
+  // Workers, Static Assets answers before the router is reached.
+  ...staticMiddleware(),
 ];
 
 /**
