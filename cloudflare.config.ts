@@ -33,23 +33,24 @@ export default defineConfig({
     ],
 
     env: {
-      // Public configuration, not secrets: the signing key lives in D1. These
-      // did not come across from Deno Deploy, where they were only ever set in
-      // the dashboard.
+      // Public configuration, not secrets: the signing key lives in D1. Copied
+      // from the Deno Deploy dashboard, where they were only ever set.
       //
       // Do not change `RP_ID`. A WebAuthn credential is bound to the RP ID it
       // was created under, so a different value here makes every existing
       // passkey unusable, and putting it back does not bring them back — the
-      // authenticator keeps the original binding. This value is the one
-      // production used, confirmed by the repository owner.
-      RP_ID: bindings.text("id.kbn.one"),
-      RP_NAME: bindings.text("kbn.one ID"),
+      // authenticator keeps the original binding. It is the registrable suffix
+      // `kbn.one`, not the IdP's own host, which is why `https://id.kbn.one`
+      // is a valid origin for it.
+      RP_ID: bindings.text("kbn.one"),
+      RP_NAME: bindings.text("kbn.one"),
       IDP_ORIGIN: bindings.text("https://id.kbn.one"),
-      // Hostnames, subdomains included. `kbn.one` is what production must have
-      // allowed: a live /authorize carried
-      // redirect_uri=https://ga-cen.kbn.one/… The old Deno Deploy host is
-      // deliberately not carried over.
-      AUTHORIZE_WHITELIST: bindings.text("kbn.one"),
+      // Hostnames, subdomains included. Carried over as production had it; the
+      // deno.net entries can go once nothing redirects there any more.
+      AUTHORIZE_WHITELIST: bindings.text(
+        "kbn.one,kbn.deno.net,kuboon-tokyo.deno.net,kuboon.github.io," +
+          "kuboon.workers.dev,localhost",
+      ),
       PUSH_CONTACT: bindings.text("mailto:o@kbn.one"),
 
       // Deno KV's replacement, already holding the migrated data. D1 rather
