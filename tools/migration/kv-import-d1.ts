@@ -29,6 +29,7 @@ import { D1_KV_SCHEMA, encodeKey } from "@kbn/kv/d1.ts";
 import { createD1HttpClient } from "./d1-http.ts";
 import {
   decodeKeyParts,
+  decodeValue,
   type ExportedEntry,
   isEphemeral,
   type TaggedPart,
@@ -37,13 +38,84 @@ import {
 /** Quote a string as a SQL literal. */
 export const sqlString = (s: string): string => `'${s.replaceAll("'", "''")}'`;
 
+/** How a value reads in an error without putting its contents in the log. */
+const describe = (value: unknown): string => {
+  if (value === undefined) return "undefined";
+  if (typeof value === "object" && value !== null) {
+    return Object.getPrototypeOf(value)?.constructor?.name ?? "object";
+  }
+  return typeof value;
+};
+
+/**
+ * `D1Repo` stores values as JSON, so anything JSON cannot carry would arrive
+ * changed — a `Uint8Array` as `{}`, an array hole as `null`. Reject it here,
+ * naming the key and the path, instead of writing a row that reads back wrong.
+ *
+ * A property whose value is `undefined` is fine: JSON drops it, which is
+ * exactly what the app's optional fields mean.
+ */
+export const assertJsonStorable = (
+  value: unknown,
+  path = "$",
+): void => {
+  if (
+    value === null || typeof value === "string" || typeof value === "boolean"
+  ) {
+    return;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new TypeError(`non-finite number at ${path}`);
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => {
+      if (v === undefined) {
+        throw new TypeError(
+          `undefined element at ${path}[${i}] (JSON would ` +
+            "turn it into null)",
+        );
+      }
+      assertJsonStorable(v, `${path}[${i}]`);
+    });
+    return;
+  }
+  if (
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === undefined) continue;
+      assertJsonStorable(v, `${path}.${k}`);
+    }
+    return;
+  }
+  throw new TypeError(`${describe(value)} at ${path} is not JSON-storable`);
+};
+
 export const insertStatement = (
   key: readonly TaggedPart[],
-  value: unknown,
+  encodedValue: unknown,
 ): string => {
+  const parts = decodeKeyParts(key);
   const encodedKey = encodeKey(
-    decodeKeyParts(key) as (string | number | bigint | boolean)[],
+    parts as (string | number | bigint | boolean)[],
   );
+  // The export is tagged (a Uint8Array arrives as `{$kvmig:"u8",…}`), so it has
+  // to be decoded before storing: writing the tag verbatim would hand the app
+  // the wrapper instead of the value.
+  const value = decodeValue(encodedValue);
+  try {
+    assertJsonStorable(value);
+  } catch (cause) {
+    const name = parts.map((p) => String(p)).join("/");
+    throw new TypeError(
+      `${name}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
   // The export carries no remaining TTL, so imported rows never expire; the
   // entries that rely on a TTL are the ephemeral ones we skip.
   return "INSERT INTO kv (key, value, version, expires_at) VALUES (" +

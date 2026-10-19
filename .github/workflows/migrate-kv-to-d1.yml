@@ -26,10 +26,6 @@ on:
         description: Cloudflare D1 database id (destination)
         required: true
         default: 1ad1c197-5119-4392-bf55-e863fe70334e
-      dry_run:
-        description: Export and summarise only; write nothing to D1
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -62,13 +58,10 @@ jobs:
             --database "${{ inputs.deno_database_id }}" \
             --out "$RUNNER_TEMP/kv-export.jsonl"
 
-      - name: Summarise what would be imported
-        run: |
-          deno run -A tools/migration/kv-import-d1.ts \
-            --in "$RUNNER_TEMP/kv-export.jsonl" --dry-run
-
+      # Deno KV is only read, and the import is an idempotent upsert, so there
+      # is nothing a separate dry run would protect; it prints its summary
+      # before it writes anything either way.
       - name: Import into D1
-        if: ${{ !inputs.dry_run }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
