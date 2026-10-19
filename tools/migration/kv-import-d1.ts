@@ -19,6 +19,12 @@
  *
  * Pass --include-ephemeral to override, and --dry-run to only see the summary.
  *
+ * Every run first reports what it found: counts per key prefix, and for any
+ * entry D1 cannot hold, the key prefix and the *shape* of its value — type
+ * names and string lengths, never contents, because the export carries the
+ * signing key. Such an entry stops the import unless --skip-unstorable says
+ * to drop it, so nothing is written half-way.
+ *
  * @module
  */
 
@@ -95,6 +101,58 @@ export const assertJsonStorable = (
   throw new TypeError(`${describe(value)} at ${path} is not JSON-storable`);
 };
 
+/** `null` when the value is storable, else why it is not. */
+export const storabilityError = (value: unknown): string | null => {
+  try {
+    assertJsonStorable(value);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+};
+
+/**
+ * A value's structure with none of its content: type names, string and array
+ * lengths, object keys. Safe to log — the export carries the signing key and
+ * the passkey sign secret, so no value ever goes to the console.
+ */
+export const shapeOf = (value: unknown, depth = 0): string => {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (typeof value === "string") return `string(${value.length})`;
+  if (value instanceof Uint8Array) return `Uint8Array(${value.length})`;
+  if (value instanceof Date) return "Date";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    if (depth >= 3) return `array(${value.length})`;
+    return `[${shapeOf(value[0], depth + 1)}${value.length > 1 ? ", …" : ""}]`;
+  }
+  if (typeof value === "object") {
+    if (Object.getPrototypeOf(value) !== Object.prototype) {
+      return describe(value);
+    }
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return "{}";
+    if (depth >= 3) return `object(${entries.length} keys)`;
+    const shown = entries.slice(0, 8).map(([k, v]) =>
+      `${k}: ${shapeOf(v, depth + 1)}`
+    );
+    if (entries.length > 8) shown.push("…");
+    return `{ ${shown.join(", ")} }`;
+  }
+  return typeof value;
+};
+
+/**
+ * How a key reads in a report. Only the first two parts are shown verbatim —
+ * deeper parts are credential ids, subscription ids and usernames, which the
+ * report has no reason to spell out.
+ */
+export const keyLabel = (key: readonly TaggedPart[]): string => {
+  const head = key.slice(0, 2).map((p) => String(p.v)).join("/");
+  return key.length > 2 ? `${head}/*` : head;
+};
+
 export const insertStatement = (
   key: readonly TaggedPart[],
   encodedValue: unknown,
@@ -110,9 +168,10 @@ export const insertStatement = (
   try {
     assertJsonStorable(value);
   } catch (cause) {
-    const name = parts.map((p) => String(p)).join("/");
     throw new TypeError(
-      `${name}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `${keyLabel(key)}: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }`,
       { cause },
     );
   }
@@ -133,7 +192,7 @@ export const splitSchema = (schema: string): string[] =>
 const main = async () => {
   const args = parseArgs(Deno.args, {
     string: ["in", "out", "account-id", "database-id"],
-    boolean: ["include-ephemeral", "dry-run", "apply"],
+    boolean: ["include-ephemeral", "dry-run", "apply", "skip-unstorable"],
     default: { in: "./kv-export.jsonl", out: "./kv-import.sql" },
   });
 
@@ -143,11 +202,26 @@ const main = async () => {
   const statements: string[] = [];
   let skipped = 0;
   const kept = new Map<string, number>();
+  const unstorable = new Map<string, { count: number; detail: string }>();
 
   for (const line of lines) {
     const row = JSON.parse(line) as ExportedEntry;
     if (!args["include-ephemeral"] && isEphemeral(row.key)) {
       skipped++;
+      continue;
+    }
+    // Classify before building any SQL, so one bad entry reports itself
+    // alongside the rest instead of aborting the run on the spot.
+    const value = decodeValue(row.value);
+    const problem = storabilityError(value);
+    if (problem) {
+      const label = keyLabel(row.key);
+      const seen = unstorable.get(label);
+      if (seen) seen.count++;
+      else {unstorable.set(label, {
+          count: 1,
+          detail: `${problem} — ${shapeOf(value)}`,
+        });}
       continue;
     }
     statements.push(insertStatement(row.key, row.value));
@@ -158,6 +232,25 @@ const main = async () => {
   console.log(`read ${lines.length} entries`);
   console.log(`  keeping ${statements.length}, skipping ${skipped} ephemeral`);
   for (const [prefix, n] of [...kept].sort()) console.log(`  ${prefix}: ${n}`);
+
+  if (unstorable.size > 0) {
+    // D1Repo stores JSON, so the app itself can no longer write these shapes:
+    // they are leftovers from an earlier implementation. Shapes only — never
+    // the values, which include key material.
+    const total = [...unstorable.values()].reduce((n, u) => n + u.count, 0);
+    console.log(`\n${total} entries D1 cannot hold:`);
+    for (const [label, { count, detail }] of [...unstorable].sort()) {
+      console.log(`  ${label} (${count}): ${detail}`);
+    }
+    if (!args["skip-unstorable"]) {
+      throw new Error(
+        `refusing to import: ${total} entries cannot be stored as JSON. ` +
+          "Check the shapes above against the code that reads those keys, " +
+          "then pass --skip-unstorable to drop them.",
+      );
+    }
+    console.log("  (dropped: --skip-unstorable)");
+  }
 
   if (args["dry-run"]) return;
 

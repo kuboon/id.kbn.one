@@ -14,8 +14,11 @@ import {
 import {
   assertJsonStorable,
   insertStatement,
+  keyLabel,
+  shapeOf,
   splitSchema,
   sqlString,
+  storabilityError,
 } from "./kv-import-d1.ts";
 import { batchStatements, createD1HttpClient } from "./d1-http.ts";
 
@@ -104,6 +107,42 @@ Deno.test("import: a value D1 cannot hold is refused, naming the key", () => {
     () => insertStatement(key, encodeValue([1, undefined, 3])),
     TypeError,
   );
+});
+
+Deno.test("report: a value's shape is logged, its contents never are", () => {
+  // This is what the import prints for the entries it cannot store, so it must
+  // not carry the signing key or the sign secret into a CI log.
+  const shape = shapeOf({
+    secret: new Uint8Array(32),
+    jwk: { kty: "EC", d: "the-private-scalar" },
+    rotated: [new Date(), new Date()],
+  });
+  assertEquals(
+    shape,
+    "{ secret: Uint8Array(32), jwk: { kty: string(2), d: string(18) }, " +
+      "rotated: [Date, …] }",
+  );
+  assert(!shape.includes("the-private-scalar"));
+  // Key parts past the second are ids and usernames; the report drops them.
+  assertEquals(
+    keyLabel(encodeKeyParts(["push", "subscription", "s1"])),
+    "push/subscription/*",
+  );
+  assertEquals(
+    keyLabel(encodeKeyParts(["username", "alice"])),
+    "username/alice",
+  );
+  assertEquals(
+    keyLabel(encodeKeyParts(["user_credentials", "alice", "cred-1"])),
+    "user_credentials/alice/*",
+  );
+});
+
+Deno.test("report: storabilityError says why, or nothing at all", () => {
+  assertEquals(storabilityError({ a: 1, b: [true, "x"], c: null }), null);
+  assertEquals(storabilityError({ opt: undefined }), null);
+  assert(storabilityError(new Uint8Array([1]))?.includes("Uint8Array"));
+  assert(storabilityError({ at: new Date() })?.includes("$.at"));
 });
 
 Deno.test("sqlString: quotes are escaped so a value cannot break out", () => {

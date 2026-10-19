@@ -61,6 +61,13 @@ jobs:
       # Deno KV is only read, and the import is an idempotent upsert, so there
       # is nothing a separate dry run would protect; it prints its summary
       # before it writes anything either way.
+      #
+      # --skip-unstorable drops entries D1 cannot hold as JSON (a Uint8Array
+      # value left by an earlier implementation). That is safe here and not a
+      # decision made blind: the log lists every one of them by key prefix and
+      # value shape, no code in the tree reads those keys, `D1Repo` could not
+      # return them if it did, and the source database is only read — so they
+      # can still be re-imported later if one turns out to matter.
       - name: Import into D1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -68,7 +75,8 @@ jobs:
         run: |
           deno run -A tools/migration/kv-import-d1.ts \
             --in "$RUNNER_TEMP/kv-export.jsonl" \
-            --apply --database-id "${{ inputs.d1_database_id }}"
+            --apply --skip-unstorable \
+            --database-id "${{ inputs.d1_database_id }}"
 
       # The runner is ephemeral, but do not rely on that for key material.
       - name: Shred the export
