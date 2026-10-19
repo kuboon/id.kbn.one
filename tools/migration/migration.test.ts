@@ -283,17 +283,27 @@ Deno.test(
         { status: 200 },
       );
 
+    const valid = () =>
+      new Response(
+        JSON.stringify({ success: true, result: { status: "active" } }),
+        { status: 200 },
+      );
+
     const client = (visible: string[]) =>
       createD1HttpClient({
         accountId: ACCOUNT,
         databaseId: "db-1",
         token: "tok-should-not-appear",
-        fetchImpl: ((url: string | URL) =>
-          Promise.resolve(
-            String(url).endsWith("/accounts")
-              ? accountsListing(visible)
-              : forbidden(),
-          )) as unknown as typeof fetch,
+        fetchImpl: ((url: string | URL) => {
+          const href = String(url);
+          if (href.endsWith("/user/tokens/verify")) {
+            return Promise.resolve(valid());
+          }
+          if (href.endsWith("/accounts")) {
+            return Promise.resolve(accountsListing(visible));
+          }
+          return Promise.resolve(forbidden());
+        }) as unknown as typeof fetch,
       });
 
     // The token is scoped to some other account: say so, and name what it can
@@ -315,8 +325,10 @@ Deno.test(
     assert(wrongScope?.message.includes("missing D1"));
     assert(wrongScope?.message.includes("Edit for the import"));
 
-    // A 401 is a different diagnosis: the credential is rejected outright, so
-    // pointing at accounts and permissions would send you the wrong way.
+    // A token Cloudflare does not accept is a different diagnosis, and the
+    // status code does not reveal it — "401 Authentication error" also covers
+    // a valid token without the permission. The token's own verify endpoint
+    // decides, so pointing at accounts and permissions is not a guess.
     const rejected = await createD1HttpClient({
       accountId: ACCOUNT,
       databaseId: "db-1",
@@ -333,7 +345,8 @@ Deno.test(
         )) as unknown as typeof fetch,
     }).preflight().then(() => null, (e: unknown) => e as Error);
     assert(rejected, "expected a rejection");
-    assert(rejected.message.includes("not a valid token"));
+    assert(rejected.message.includes("not accepted as an API token"));
+    assert(rejected.message.includes("Global API Key"));
     assert(!rejected.message.includes("wrong account"));
     assert(!rejected.message.includes("stale-token"));
   },

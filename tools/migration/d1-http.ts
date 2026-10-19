@@ -90,17 +90,29 @@ export const createD1HttpClient = (opts: D1HttpOptions): D1HttpClient => {
         await summariseError(response),
       ];
 
-      // 401 is the credential being rejected outright; 403 is a credential
-      // that works but does not cover this account or this permission. Saying
-      // "wrong account or permission" for a 401 only sends you looking in the
-      // wrong place.
-      if (response.status === 401) {
+      // The status alone does not separate the two cases: Cloudflare answers
+      // "401 Authentication error" both for a token it does not accept and
+      // for a valid token without the permission for that path. Ask the token
+      // about itself instead of guessing from the code.
+      const verified = await fetchImpl(`${api}/user/tokens/verify`, {
+        headers: authorized,
+      }).catch(() => null);
+      if (verified && !verified.ok) {
         lines.push(
-          "CLOUDFLARE_API_TOKEN is not a valid token: expired, revoked, or " +
-            "mis-copied (a truncated paste or a trailing newline does this). " +
-            "Create a new token with D1 → Edit and set the secret again.",
+          "CLOUDFLARE_API_TOKEN is not accepted as an API token at all " +
+            `(verify: HTTP ${verified.status} ${await summariseError(
+              verified,
+            )}). It is expired, revoked, mis-copied, or it is a Global API ` +
+            "Key, which cannot be sent as a Bearer token. Create an API " +
+            "token with D1 → Edit on the account that holds the database.",
         );
         throw new Error(lines.join("\n  "));
+      }
+      if (verified?.ok) {
+        lines.push(
+          "the token itself is valid, so this is the account or the " +
+            "permission, not the token",
+        );
       }
 
       const accounts = await fetchImpl(`${api}/accounts`, {
