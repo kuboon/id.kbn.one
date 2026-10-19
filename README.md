@@ -300,6 +300,12 @@ Worker バンドルは `deno bundle` が作る。このリポジトリの JSR
 指定子で解決不能になる。バインディングをリポジトリに包むのは
 `main/server/kv-backend.ts` の仕事。
 
+`cloudflare:workers` は `main/server/deno.json` の import map で
+`cloudflare-workers.shim.ts` に向けてあり、`env.workers.ts` も `deno check` /
+`lint` / `fmt` の対象に入る。shim は Workers ビルドからは参照されない(esbuild
+が本物を解決する) が、Deno がバンドルするコードから `cloudflare:workers` を
+import してはいけない。
+
 ローカル確認:
 
 ```sh
