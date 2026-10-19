@@ -12,8 +12,9 @@
  * esbuild into JSR specifiers it cannot follow. Wrapping a binding in a
  * repository therefore belongs in `kv-backend.ts`, not here.
  *
- * Deno cannot resolve `cloudflare:workers`, so this file is excluded from
- * `deno check`/`lint`/`fmt`.
+ * Deno cannot resolve `cloudflare:workers` either, so this package's import
+ * map points that specifier at `cloudflare-workers.shim.ts` — enough for
+ * `deno check` to cover this file, and never reached by the Workers build.
  */
 
 import { env } from "cloudflare:workers";
