@@ -1,4 +1,4 @@
-import { getKvInstance } from "./kvInstance.ts";
+import { secretRepo } from "./repositories.ts";
 
 const SecretKeys = ["signing_key"] as const;
 
@@ -7,20 +7,18 @@ export const Secret = async <T>(
   generator: () => T | Promise<T>,
   expireIn?: number, // in milliseconds
 ) => {
-  const kv = await getKvInstance();
-  const kvKey = ["secret", key] as const;
-  const stored = await kv.get<T>(kvKey);
-  if (!stored.value) {
+  const entry = secretRepo.entry<T>(key);
+  if (!await entry.get()) {
     console.info(`Generating new secret for: ${key}`);
     const newSecret = await generator();
-    await kv.set(kvKey, newSecret, { expireIn });
+    // `current ?? newSecret` keeps the first writer's value: two instances
+    // starting at once must not end up signing with different keys.
+    await entry.update((current) => current ?? newSecret, { expireIn });
   }
   return {
     async get(): Promise<T> {
-      const stored = await kv.get<T>(kvKey);
-      if (stored.value) {
-        return stored.value;
-      }
+      const stored = await entry.get();
+      if (stored) return stored;
       throw new Error(`Secret ${key} not found`);
     },
   };

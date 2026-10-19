@@ -12,7 +12,7 @@
  * back to whatever they consider sensible (typically the userId).
  */
 
-import { DenoKvRepo } from "@kbn/kv/denoKv.ts";
+import { userProfileRepo } from "../repositories.ts";
 
 export interface UserProfile {
   /** The user's display name. Trimmed, non-empty when present. */
@@ -22,11 +22,9 @@ export interface UserProfile {
 /** Max nickname length, mirroring the input's `maxlength` on /me. */
 export const NICKNAME_MAX_LENGTH = 40;
 
-const profileRepo = new DenoKvRepo<UserProfile>(["user", "profile"]);
-
 /** The user's nickname, or `null` when unset. */
 export async function getNickname(userId: string): Promise<string | null> {
-  const profile = await profileRepo.entry(userId).get();
+  const profile = await userProfileRepo.entry(userId).get();
   const nickname = profile?.nickname?.trim();
   return nickname ? nickname : null;
 }
@@ -40,7 +38,7 @@ export async function setNickname(
   nickname: string,
 ): Promise<string | null> {
   const trimmed = nickname.trim().slice(0, NICKNAME_MAX_LENGTH);
-  const entry = profileRepo.entry(userId);
+  const entry = userProfileRepo.entry(userId);
   if (!trimmed) {
     await entry.update(() => null);
     return null;
@@ -51,5 +49,5 @@ export async function setNickname(
 
 /** Drop the profile. Called when the account itself is deleted. */
 export async function deleteProfile(userId: string): Promise<void> {
-  await profileRepo.entry(userId).update(() => null);
+  await userProfileRepo.entry(userId).update(() => null);
 }

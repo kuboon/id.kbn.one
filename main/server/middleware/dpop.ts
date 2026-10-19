@@ -6,24 +6,13 @@
 import { DpopSession, dpopSession } from "@kbn/dpop-session-middleware";
 
 import { dpopSessionStorage } from "../lib/session.ts";
-import { DenoKvJtiStore } from "../repository/deno-kv-jti-store.ts";
-import { getKvInstance } from "../kvInstance.ts";
+import { jtiStore } from "../repository/jti-store.ts";
 
 export { DpopSession };
 
-class KvReplayDetector {
-  private store: Promise<DenoKvJtiStore>;
-  constructor() {
-    this.store = getKvInstance().then((kv) => new DenoKvJtiStore(kv));
-  }
-  async check(jti: string): Promise<boolean> {
-    return await (await this.store).checkReplay(jti);
-  }
-}
-
 export const dpop = dpopSession({
   sessionStorage: dpopSessionStorage,
-  replayDetector: new KvReplayDetector(),
+  replayDetector: { check: (jti: string) => jtiStore.checkReplay(jti) },
 });
 
 export const sessionUserId = (

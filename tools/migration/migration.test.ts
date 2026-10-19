@@ -11,7 +11,15 @@ import {
   type ExportedEntry,
   isEphemeral,
 } from "./codec.ts";
-import { insertStatement, splitSchema, sqlString } from "./kv-import-d1.ts";
+import {
+  assertJsonStorable,
+  insertStatement,
+  keyLabel,
+  shapeOf,
+  splitSchema,
+  sqlString,
+  storabilityError,
+} from "./kv-import-d1.ts";
 import { batchStatements, createD1HttpClient } from "./d1-http.ts";
 
 Deno.test("codec: key parts round-trip with their types", () => {
@@ -45,6 +53,20 @@ Deno.test("codec: values round-trip, including the types JSON lacks", () => {
   assertEquals(back.when.toISOString(), value.when.toISOString());
 });
 
+Deno.test("codec: an optional field left undefined is ordinary data", () => {
+  // Production push subscriptions carry `metadata.lastError?: string`, and an
+  // export that throws on it exports nothing at all.
+  const value = { metadata: { lastError: undefined, failures: 0 } };
+  const back = decodeValue(
+    JSON.parse(JSON.stringify(encodeValue(value))),
+  ) as typeof value;
+  assertEquals(back.metadata.lastError, undefined);
+  assertEquals(back.metadata.failures, 0);
+  // JSON drops the property on the way into D1, which is what the optional
+  // type means, so the import accepts it.
+  assertJsonStorable(back);
+});
+
 Deno.test("codec: an unsupported value fails loudly instead of corrupting", () => {
   assertThrows(() => encodeValue(new Map([["a", 1]])), TypeError);
   assertThrows(() => encodeValue(new Set([1])), TypeError);
@@ -64,6 +86,63 @@ Deno.test("codec: ephemeral prefixes are the short-lived ones only", () => {
   assert(!isEphemeral(k("passkey_sign_secret")));
   assert(!isEphemeral(k("push", "subscription", "s1")));
   assert(!isEphemeral(k("push", "user", "subscriptions", "alice", "s1")));
+});
+
+Deno.test("import: a value D1 cannot hold is refused, naming the key", () => {
+  const key = encodeKeyParts(["credential", "cred-1"]);
+  // D1Repo stores JSON, so these would read back as the wrong type. Writing the
+  // encoded form verbatim would hand the app `{$kvmig:"u8",…}` instead.
+  for (const value of [new Uint8Array([1, 2]), 42n, new Date()]) {
+    const error = assertThrows(
+      () => insertStatement(key, encodeValue(value)),
+      TypeError,
+    );
+    assert(
+      error.message.includes("credential/cred-1"),
+      `error does not name the key: ${error.message}`,
+    );
+  }
+  // An array hole would silently become null.
+  assertThrows(
+    () => insertStatement(key, encodeValue([1, undefined, 3])),
+    TypeError,
+  );
+});
+
+Deno.test("report: a value's shape is logged, its contents never are", () => {
+  // This is what the import prints for the entries it cannot store, so it must
+  // not carry the signing key or the sign secret into a CI log.
+  const shape = shapeOf({
+    secret: new Uint8Array(32),
+    jwk: { kty: "EC", d: "the-private-scalar" },
+    rotated: [new Date(), new Date()],
+  });
+  assertEquals(
+    shape,
+    "{ secret: Uint8Array(32), jwk: { kty: string(2), d: string(18) }, " +
+      "rotated: [Date, …] }",
+  );
+  assert(!shape.includes("the-private-scalar"));
+  // Key parts past the second are ids and usernames; the report drops them.
+  assertEquals(
+    keyLabel(encodeKeyParts(["push", "subscription", "s1"])),
+    "push/subscription/*",
+  );
+  assertEquals(
+    keyLabel(encodeKeyParts(["username", "alice"])),
+    "username/alice",
+  );
+  assertEquals(
+    keyLabel(encodeKeyParts(["user_credentials", "alice", "cred-1"])),
+    "user_credentials/alice/*",
+  );
+});
+
+Deno.test("report: storabilityError says why, or nothing at all", () => {
+  assertEquals(storabilityError({ a: 1, b: [true, "x"], c: null }), null);
+  assertEquals(storabilityError({ opt: undefined }), null);
+  assert(storabilityError(new Uint8Array([1]))?.includes("Uint8Array"));
+  assert(storabilityError({ at: new Date() })?.includes("$.at"));
 });
 
 Deno.test("sqlString: quotes are escaped so a value cannot break out", () => {
@@ -96,6 +175,12 @@ Deno.test(
       await kv.set(["credential", "cred-1"], credential);
       await kv.set(["user_credentials", "alice", "cred-1"], { id: "cred-1" });
       await kv.set(["push", "subscription", "s1"], { endpoint: "https://e" });
+      // The shape that crashed the first production export: an optional field
+      // present but undefined. It must reach D1 as JSON, not as a codec tag.
+      await kv.set(["push", "subscription", "s2"], {
+        endpoint: "https://e2",
+        metadata: { lastError: undefined, failures: 0 },
+      });
       await kv.set(["push", "user", "subscriptions", "alice", "s1"], {
         id: "s1",
       });
@@ -125,7 +210,7 @@ Deno.test(
         await db.prepare(sql).bind().run();
         imported++;
       }
-      assertEquals(imported, 6);
+      assertEquals(imported, 7);
 
       // --- read back through the app's own repo ---
       const secrets = new D1Repo<typeof jwkPair>(db, ["secret"]);
@@ -150,11 +235,15 @@ Deno.test(
       for await (const e of index) indexKeys.push(e.key);
       assertEquals(indexKeys, ["cred-1"]);
 
-      const subs = new D1Repo<{ endpoint: string }>(db, [
-        "push",
-        "subscription",
-      ]);
+      const subs = new D1Repo<{
+        endpoint: string;
+        metadata?: { lastError?: string; failures: number };
+      }>(db, ["push", "subscription"]);
       assertEquals(await subs.entry("s1").get(), { endpoint: "https://e" });
+      assertEquals(await subs.entry("s2").get(), {
+        endpoint: "https://e2",
+        metadata: { failures: 0 },
+      });
 
       // Ephemeral state did not come across.
       const sessions = new D1Repo<unknown>(db, ["dpop-session"]);
@@ -167,6 +256,99 @@ Deno.test(
       db.close();
       kv.close();
     }
+  },
+);
+
+Deno.test(
+  "d1 preflight: a 403 is reported as which of the two is wrong",
+  async () => {
+    const ACCOUNT = "ac92f36f0a2d84353b137574157f7480";
+    const forbidden = () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          errors: [{
+            message:
+              "The given account is not valid or is not authorized to access this service",
+          }],
+        }),
+        { status: 403 },
+      );
+    const accountsListing = (ids: string[]) =>
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: ids.map((id) => ({ id, name: `acct-${id.slice(0, 4)}` })),
+        }),
+        { status: 200 },
+      );
+
+    const valid = () =>
+      new Response(
+        JSON.stringify({ success: true, result: { status: "active" } }),
+        { status: 200 },
+      );
+
+    const client = (visible: string[]) =>
+      createD1HttpClient({
+        accountId: ACCOUNT,
+        databaseId: "db-1",
+        token: "tok-should-not-appear",
+        fetchImpl: ((url: string | URL) => {
+          const href = String(url);
+          if (href.endsWith("/user/tokens/verify")) {
+            return Promise.resolve(valid());
+          }
+          if (href.endsWith("/accounts")) {
+            return Promise.resolve(accountsListing(visible));
+          }
+          return Promise.resolve(forbidden());
+        }) as unknown as typeof fetch,
+      });
+
+    // The token is scoped to some other account: say so, and name what it can
+    // see, so the account id can be corrected without guessing.
+    const wrongAccount = await client(["0000"]).preflight().then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    assert(wrongAccount, "expected a rejection");
+    assert(wrongAccount.message.includes("wrong account"));
+    assert(wrongAccount.message.includes("0000"));
+    assert(!wrongAccount.message.includes("tok-should-not-appear"));
+
+    // The account is right, so it is the permission that is missing.
+    const wrongScope = await client([ACCOUNT]).preflight().then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    assert(wrongScope?.message.includes("missing D1"));
+    assert(wrongScope?.message.includes("Edit for the import"));
+
+    // A token Cloudflare does not accept is a different diagnosis, and the
+    // status code does not reveal it — "401 Authentication error" also covers
+    // a valid token without the permission. The token's own verify endpoint
+    // decides, so pointing at accounts and permissions is not a guess.
+    const rejected = await createD1HttpClient({
+      accountId: ACCOUNT,
+      databaseId: "db-1",
+      token: "stale-token",
+      fetchImpl: (() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: false,
+              errors: [{ message: "Authentication error" }],
+            }),
+            { status: 401 },
+          ),
+        )) as unknown as typeof fetch,
+    }).preflight().then(() => null, (e: unknown) => e as Error);
+    assert(rejected, "expected a rejection");
+    assert(rejected.message.includes("not accepted as an API token"));
+    assert(rejected.message.includes("Global API Key"));
+    assert(!rejected.message.includes("wrong account"));
+    assert(!rejected.message.includes("stale-token"));
   },
 );
 

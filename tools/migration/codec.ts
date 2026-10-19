@@ -80,6 +80,12 @@ export const encodeValue = (value: unknown, path = "$"): unknown => {
     }
     return value;
   }
+  if (value === undefined) {
+    // Deno KV stores `undefined` as a real value, and an optional field set to
+    // it (`metadata.lastError`) is ordinary production data. Tag it rather than
+    // dropping it, so the import decides what a given position should become.
+    return { [TAG]: "undefined" };
+  }
   if (typeof value === "bigint") {
     return { [TAG]: "bigint", v: value.toString() };
   }
@@ -116,6 +122,7 @@ export const decodeValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(decodeValue);
   const tag = (value as Record<string, unknown>)[TAG];
   if (typeof tag === "string") {
+    if (tag === "undefined") return undefined;
     const v = (value as { v: string }).v;
     if (tag === "bigint") return BigInt(v);
     if (tag === "u8") return fromBase64(v);

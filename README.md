@@ -263,6 +263,59 @@ mise use -g deno
   `kbn.one,kuboon-tokyo.deno.net,localhost`）
 - `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
 
+## Deploy (Cloudflare Workers Builds)
+
+データは Deno KV から D1 (`id-kbn-one`) に移行済み。設定は `cf` CLI
+(`cloudflare.config.ts`)
+が持つので、**ダッシュボードで設定するのは接続とコマンド だけ**。
+
+Workers → この Worker → Settings → Build:
+
+| 項目           | 値                       |
+| -------------- | ------------------------ |
+| Build command  | `sh scripts/cf-build.sh` |
+| Deploy command | `npx cf deploy`          |
+| Root directory | `/`                      |
+
+設定ファイルは2つ:
+
+- `cloudflare.config.ts` — Worker 名・D1 バインディング・cron・環境変数
+- `wrangler.config.ts` — `#env` alias と assets ディレクトリ。この Worker は
+  Vite プロジェクトではなく `cf` がバンドルを wrangler
+  に委ねるため、バンドラ向けの設 定だけこちらに入る
+
+ビルドコンテナに Deno は入っていないので、`scripts/cf-build.sh` がピン留めした
+Deno を取得してから、クライアント資産 (`main/bundled/`) と Worker バンドル
+(`main/worker/worker.js`) を作る。どちらも git 管理外 (`.cloudflare/`
+も生成物)。
+
+Worker バンドルは `deno bundle` が作る。このリポジトリの JSR
+指定子とワークスペー ス import map を解決できるのは Deno
+だけなので。ランタイム差分は `#env` alias 一 本に寄せてあり
+(`main/server/env.deno.ts` / `env.workers.ts`)、バンドルはそれを未
+解決のまま残して `wrangler.config.ts` の `alias` が供給する。そのため
+`env.workers.ts` は **`cloudflare:workers` と型以外を import
+してはいけない**。こ の1ファイルだけは Deno ではなく esbuild
+が解決するので、`@kbn/` からの値 import は JSR
+指定子で解決不能になる。バインディングをリポジトリに包むのは
+`main/server/kv-backend.ts` の仕事。
+
+`cloudflare:workers` は `main/server/deno.json` の import map で
+`cloudflare-workers.shim.ts` に向けてあり、`env.workers.ts` も `deno check` /
+`lint` / `fmt` の対象に入る。shim は Workers ビルドからは参照されない(esbuild
+が本物を解決する) が、Deno がバンドルするコードから `cloudflare:workers` を
+import してはいけない。
+
+ローカル確認:
+
+```sh
+deno task build && deno task build:worker && npx cf deploy --dry-run
+```
+
+`cloudflare.config.ts` の `RP_ID` (`id.kbn.one`) は変更しないこと。パスキーは作
+成時の RP ID に紐づくので、変えると既存のパスキーが全て使えなくなり、戻しても復
+旧しない。
+
 ## Project layout
 
 ```

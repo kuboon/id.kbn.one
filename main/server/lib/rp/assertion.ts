@@ -17,8 +17,7 @@
 import { decodeJwt, jwtVerify, type JWTVerifyGetKey } from "jose";
 
 import { idpOrigin } from "../../config.ts";
-import { DenoKvJtiStore } from "../../repository/deno-kv-jti-store.ts";
-import { getKvInstance } from "../../kvInstance.ts";
+import { jtiStore } from "../../repository/jti-store.ts";
 import { isAllowedRpClient, rpKeySet } from "./clients.ts";
 
 export const CLIENT_ASSERTION_TYP = "client-assertion+jwt";
@@ -28,14 +27,7 @@ export class ClientAssertionError extends Error {}
 /** Replay guard: returns true when `jti` is new, false when already seen. */
 export type ReplayCheck = (jti: string) => Promise<boolean>;
 
-let defaultReplay: ReplayCheck | undefined;
-const getDefaultReplay = (): ReplayCheck => {
-  if (!defaultReplay) {
-    const store = getKvInstance().then((kv) => new DenoKvJtiStore(kv));
-    defaultReplay = async (jti) => await (await store).checkReplay(jti);
-  }
-  return defaultReplay;
-};
+const defaultReplay: ReplayCheck = (jti) => jtiStore.checkReplay(jti);
 
 export interface VerifyClientAssertionOptions {
   /** Expected `aud`. Defaults to the IdP origin. */
@@ -62,7 +54,7 @@ export const verifyClientAssertion = async (
   const audience = opts.audience ?? idpOrigin;
   const isAllowed = opts.isAllowed ?? isAllowedRpClient;
   const keysFor = opts.keysFor ?? rpKeySet;
-  const replay = opts.replay ?? getDefaultReplay();
+  const replay = opts.replay ?? defaultReplay;
 
   // Read the unverified `iss` only to pick the client — the signature check
   // below still requires that client's key.

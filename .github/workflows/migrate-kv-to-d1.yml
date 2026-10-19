@@ -26,10 +26,6 @@ on:
         description: Cloudflare D1 database id (destination)
         required: true
         default: 1ad1c197-5119-4392-bf55-e863fe70334e
-      dry_run:
-        description: Export and summarise only; write nothing to D1
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -54,6 +50,17 @@ jobs:
       - name: Test the migration tooling
         run: deno test -P --unstable-kv tools/migration/ kv/
 
+      # Before production is read: a bad credential should cost nothing, and a
+      # bare 403 from D1 does not say whether the account id or the token's
+      # permissions are wrong.
+      - name: Check the D1 credential
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          deno run -A tools/migration/kv-import-d1.ts \
+            --check-credentials --database-id "${{ inputs.d1_database_id }}"
+
       - name: Export from Deno KV
         env:
           DENO_KV_ACCESS_TOKEN: ${{ secrets.DENO_KV_ACCESS_TOKEN }}
@@ -62,20 +69,25 @@ jobs:
             --database "${{ inputs.deno_database_id }}" \
             --out "$RUNNER_TEMP/kv-export.jsonl"
 
-      - name: Summarise what would be imported
-        run: |
-          deno run -A tools/migration/kv-import-d1.ts \
-            --in "$RUNNER_TEMP/kv-export.jsonl" --dry-run
-
+      # Deno KV is only read, and the import is an idempotent upsert, so there
+      # is nothing a separate dry run would protect; it prints its summary
+      # before it writes anything either way.
+      #
+      # --skip-unstorable drops entries D1 cannot hold as JSON (a Uint8Array
+      # value left by an earlier implementation). That is safe here and not a
+      # decision made blind: the log lists every one of them by key prefix and
+      # value shape, no code in the tree reads those keys, `D1Repo` could not
+      # return them if it did, and the source database is only read — so they
+      # can still be re-imported later if one turns out to matter.
       - name: Import into D1
-        if: ${{ !inputs.dry_run }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           deno run -A tools/migration/kv-import-d1.ts \
             --in "$RUNNER_TEMP/kv-export.jsonl" \
-            --apply --database-id "${{ inputs.d1_database_id }}"
+            --apply --skip-unstorable \
+            --database-id "${{ inputs.d1_database_id }}"
 
       # The runner is ephemeral, but do not rely on that for key material.
       - name: Shred the export
