@@ -1,10 +1,12 @@
+import { readEnv } from "#env";
+
 import { buildOriginAllowlist } from "./lib/origin-allowlist.ts";
 
-const rpID = Deno.env.get("RP_ID") ?? "localhost";
-const rpName = Deno.env.get("RP_NAME") ?? "Local Development";
-const idpOrigin = Deno.env.get("IDP_ORIGIN") ?? "http://localhost:3000";
+const rpID = readEnv("RP_ID") ?? "localhost";
+const rpName = readEnv("RP_NAME") ?? "Local Development";
+const idpOrigin = readEnv("IDP_ORIGIN") ?? "http://localhost:3000";
 
-const authorizeWhitelist = (Deno.env.get("AUTHORIZE_WHITELIST") ?? "")
+const authorizeWhitelist = (readEnv("AUTHORIZE_WHITELIST") ?? "")
   .split(",")
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);
@@ -16,7 +18,7 @@ const authorizeWhitelist = (Deno.env.get("AUTHORIZE_WHITELIST") ?? "")
  */
 const originAllowlist = buildOriginAllowlist(authorizeWhitelist);
 
-const pushContact = Deno.env.get("PUSH_CONTACT")?.trim() ||
+const pushContact = readEnv("PUSH_CONTACT")?.trim() ||
   "mailto:o@kbn.one";
 
 export {

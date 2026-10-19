@@ -5,7 +5,8 @@
     "./types.ts": "./types.ts",
     "./memcache.ts": "./memcache.ts",
     "./memory.ts": "./memory.ts",
-    "./denoKv.ts": "./denoKv.ts"
+    "./denoKv.ts": "./denoKv.ts",
+    "./d1.ts": "./d1.ts"
   },
   "imports": {
     "@std/ulid": "jsr:@std/ulid@^1.0.0"
