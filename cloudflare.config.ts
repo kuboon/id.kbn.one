@@ -33,15 +33,15 @@ export default defineConfig({
     ],
 
     env: {
-      // Public configuration, not secrets: the signing key lives in D1.
+      // Public configuration, not secrets: the signing key lives in D1. These
+      // did not come across from Deno Deploy, where they were only ever set in
+      // the dashboard.
       //
-      // These did not come across from Deno Deploy, where they were only ever
-      // set in the dashboard. CONFIRM `RP_ID` BEFORE THE FIRST DEPLOY: a
-      // WebAuthn credential is bound to the RP ID it was created under, so if
-      // production used `kbn.one` rather than `id.kbn.one`, deploying this
-      // value would make all 11 migrated passkeys unusable — and fixing it
-      // afterwards would not bring them back, because the authenticator keeps
-      // the original binding.
+      // Do not change `RP_ID`. A WebAuthn credential is bound to the RP ID it
+      // was created under, so a different value here makes every existing
+      // passkey unusable, and putting it back does not bring them back — the
+      // authenticator keeps the original binding. This value is the one
+      // production used, confirmed by the repository owner.
       RP_ID: bindings.text("id.kbn.one"),
       RP_NAME: bindings.text("kbn.one ID"),
       IDP_ORIGIN: bindings.text("https://id.kbn.one"),

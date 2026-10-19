@@ -312,9 +312,9 @@ import してはいけない。
 deno task build && deno task build:worker && npx cf deploy --dry-run
 ```
 
-初回デプロイ前に `cloudflare.config.ts` の `RP_ID`
-を確認すること。パスキーは作成 時の RP ID
-に紐づくので、値を変えると既存のパスキーが使えなくなる。
+`cloudflare.config.ts` の `RP_ID` (`id.kbn.one`) は変更しないこと。パスキーは作
+成時の RP ID に紐づくので、変えると既存のパスキーが全て使えなくなり、戻しても復
+旧しない。
 
 ## Project layout
 
