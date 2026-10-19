@@ -1,135 +1,148 @@
-import { kv } from "../repositories.ts";
+/**
+ * Passkey storage over {@link KvRepo}, so it works on Deno KV and on D1.
+ *
+ * A credential is stored twice: under `credential/<id>`, which is what an
+ * authentication looks up, and under `user_credentials/<userId>/<id>`, which
+ * is what listing a user's passkeys reads. Both hold the whole record.
+ *
+ * Deno KV could write the pair in one transaction; `KvRepo` cannot, because
+ * D1's compare-and-set is per row. So the writes are ordered to make an
+ * interrupted pair harmless, and `credential/<id>` is treated as authoritative:
+ *
+ *   - adding writes the credential first (that CAS is what makes a duplicate
+ *     id fail), then the index, and removes the credential again if the index
+ *     write does not land, so a half-registered passkey never lingers;
+ *   - deleting removes the credential first, so an interrupted delete can only
+ *     leave a passkey listed that no longer authenticates — never one that
+ *     still authenticates after the user removed it;
+ *   - updating writes the credential first; an index left with a stale signature
+ *     counter is cosmetic, since the counter is checked against the credential.
+ *
+ * @module
+ */
+
 import type {
   PasskeyCredential,
   PasskeyRepository,
 } from "@kuboon/passkeys/remix";
+import type { KvRepo } from "@kbn/kv/types.ts";
 
-const credentialKey = (
-  credentialId: string,
-): Deno.KvKey => ["credential", credentialId];
+import {
+  credentialRepo,
+  PASSKEY_SIGN_SECRET_KEY,
+  passkeySignSecretRepo,
+  userCredentialRepoForUser,
+} from "../repositories.ts";
 
-const userCredentialKey = (
-  userId: string,
-  credentialId?: string,
-): Deno.KvKey =>
-  credentialId
-    ? ["user_credentials", userId, credentialId]
-    : ["user_credentials", userId];
+export interface PasskeyStores {
+  credentials: KvRepo<PasskeyCredential>;
+  userCredentials: (userId: string) => KvRepo<PasskeyCredential>;
+  signSecret: KvRepo<string>;
+}
 
-const listUserCredentials = (
-  kv: Deno.Kv,
-  userId: string,
-): Deno.KvListIterator<PasskeyCredential> =>
-  kv.list<PasskeyCredential>({
-    prefix: userCredentialKey(userId),
-  });
-
-const signSecretKey = (): Deno.KvKey => ["passkey_sign_secret"];
-
-export class DenoKvPasskeyRepository implements PasskeyRepository {
-  constructor(private readonly kv: Deno.Kv) {}
+export class KvPasskeyRepository implements PasskeyRepository {
+  constructor(private readonly stores: PasskeyStores) {}
 
   async getCredentialById(
     credentialId: string,
   ): Promise<PasskeyCredential | null> {
-    const entry = await this.kv.get<PasskeyCredential>(
-      credentialKey(credentialId),
-    );
-    return entry.value ?? null;
+    return await this.stores.credentials.entry(credentialId).get();
   }
 
   async getCredentialsByUserId(userId: string): Promise<PasskeyCredential[]> {
     const credentials: PasskeyCredential[] = [];
-    for await (const entry of listUserCredentials(this.kv, userId)) {
-      if (entry.value) {
-        credentials.push(entry.value);
-      }
+    for await (const entry of this.stores.userCredentials(userId)) {
+      const value = await entry.get();
+      if (value) credentials.push(value);
     }
     return credentials;
   }
 
   async addCredential(credential: PasskeyCredential): Promise<void> {
-    const tx = this.kv.atomic()
-      .check({ key: credentialKey(credential.id), versionstamp: null })
-      .check({
-        key: userCredentialKey(credential.userId, credential.id),
-        versionstamp: null,
-      })
-      .set(credentialKey(credential.id), credential)
-      .set(userCredentialKey(credential.userId, credential.id), credential);
-    const result = await tx.commit();
-    if (!result.ok) {
+    const entry = this.stores.credentials.entry(credential.id);
+    let existed = false;
+    const created = await entry.update((current) => {
+      // Returning `current` rather than the new record matters: the updater's
+      // return value is what gets written, so handing back `credential` here
+      // would replace an existing passkey on the way to rejecting it.
+      if (current) {
+        existed = true;
+        return current;
+      }
+      return credential;
+    });
+    // `ok: false` means another writer inserted the same id first, which is
+    // the same answer as finding one already there.
+    if (existed || !created.ok) throw new Error("Credential already exists");
+
+    const indexed = await this.indexEntry(credential).update(() => credential);
+    if (!indexed.ok) {
+      await entry.update(() => null);
       throw new Error("Credential already exists");
     }
   }
 
   async updateCredential(credential: PasskeyCredential): Promise<void> {
-    const existing = await this.kv.get<PasskeyCredential>(
-      credentialKey(credential.id),
-    );
-    if (!existing.value) {
-      throw new Error("Credential does not exist");
-    }
-    const tx = this.kv.atomic()
-      .check(existing)
-      .set(credentialKey(credential.id), credential)
-      .set(userCredentialKey(credential.userId, credential.id), credential);
-    if (existing.value.userId !== credential.userId) {
-      tx.delete(userCredentialKey(existing.value.userId, credential.id));
-    }
-    const result = await tx.commit();
-    if (!result.ok) {
-      throw new Error("Unable to update credential");
+    const entry = this.stores.credentials.entry(credential.id);
+    const existing = await entry.get();
+    if (!existing) throw new Error("Credential does not exist");
+
+    const result = await entry.update(() => credential);
+    if (!result.ok) throw new Error("Unable to update credential");
+
+    await this.indexEntry(credential).update(() => credential);
+    if (existing.userId !== credential.userId) {
+      await this.stores.userCredentials(existing.userId)
+        .entry(credential.id)
+        .update(() => null);
     }
   }
 
   async deleteCredential(credentialId: string): Promise<void> {
-    const existing = await this.kv.get<PasskeyCredential>(
-      credentialKey(credentialId),
-    );
-    if (!existing.value) {
-      return;
-    }
-    const result = await this.kv.atomic()
-      .check(existing)
-      .delete(credentialKey(credentialId))
-      .delete(userCredentialKey(existing.value.userId, credentialId))
-      .commit();
-    if (!result.ok) {
-      throw new Error("Unable to delete credential");
-    }
+    const entry = this.stores.credentials.entry(credentialId);
+    const existing = await entry.get();
+    if (!existing) return;
+
+    const result = await entry.update(() => null);
+    if (!result.ok) throw new Error("Unable to delete credential");
+    await this.indexEntry(existing).update(() => null);
   }
 
   async deleteCredentialsByUserId(userId: string): Promise<void> {
-    let atomic = this.kv.atomic();
-    let count = 0;
-    for await (const entry of listUserCredentials(this.kv, userId)) {
-      if (!entry.value) {
-        continue;
+    for await (const indexed of this.stores.userCredentials(userId)) {
+      const credential = await indexed.get();
+      if (credential) {
+        await this.stores.credentials.entry(credential.id).update(() => null);
       }
-      atomic.delete(entry.key);
-      atomic.delete(credentialKey(entry.value.id));
-      count++;
-      if (count >= 400) {
-        await atomic.commit();
-        atomic = this.kv.atomic();
-        count = 0;
-      }
-    }
-    if (count > 0) {
-      await atomic.commit();
+      await indexed.update(() => null);
     }
   }
 
   async getOrCreateSignSecret(
     gen: () => Promise<string> | string,
   ): Promise<string> {
-    const existing = await this.kv.get<string>(signSecretKey());
-    if (existing.value) return existing.value;
+    const entry = this.stores.signSecret.entry(PASSKEY_SIGN_SECRET_KEY);
+    const existing = await entry.get();
+    if (existing) return existing;
+
     const secret = await Promise.resolve(gen());
-    await this.kv.set(signSecretKey(), secret);
-    return secret;
+    await entry.update((current) => current ?? secret);
+    // Re-read rather than trust our own write: when two requests generate a
+    // secret at once only one is stored, and every caller must use that one or
+    // challenges signed by one would fail to verify against the other.
+    const stored = await entry.get();
+    if (!stored) throw new Error("Unable to store the passkey sign secret");
+    return stored;
+  }
+
+  private indexEntry(credential: PasskeyCredential) {
+    return this.stores.userCredentials(credential.userId)
+      .entry(credential.id);
   }
 }
 
-export const credentialRepository = new DenoKvPasskeyRepository(kv);
+export const credentialRepository = new KvPasskeyRepository({
+  credentials: credentialRepo,
+  userCredentials: userCredentialRepoForUser,
+  signSecret: passkeySignSecretRepo,
+});

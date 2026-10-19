@@ -12,7 +12,24 @@
 
 import { env } from "cloudflare:workers";
 
+import type { D1Like } from "@kbn/kv/d1.ts";
+
 export const readEnv = (name: string): string | undefined => {
   const value = (env as unknown as Record<string, unknown>)[name];
   return typeof value === "string" ? value : undefined;
+};
+
+/**
+ * The D1 binding named `DB` in the Wrangler configuration. There is no Deno KV
+ * on Workers, so a missing binding is a deployment error and not something to
+ * fall back from: every repository would silently lose its data.
+ */
+export const getD1Database = (): D1Like => {
+  const db = (env as unknown as { DB?: D1Like }).DB;
+  if (!db) {
+    throw new Error(
+      "the D1 binding `DB` is missing; check d1_databases in wrangler.jsonc",
+    );
+  }
+  return db;
 };

@@ -7,7 +7,7 @@
  * of sends. Counters expire on their own.
  */
 
-import type { DenoKvRepo } from "@kbn/kv/denoKv.ts";
+import type { KvRepo } from "@kbn/kv/types.ts";
 
 /**
  * Fixed per-subscription send rate: at most `RATE_LIMIT` notifications per
@@ -19,7 +19,7 @@ export const RATE_WINDOW_MS = 60_000;
 
 export class PushRateLimiter {
   constructor(
-    private readonly repo: DenoKvRepo<number>,
+    private readonly repo: KvRepo<number>,
     private readonly limit: number = RATE_LIMIT,
     private readonly windowMs: number = RATE_WINDOW_MS,
     private readonly now: () => number = Date.now,
