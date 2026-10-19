@@ -7,9 +7,9 @@
 # repo's JSR specifiers and workspace import maps. So fetch a pinned Deno
 # first, then run the two builds.
 #
-# Produces what wrangler.jsonc expects:
-#   main/bundled/     client assets, served by Workers Static Assets
-#   main/worker/      the Worker bundle named by `main`
+# Produces what the Cloudflare configuration expects:
+#   main/bundled/     client assets (wrangler.config.ts assetsDirectory)
+#   main/worker/      the Worker bundle (cloudflare.config.ts entrypoint)
 #
 # Set as the build command in the Workers Builds settings; see README.
 set -eu
@@ -32,7 +32,9 @@ fi
 
 deno --version
 
-# Fail the build rather than resolve something the lockfile does not name.
+# Installs both deno.json and package.json dependencies, the latter being the
+# Cloudflare toolchain `cf deploy` then runs. Frozen so the build fails rather
+# than resolve something the lockfile does not name.
 deno install --frozen
 
 deno task build

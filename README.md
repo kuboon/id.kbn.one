@@ -265,30 +265,50 @@ mise use -g deno
 
 ## Deploy (Cloudflare Workers Builds)
 
-データは Deno KV から D1 (`id-kbn-one`) に移行済み。バインディング・Static
-Assets・cron・環境変数は `wrangler.jsonc` が持つので、**ダッシュボードで設定す
-るのは接続とビルドコマンドだけ**。
+データは Deno KV から D1 (`id-kbn-one`) に移行済み。設定は `cf` CLI
+(`cloudflare.config.ts`)
+が持つので、**ダッシュボードで設定するのは接続とコマンド だけ**。
 
 Workers → この Worker → Settings → Build:
 
 | 項目           | 値                       |
 | -------------- | ------------------------ |
 | Build command  | `sh scripts/cf-build.sh` |
-| Deploy command | （既定のまま）           |
+| Deploy command | `npx cf deploy`          |
 | Root directory | `/`                      |
+
+設定ファイルは2つ:
+
+- `cloudflare.config.ts` — Worker 名・D1 バインディング・cron・環境変数
+- `wrangler.config.ts` — `#env` alias と assets ディレクトリ。この Worker は
+  Vite プロジェクトではなく `cf` がバンドルを wrangler
+  に委ねるため、バンドラ向けの設 定だけこちらに入る
 
 ビルドコンテナに Deno は入っていないので、`scripts/cf-build.sh` がピン留めした
 Deno を取得してから、クライアント資産 (`main/bundled/`) と Worker バンドル
-(`main/worker/worker.js`) を作る。 どちらも git 管理外。
+(`main/worker/worker.js`) を作る。どちらも git 管理外 (`.cloudflare/`
+も生成物)。
 
-Worker バンドルは `deno bundle` が作る。このリポジトリの JSR 指定子とワークス
-ペース import map を解決できるのは Deno だけなので。ランタイム差分は `#env`
-alias 一本に寄せてあり (`main/server/env.deno.ts` /
-`env.workers.ts`)、バンドルはそれを未解決のまま残して `wrangler.jsonc` の
-`alias` が供給する。
+Worker バンドルは `deno bundle` が作る。このリポジトリの JSR
+指定子とワークスペー ス import map を解決できるのは Deno
+だけなので。ランタイム差分は `#env` alias 一 本に寄せてあり
+(`main/server/env.deno.ts` / `env.workers.ts`)、バンドルはそれを未
+解決のまま残して `wrangler.config.ts` の `alias` が供給する。そのため
+`env.workers.ts` は **`cloudflare:workers` と型以外を import
+してはいけない**。こ の1ファイルだけは Deno ではなく esbuild
+が解決するので、`@kbn/` からの値 import は JSR
+指定子で解決不能になる。バインディングをリポジトリに包むのは
+`main/server/kv-backend.ts` の仕事。
 
-初回デプロイ前に `wrangler.jsonc` の `RP_ID` を確認すること。パスキーは作成時 の
-RP ID に紐づくので、値を変えると既存のパスキーが使えなくなる。
+ローカル確認:
+
+```sh
+deno task build && deno task build:worker && npx cf deploy --dry-run
+```
+
+初回デプロイ前に `cloudflare.config.ts` の `RP_ID`
+を確認すること。パスキーは作成 時の RP ID
+に紐づくので、値を変えると既存のパスキーが使えなくなる。
 
 ## Project layout
 

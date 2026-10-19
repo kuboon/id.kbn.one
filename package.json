@@ -1,0 +1,10 @@
+{
+  "name": "id-kbn-one",
+  "private": true,
+  "type": "module",
+  "//": "The app is a Deno workspace; see deno.json. This file exists only for the Cloudflare toolchain: `cf` reads cloudflare.config.ts, and it needs wrangler as its bundler because this Worker is not a Vite project.",
+  "devDependencies": {
+    "cf": "1.0.0-beta.18",
+    "wrangler": "^4.136.0"
+  }
+}

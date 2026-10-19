@@ -11,8 +11,6 @@ import type { Middleware } from "@remix-run/fetch-router";
 import { staticFiles } from "@remix-run/static-middleware";
 
 import type { D1Like } from "@kbn/kv/d1.ts";
-import { DenoKvRepo } from "@kbn/kv/denoKv.ts";
-import type { KvKey, KvOptions, KvRepo } from "@kbn/kv/types.ts";
 
 export const readEnv = (name: string): string | undefined => Deno.env.get(name);
 
@@ -30,9 +28,3 @@ export const staticMiddleware = (): Middleware[] => [
  * the suite covers it against a real SQL engine instead.
  */
 export const getD1Database = (): D1Like | undefined => undefined;
-
-/** Repositories over Deno KV, the only backend reachable from Deno. */
-export const createRepo = <TVal>(
-  prefix: KvKey = [],
-  options: KvOptions = {},
-): KvRepo<TVal> => new DenoKvRepo<TVal>(prefix, options);

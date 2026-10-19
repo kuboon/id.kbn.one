@@ -5,24 +5,22 @@
  * bindings can be read during module evaluation exactly as `Deno.env.get`
  * allowed — no per-request plumbing needed.
  *
+ * This is the one file the Workers build supplies itself, through the `#env`
+ * alias, and esbuild resolves it without the rest of the project: the Deno
+ * bundle is already built by then. So it must import nothing but types and
+ * `cloudflare:workers` — a value import of anything under `@kbn/` would send
+ * esbuild into JSR specifiers it cannot follow. Wrapping a binding in a
+ * repository therefore belongs in `kv-backend.ts`, not here.
+ *
  * Deno cannot resolve `cloudflare:workers`, so this file is excluded from
- * `deno check`/`lint`/`fmt`; the Workers build type-checks it instead. It is
- * reached only through the `#env` alias, which the Workers build points here.
+ * `deno check`/`lint`/`fmt`.
  */
 
 import { env } from "cloudflare:workers";
 
 import type { Middleware } from "@remix-run/fetch-router";
 
-import { D1Repo } from "@kbn/kv/d1.ts";
 import type { D1Like } from "@kbn/kv/d1.ts";
-import type { KvKey, KvOptions, KvRepo } from "@kbn/kv/types.ts";
-
-/**
- * None: Workers Static Assets answers a matching path before the Worker is
- * invoked at all, so the router never sees a request for a built asset.
- */
-export const staticMiddleware = (): Middleware[] => [];
 
 export const readEnv = (name: string): string | undefined => {
   const value = (env as unknown as Record<string, unknown>)[name];
@@ -30,24 +28,22 @@ export const readEnv = (name: string): string | undefined => {
 };
 
 /**
- * The D1 binding named `DB` in the Wrangler configuration. There is no Deno KV
- * on Workers, so a missing binding is a deployment error and not something to
- * fall back from: every repository would silently lose its data.
+ * None: Workers Static Assets answers a matching path before the Worker is
+ * invoked at all, so the router never sees a request for a built asset.
+ */
+export const staticMiddleware = (): Middleware[] => [];
+
+/**
+ * The D1 binding named `DB` in the Cloudflare configuration. There is no Deno
+ * KV on Workers, so a missing binding is a deployment error and not something
+ * to fall back from: every repository would silently lose its data.
  */
 export const getD1Database = (): D1Like => {
   const db = (env as unknown as { DB?: D1Like }).DB;
   if (!db) {
     throw new Error(
-      "the D1 binding `DB` is missing; check d1_databases in wrangler.jsonc",
+      "the D1 binding `DB` is missing; check env.DB in cloudflare.config.ts",
     );
   }
   return db;
 };
-
-/** Repositories over D1. The binding is resolved once, not per request. */
-const db = getD1Database();
-
-export const createRepo = <TVal>(
-  prefix: KvKey = [],
-  options: KvOptions = {},
-): KvRepo<TVal> => new D1Repo<TVal>(db, prefix, options);
