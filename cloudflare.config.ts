@@ -20,6 +20,17 @@ export default defineConfig({
     // purpose, for the alias in `wrangler.config.ts` to supply.
     entrypoint: "main/worker/worker.js",
 
+    // The IdP's only origin. Applied on deploy, so the DNS record comes with
+    // it — nothing to set up in the dashboard. The zone `kbn.one` has to be on
+    // this same account for that.
+    domains: ["id.kbn.one"],
+
+    // An identity provider answering on a second hostname is not useful here
+    // and is worth avoiding: `IDP_ORIGIN` — the `iss` of every token it signs
+    // — names `id.kbn.one`, and a passkey cannot be used from a workers.dev
+    // host anyway, because `RP_ID` is `kbn.one`.
+    workersDev: false,
+
     observability: {
       enabled: true,
     },

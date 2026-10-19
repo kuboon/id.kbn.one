@@ -279,7 +279,11 @@ Workers → この Worker → Settings → Build:
 
 設定ファイルは2つ:
 
-- `cloudflare.config.ts` — Worker 名・D1 バインディング・cron・環境変数
+- `cloudflare.config.ts` — Worker 名・D1 バインディング・cron・環境変数・カスタ
+  ムドメイン。`id.kbn.one` はデプロイ時に適用されるので DNS の手作業は不要
+  (ゾーン `kbn.one` が同じアカウントにあること)。workers.dev は切ってある: IdP
+  が別ホストでも応答すると `IDP_ORIGIN` (= 発行する JWT の `iss`) と食い
+  違うし、`RP_ID` が `kbn.one` なので workers.dev からパスキーは使えない
 - `wrangler.config.ts` — `#env` alias と assets ディレクトリ。この Worker は
   Vite プロジェクトではなく `cf` がバンドルを wrangler
   に委ねるため、バンドラ向けの設 定だけこちらに入る
