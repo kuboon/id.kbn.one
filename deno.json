@@ -7,6 +7,9 @@
     "serve": "deno task --cwd=main/server serve",
     "pre-deploy": "echo 'nothing to do'"
   },
+  "exclude": [
+    "main/server/env.workers.ts"
+  ],
   "workspace": [
     "main/client",
     "main/server",
