@@ -263,6 +263,33 @@ mise use -g deno
   `kbn.one,kuboon-tokyo.deno.net,localhost`）
 - `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
 
+## Deploy (Cloudflare Workers Builds)
+
+データは Deno KV から D1 (`id-kbn-one`) に移行済み。バインディング・Static
+Assets・cron・環境変数は `wrangler.jsonc` が持つので、**ダッシュボードで設定す
+るのは接続とビルドコマンドだけ**。
+
+Workers → この Worker → Settings → Build:
+
+| 項目           | 値                       |
+| -------------- | ------------------------ |
+| Build command  | `sh scripts/cf-build.sh` |
+| Deploy command | （既定のまま）           |
+| Root directory | `/`                      |
+
+ビルドコンテナに Deno は入っていないので、`scripts/cf-build.sh` がピン留めした
+Deno を取得してから、クライアント資産 (`main/bundled/`) と Worker バンドル
+(`main/worker/worker.js`) を作る。 どちらも git 管理外。
+
+Worker バンドルは `deno bundle` が作る。このリポジトリの JSR 指定子とワークス
+ペース import map を解決できるのは Deno だけなので。ランタイム差分は `#env`
+alias 一本に寄せてあり (`main/server/env.deno.ts` /
+`env.workers.ts`)、バンドルはそれを未解決のまま残して `wrangler.jsonc` の
+`alias` が供給する。
+
+初回デプロイ前に `wrangler.jsonc` の `RP_ID` を確認すること。パスキーは作成時 の
+RP ID に紐づくので、値を変えると既存のパスキーが使えなくなる。
+
 ## Project layout
 
 ```

@@ -1,12 +1,11 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "id-kbn-one",
   "compatibility_date": "2026-10-19",
 
-  // Deno bundles the app, because the source resolves JSR specifiers and
-  // workspace import maps that esbuild knows nothing about. `deno task
-  // build:worker` writes this file and leaves `#env` unresolved on purpose,
-  // for the alias below to supply.
+  // Written by `scripts/cf-build.sh`, which Workers Builds runs: Deno bundles
+  // the app, because the source resolves JSR specifiers and workspace import
+  // maps that esbuild knows nothing about. That bundle leaves `#env`
+  // unresolved on purpose, for the alias below to supply.
   "main": "main/worker/worker.js",
   "alias": {
     "#env": "./main/server/env.workers.ts"
@@ -14,7 +13,7 @@
 
   // Served straight from the edge, before the Worker is invoked, which is why
   // the router has no static-file middleware on this runtime. `main/bundled`
-  // is a build artifact (git-ignored), so `deno task build` must run first.
+  // is a build artifact (git-ignored), written by the same build command.
   "assets": {
     "directory": "./main/bundled"
   },
@@ -44,15 +43,20 @@
   // Public configuration, not secrets: the signing key lives in D1. A deploy
   // replaces these, so they belong here rather than in the dashboard.
   //
-  // AUTHORIZE_WHITELIST and RP_NAME are NOT set to their production values
-  // here — they were only ever in the Deno Deploy dashboard. Fill them in
-  // before the first deploy: an empty whitelist rejects every RP redirect
-  // (which is the safe direction, but no RP will be able to sign a user in).
+  // These did not come across from Deno Deploy, where they were only ever set
+  // in the dashboard. CONFIRM `RP_ID` BEFORE THE FIRST DEPLOY: a WebAuthn
+  // credential is bound to the RP ID it was created under, so if production
+  // used `kbn.one` rather than `id.kbn.one`, deploying this value would make
+  // all 11 migrated passkeys unusable — and no amount of fixing it afterwards
+  // brings them back, because the authenticator keeps the original binding.
   "vars": {
     "RP_ID": "id.kbn.one",
+    "RP_NAME": "kbn.one ID",
     "IDP_ORIGIN": "https://id.kbn.one",
-    "RP_NAME": "TODO: set before deploying",
-    "AUTHORIZE_WHITELIST": "TODO: comma-separated RP hostnames",
+    // Hostnames, subdomains included. `kbn.one` is what production must have
+    // allowed: a live /authorize carried redirect_uri=https://ga-cen.kbn.one/…
+    // The old Deno Deploy host is deliberately not carried over.
+    "AUTHORIZE_WHITELIST": "kbn.one",
     "PUSH_CONTACT": "mailto:o@kbn.one"
   }
 }

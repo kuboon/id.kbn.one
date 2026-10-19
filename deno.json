@@ -4,7 +4,6 @@
     "test": "deno fmt && deno lint && deno check && deno test -P",
     "build": "deno task --cwd=main/bundler build",
     "build:worker": "deno bundle --platform browser --external \"#env\" --external \"cloudflare:workers\" --output main/worker/worker.js main/server/worker.ts",
-    "deploy:cf": "deno task build && deno task build:worker && npx wrangler deploy",
     "dev": "deno task build && deno task --cwd=main/server serve",
     "serve": "deno task --cwd=main/server serve",
     "pre-deploy": "echo 'nothing to do'"
