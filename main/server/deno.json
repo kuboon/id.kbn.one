@@ -8,7 +8,7 @@
     "cloudflare:workers": "./cloudflare-workers.shim.ts"
   },
   "tasks": {
-    "serve": "deno task -P router.ts"
+    "serve": "deno serve -P --port 3000 router.ts"
   },
   "compilerOptions": {
     "lib": [
