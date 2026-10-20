@@ -15,7 +15,7 @@ import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
 import { callerIsIdp, originMatchesClient } from "../lib/rp/clients.ts";
 import {
-  pushService,
+  getPushService,
   type PushSubscriptionMetadata,
   type StoredPushSubscription,
 } from "../lib/push/service.ts";
@@ -112,16 +112,18 @@ const validateParams = <T>(
 
 export const pushController = {
   actions: {
-    vapidKey(_context: CorsContext) {
+    async vapidKey(_context: CorsContext) {
       return setNoStore(Response.json({
-        publicKey: pushService.getPublicKey(),
+        publicKey: (await getPushService()).getPublicKey(),
         contact: pushContact,
       }));
     },
 
     async listSubscriptions(context: CorsContext) {
       const { id: userId } = context.get(User);
-      const subscriptions = await pushService.listSubscriptions(userId);
+      const subscriptions = await (await getPushService()).listSubscriptions(
+        userId,
+      );
       // A cross-origin RP frontend only sees devices registered from its own
       // domain (or a subdomain). The IdP itself (same-origin / IDP_ORIGIN)
       // sees all of the user's devices.
@@ -142,7 +144,7 @@ export const pushController = {
       );
       if (body instanceof Response) return body;
       try {
-        const stored = await pushService.upsertSubscription(
+        const stored = await (await getPushService()).upsertSubscription(
           userId,
           body.subscription,
           sanitizeMetadata(body.metadata),
@@ -173,11 +175,12 @@ export const pushController = {
         return errorResponse(400, "metadata is required");
       }
       try {
-        const updated = await pushService.updateSubscriptionMetadata(
-          userId,
-          param.id,
-          sanitized,
-        );
+        const updated = await (await getPushService())
+          .updateSubscriptionMetadata(
+            userId,
+            param.id,
+            sanitized,
+          );
         return setNoStore(Response.json({ subscription: serialize(updated) }));
       } catch (error) {
         if (
@@ -198,7 +201,10 @@ export const pushController = {
       const { id: userId } = context.get(User);
       const param = validateParams(context.params, subscriptionIdParamSchema);
       if (param instanceof Response) return param;
-      const deleted = await pushService.deleteSubscription(userId, param.id);
+      const deleted = await (await getPushService()).deleteSubscription(
+        userId,
+        param.id,
+      );
       if (!deleted) return errorResponse(404, "Subscription not found");
       return setNoStore(Response.json({ success: true }));
     },
@@ -211,7 +217,7 @@ export const pushController = {
       );
       if (body instanceof Response) return body;
       try {
-        const result = await pushService.sendTestNotification(
+        const result = await (await getPushService()).sendTestNotification(
           userId,
           body.subscriptionId,
         );

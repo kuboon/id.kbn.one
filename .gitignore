@@ -7,3 +7,4 @@ kv-export.jsonl
 kv-import.sql
 main/worker/
 .cloudflare/
+.wrangler/

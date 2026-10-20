@@ -501,4 +501,17 @@ export class PushService {
   }
 }
 
-export const pushService = await PushService.create();
+let pushServicePromise: Promise<PushService> | undefined;
+
+/**
+ * The shared service, built on first use and reused after that.
+ *
+ * Deliberately not a module-scope `await`: building it reads the signing key,
+ * and a Worker may not do I/O outside a request — deploying runs the
+ * top-level scope to validate the Worker, and a read there fails it with
+ * error 10021.
+ */
+export const getPushService = (): Promise<PushService> => {
+  if (!pushServicePromise) pushServicePromise = PushService.create();
+  return pushServicePromise;
+};

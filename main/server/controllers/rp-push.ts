@@ -11,7 +11,7 @@ import { type } from "arktype";
 
 import { setNoStore } from "../middleware/auth.ts";
 import { RpClient } from "../middleware/rp.ts";
-import { pushService } from "../lib/push/service.ts";
+import { getPushService } from "../lib/push/service.ts";
 import { originMatchesClient } from "../lib/rp/clients.ts";
 import { rpSendNotificationBodySchema } from "../lib/push/schemas.ts";
 import {
@@ -58,7 +58,7 @@ export const rpPushController = {
     // subdomain). Devices registered from other RPs are not reachable.
     const targets: Target[] = [];
     for (const userId of userIds) {
-      const subs = await pushService.listSubscriptions(userId);
+      const subs = await (await getPushService()).listSubscriptions(userId);
       for (const sub of subs) {
         if (!originMatchesClient(sub.origin, clientId)) continue;
         targets.push({ userId, subscriptionId: sub.id });
@@ -78,7 +78,12 @@ export const rpPushController = {
     const settled = await mapWithConcurrency(
       targets,
       PUSH_SEND_CONCURRENCY,
-      (t) => pushService.sendNotification(t.userId, t.subscriptionId, payload),
+      async (t) =>
+        (await getPushService()).sendNotification(
+          t.userId,
+          t.subscriptionId,
+          payload,
+        ),
     );
 
     const results = settled.map((r, i) =>
