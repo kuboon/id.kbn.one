@@ -37,7 +37,10 @@ export interface D1PreparedLike {
   run(): Promise<{ meta: { changes: number } }>;
 }
 
-/** DDL for the backing table. Applied as a D1 migration. */
+/**
+ * DDL for the backing table. Every statement is `IF NOT EXISTS`, so applying
+ * it to a database that already has the table changes nothing.
+ */
 export const D1_KV_SCHEMA = `
 CREATE TABLE IF NOT EXISTS kv (
   key        TEXT    PRIMARY KEY,
@@ -47,6 +50,58 @@ CREATE TABLE IF NOT EXISTS kv (
 );
 CREATE INDEX IF NOT EXISTS kv_expires_at ON kv (expires_at);
 `;
+
+/** Create the table and its index if they are missing. Idempotent. */
+export const applyD1Schema = async (db: D1Like): Promise<void> => {
+  // One statement per `prepare`: that is all D1's prepared statements take.
+  for (const statement of D1_KV_SCHEMA.split(";")) {
+    if (statement.trim()) await db.prepare(statement.trim() + ";").run();
+  }
+};
+
+/**
+ * A database handle that reaches the real one only when a statement runs,
+ * and makes sure the schema exists before the first one does.
+ *
+ * Both halves come from running on Workers. The binding cannot be touched at
+ * module scope — deploying runs the top-level scope to validate the Worker,
+ * with no binding attached — so it is looked up per statement. And nothing
+ * in a deploy creates the table: production has it only because the
+ * migration from Deno KV did, so a preview, a fresh database or `cf dev`'s
+ * local one would answer every request with `no such table: kv`. Ensuring it
+ * here costs one idempotent statement per isolate and covers all of them.
+ *
+ * A failed attempt is not remembered, so the next statement tries again
+ * rather than every request in the isolate failing on one transient error.
+ */
+export const lazyD1 = (getDb: () => D1Like): D1Like => {
+  let ready: Promise<void> | undefined;
+  const ensureSchema = (): Promise<void> => {
+    ready ??= applyD1Schema(getDb()).catch((error) => {
+      ready = undefined;
+      throw error;
+    });
+    return ready;
+  };
+
+  const statement = (sql: string, values: unknown[]): D1PreparedLike => ({
+    bind: (...next: unknown[]) => statement(sql, next),
+    async first<T>() {
+      await ensureSchema();
+      return await getDb().prepare(sql).bind(...values).first<T>();
+    },
+    async all<T>() {
+      await ensureSchema();
+      return await getDb().prepare(sql).bind(...values).all<T>();
+    },
+    async run() {
+      await ensureSchema();
+      return await getDb().prepare(sql).bind(...values).run();
+    },
+  });
+
+  return { prepare: (sql) => statement(sql, []) };
+};
 
 // Not "\u0000": SQLite treats an embedded NUL as the end of a TEXT value, so
 // a key containing one would be silently truncated and the range scan below

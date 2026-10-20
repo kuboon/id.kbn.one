@@ -11,9 +11,14 @@ import { DatabaseSync } from "node:sqlite";
 
 import { D1_KV_SCHEMA, type D1Like, type D1PreparedLike } from "./d1.ts";
 
-export const createSqliteD1 = (): D1Like & { close(): void } => {
+export const createSqliteD1 = (
+  { schema = true }: {
+    /** Create the table up front. Off, it is a database nothing has touched. */
+    schema?: boolean;
+  } = {},
+): D1Like & { close(): void } => {
   const db = new DatabaseSync(":memory:");
-  db.exec(D1_KV_SCHEMA);
+  if (schema) db.exec(D1_KV_SCHEMA);
 
   // D1 uses ?1-style parameters; node:sqlite binds those positionally too.
   const prepare = (sql: string): D1PreparedLike => {
