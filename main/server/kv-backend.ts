@@ -14,24 +14,18 @@
  * @module
  */
 
-import { D1Repo } from "@kbn/kv/d1.ts";
-import type { D1Like } from "@kbn/kv/d1.ts";
+import { D1Repo, lazyD1 } from "@kbn/kv/d1.ts";
 import { DenoKvRepo } from "@kbn/kv/denoKv.ts";
 import type { KvKey, KvOptions, KvRepo } from "@kbn/kv/types.ts";
 
 import { getD1Database, hasD1 } from "#env";
 
 /**
- * Reaches the binding on the first query rather than at import.
- *
- * Deploying a Worker runs its top-level scope to validate it, and the binding
- * is not there yet during that pass: resolving it at module scope threw, and
- * the deploy was rejected with error 10021. Nothing here needs the database
- * before a request anyway.
+ * The database, reached per statement and with its schema ensured first —
+ * see {@link lazyD1} for why both. Shared by every repository so the schema
+ * check runs once per isolate, not once per prefix.
  */
-const lazyD1: D1Like = {
-  prepare: (sql) => getD1Database()!.prepare(sql),
-};
+const d1 = lazyD1(() => getD1Database()!);
 
 /** A repository over whichever backend this runtime provides. */
 export const createRepo = <TVal>(
@@ -39,5 +33,8 @@ export const createRepo = <TVal>(
   options: KvOptions = {},
 ): KvRepo<TVal> =>
   hasD1
-    ? new D1Repo<TVal>(lazyD1, prefix, options)
+    ? new D1Repo<TVal>(d1, prefix, options)
     : new DenoKvRepo<TVal>(prefix, options);
+
+/** The same handle, for the cron sweep. `undefined` where there is no D1. */
+export const d1Database = hasD1 ? d1 : undefined;

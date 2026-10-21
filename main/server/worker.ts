@@ -11,7 +11,7 @@
 
 import { sweepExpired } from "@kbn/kv/d1.ts";
 
-import { getD1Database } from "#env";
+import { d1Database } from "#server/kv-backend.ts";
 import router from "#server/router.ts";
 
 export default {
@@ -26,11 +26,11 @@ export default {
    * on `expires_at`, so a missed run costs storage, never correctness.
    */
   async scheduled(): Promise<void> {
-    // `#env` resolves to the Deno module when the suite type-checks this file,
-    // where there is no D1 and so no sweeping to do either.
-    const db = getD1Database();
-    if (!db) return;
-    const removed = await sweepExpired(db);
+    // Undefined only under Deno, where the suite type-checks this file and
+    // there is no D1 to sweep. On Workers it is the shared handle, so a cron
+    // run on a fresh database creates the table rather than failing on it.
+    if (!d1Database) return;
+    const removed = await sweepExpired(d1Database);
     if (removed > 0) console.info(`swept ${removed} expired rows`);
   },
 };

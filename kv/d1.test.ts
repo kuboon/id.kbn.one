@@ -1,7 +1,91 @@
 import { assert, assertEquals } from "@std/assert";
 
-import { D1Repo, decodeKey, encodeKey, sweepExpired } from "./d1.ts";
+import {
+  applyD1Schema,
+  type D1Like,
+  D1Repo,
+  decodeKey,
+  encodeKey,
+  lazyD1,
+  sweepExpired,
+} from "./d1.ts";
 import { createSqliteD1 } from "./d1_sqlite_test_util.ts";
+
+Deno.test("lazyD1: a database nothing has touched works on first use", async () => {
+  // What a preview, a new database or `cf dev` starts from. Production only
+  // had the table because the migration created it.
+  const raw = createSqliteD1({ schema: false });
+  try {
+    const repo = new D1Repo<{ n: number }>(lazyD1(() => raw), ["things"]);
+    assertEquals(await repo.entry("a").get(), null);
+    assert((await repo.entry("a").update(() => ({ n: 1 }))).ok);
+    assertEquals(await repo.entry("a").get(), { n: 1 });
+    // The CAS still holds through the wrapper.
+    assertEquals((await repo.entry("b").update(() => ({ n: 2 }))).ok, true);
+    const keys: unknown[] = [];
+    for await (const e of repo) keys.push(e.key);
+    assertEquals(keys, ["a", "b"]);
+  } finally {
+    raw.close();
+  }
+});
+
+Deno.test("lazyD1: the binding is not reached until a statement runs", async () => {
+  // At module scope on Workers the binding is not attached yet, so merely
+  // building repositories must not look it up.
+  const raw = createSqliteD1({ schema: false });
+  try {
+    let lookups = 0;
+    const db = lazyD1(() => {
+      lookups++;
+      return raw;
+    });
+    const repo = new D1Repo<number>(db, ["x"]);
+    repo.entry("a");
+    db.prepare("SELECT 1").bind(1, 2);
+    assertEquals(lookups, 0);
+    await repo.entry("a").get();
+    assert(lookups > 0);
+  } finally {
+    raw.close();
+  }
+});
+
+Deno.test("lazyD1: a failed schema attempt is retried, not remembered", async () => {
+  const raw = createSqliteD1({ schema: false });
+  try {
+    let fail = true;
+    const flaky: D1Like = {
+      prepare: (sql) => {
+        if (fail) throw new Error("transient");
+        return raw.prepare(sql);
+      },
+    };
+    const repo = new D1Repo<number>(lazyD1(() => flaky), ["x"]);
+    await repo.entry("a").get().then(
+      () => assert(false, "expected the first call to fail"),
+      () => {},
+    );
+    fail = false;
+    // One bad moment must not leave the isolate failing every request.
+    assertEquals(await repo.entry("a").get(), null);
+  } finally {
+    raw.close();
+  }
+});
+
+Deno.test("applyD1Schema: applying it to an existing table changes nothing", async () => {
+  const raw = createSqliteD1();
+  try {
+    const repo = new D1Repo<number>(raw, ["x"]);
+    await repo.entry("a").update(() => 7);
+    await applyD1Schema(raw);
+    await applyD1Schema(raw);
+    assertEquals(await repo.entry("a").get(), 7);
+  } finally {
+    raw.close();
+  }
+});
 
 const withDb = async (
   fn: (db: ReturnType<typeof createSqliteD1>) => Promise<void>,

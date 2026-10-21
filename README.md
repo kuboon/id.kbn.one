@@ -1,6 +1,11 @@
-# Passkeys and WebPush ready ID provider
+# id.kbn.one
 
-[![Deploy on Deno](https://deno.com/button)](https://console.deno.com/new?clone=kuboon/id.kbn.one)
+Passkeys and Web Push ready ID provider. 本番は https://id.kbn.one 。
+
+パスキー認証を IdP に集約し、RP には DPoP 鍵に束縛したセッションと ES256 署名の
+JWT を渡す。Web Push の配信と、remote MCP サーバ向けの OAuth 2.1
+認可サーバも持つ。Cloudflare Workers と D1 で動き、開発・テスト・ビルドは Deno
+で行う。
 
 ## アーキテクチャ
 
@@ -17,8 +22,8 @@
    `https://idp.example.com/authorize?dpop_jkt=<rp_jkt>&redirect_uri=<here>`
    - `redirect_uri` の origin は IdP の `AUTHORIZE_WHITELIST`
      に含まれている必要あり
-3. IdP の `/authorize` がクエリを検証 → `<Authorize />` clientEntry を SSR。
-   クライアント JS は IdP 用の DPoP 鍵で動く
+3. IdP の `/authorize` がクエリを検証 → `<Authorize />` clientEntry を
+   SSR。クライアント JS は IdP 用の DPoP 鍵で動く
 4. IdP 側のセッションを確認:
    - 未ログインならパスキー認証 (signin/register)
    - ログイン済 or 認証成功後 →
@@ -70,33 +75,34 @@ DPoP 鍵 thumbprint と一致するかは呼び出し側で確認する。鍵は
 
 ## Push 通知
 
-通知の送信は **常にサーバ起点** で行う（`POST /rp/notifications`）。ブラウザ
-（エンドユーザ）からの送信エンドポイントは無い。`/push/*` はブラウザからの
-購読管理（VAPID 公開鍵取得・subscription の CRUD・デバイス自己テスト
-`POST /push/notifications/test`）のみを担う。
+通知の送信は**常にサーバ起点**で行う（`POST /rp/notifications`）。ブラウザ（エンドユーザ）からの送信エンドポイントは無い。`/push/*`
+はブラウザからの購読管理（VAPID 公開鍵取得・subscription の
+CRUD・デバイス自己テスト `POST /push/notifications/test`）のみを担う。
 
-なお `GET /push/subscriptions`（一覧）は、別オリジンの RP フロントエンドから
-呼ばれた場合、その RP の**ドメイン（＋サブドメイン）から登録された subscription
-のみ**を返す（`Origin` ヘッダで判定）。IdP 自身（同一オリジン / `IDP_ORIGIN`）
-からの呼び出しは全件返す（`/me` の管理用）。
+なお `GET /push/subscriptions`（一覧）は、別オリジンの RP
+フロントエンドから呼ばれた場合、その RP
+の**ドメイン（＋サブドメイン）から登録された subscription のみ**を返す（`Origin`
+ヘッダで判定）。IdP 自身（同一オリジン /
+`IDP_ORIGIN`）からの呼び出しは全件返す（`/me` の管理用）。
 
 #### レート制限（subscription 単位の flood 防止）
 
-1つの subscription に短時間で大量の通知が飛ばないよう、固定ウィンドウのレート
-制限を全送信経路（RP 起点・自己テスト共通）に適用する。**60 秒あたり 1
-件**まで（固定）。上限超過分は **エラーにせず skip** し、レスポンスの該当
-エントリに `throttled: true` が立つ。
+1つの subscription
+に短時間で大量の通知が飛ばないよう、固定ウィンドウのレート制限を全送信経路（RP
+起点・自己テスト共通）に適用する。**60 秒あたり 1
+件**まで（固定）。上限超過分は**エラーにせず skip**
+し、レスポンスの該当エントリに `throttled: true` が立つ。
 
-### RPサーバ起点の通知 (`POST /rp/notifications`)
+### RP サーバ起点の通知 (`POST /rp/notifications`)
 
-ブラウザ（エンドユーザの DPoP
-鍵）を経由せず、**RPサーバ自身**から通知を送る経路。 DPoP
-セッションは使えないので、RP は **`private_key_jwt` クライアントアサーション**
-([RFC 7521] / [RFC 7523]) で認証する。**共通鍵は不要** — IdP は RP
-の秘密鍵で署名された JWS を、RP 自身が公開する JWKS で検証する（IdP が公開鍵を
-保持しない＝ RP が自分の JWKS を更新するだけで鍵ローテーションできる）。
+ブラウザ（エンドユーザの DPoP 鍵）を経由せず、**RP
+サーバ自身**から通知を送る経路。DPoP セッションは使えないので、RP は
+**`private_key_jwt` クライアントアサーション** ([RFC 7521] / [RFC 7523])
+で認証する。**共通鍵は不要** — IdP は RP の秘密鍵で署名された JWS を、RP
+自身が公開する JWKS で検証する（IdP が公開鍵を保持しない＝ RP が自分の JWKS
+を更新するだけで鍵ローテーションできる）。
 
-専用の登録は不要。RP の `clientId` は **その RP の origin**
+専用の登録は不要。RP の `clientId` は**その RP の origin**
 で、`AUTHORIZE_WHITELIST` に含まれていれば許可される。IdP は検証鍵を RP の
 `${clientId}/.well-known/jwks.json` から取得する（IdP 側の JWKS 配布と対称）。
 
@@ -141,29 +147,27 @@ const res = await fetch("https://id.kbn.one/rp/notifications", {
 #### 宛先は RP 自身のドメインに限定
 
 各 subscription には、登録時の **`Origin`**（RP
-フロントエンドのオリジン。ブラウザ が付与するヘッダで、ページ JS
+フロントエンドのオリジン。ブラウザが付与するヘッダで、ページ JS
 からは詐称できない）が記録される。`/rp/notifications` は、`clientId`（=
-認証された RP のオリジン）の **ドメインおよびサブドメイン**から 登録された
-subscription のみを宛先にする（ホスト名で比較、scheme/port は無視）。 別の RP
-から登録されたデバイスや、`Origin` 未記録の古い subscription
-（本対応より前に登録されたもの）には届かない。
+認証された RP のオリジン）の**ドメインおよびサブドメイン**から登録された
+subscription のみを宛先にする（ホスト名で比較、scheme/port は無視）。別の RP
+から登録されたデバイスや、`Origin` 未記録の古い
+subscription（本対応より前に登録されたもの）には届かない。
 
 宛先（条件を満たすデバイス）は 1 リクエストあたり最大 500、送信は同時実行 10
 のワーカープールで処理する（push
-サービスのレート制限・アウトバウンド接続上限への配慮）。それ以上はリクエスト
-分割で。
+サービスのレート制限・アウトバウンド接続上限への配慮）。それ以上はリクエスト分割で。
 
 #### アプリアイコンのバッジ数字 (`notification.badgeCount`)
 
 `notification.badgeCount`（任意・非負整数）を指定すると、Service Worker が
 [App Badging API] の `navigator.setAppBadge(badgeCount)`
-を呼び、ホーム/タスクバーの アプリアイコンに数字バッジを出す。`0`
-を送るとクリア（`clearAppBadge`）。**省略時は
-既存バッジに触らない**（消さない）ので、増減・クリアのタイミングは RP 側が
-`badgeCount` の値で制御する。
+を呼び、ホーム/タスクバーのアプリアイコンに数字バッジを出す。`0`
+を送るとクリア（`clearAppBadge`）。**省略時は既存バッジに触らない**（消さない）ので、増減・クリアのタイミングは
+RP 側が `badgeCount` の値で制御する。
 
-注意: **インストール済み PWA でのみ**
-表示される（ブラウザのタブ表示では出ない）。 対応は Chrome /
+注意: **インストール済み PWA
+でのみ**表示される（ブラウザのタブ表示では出ない）。対応は Chrome /
 Edge（デスクトップ・Android のインストール済み PWA）、Safari は macOS / iOS
 16.4+ のインストール済み Web アプリ。未対応環境では no-op。なお `badge`（画像
 URL）は別物で、通知自体に出すバッジ画像（Web Notifications API の `badge`）。
@@ -180,23 +184,22 @@ URL）は別物で、通知自体に出すバッジ画像（Web Notifications AP
 
 クライアント識別は **DCR ではなく CIMD（Client ID Metadata
 Document）**：`client_id` はクライアントが自己公開する HTTPS メタデータ URL
-で、AS がそれを fetch・検証する （RP の JWKS を fetch
+で、AS がそれを fetch・検証する（RP の JWKS を fetch
 するのと同じ設計。クライアント登録・保存は不要）。
 
 トークン（認可コード / アクセス / リフレッシュ）はすべて **ES256 署名
-JWT**。ランダム
-生成＋保存はせず、有効性は署名で判定。リフレッシュは**ローテーション＋再利用検知**
-（使用済み `jti` のみ KV に記録）。アクセストークンは `aud` を対象 MCP
-サーバに束縛 （RFC 8707）。
+JWT**。ランダム生成＋保存はせず、有効性は署名で判定。リフレッシュは**ローテーション＋再利用検知**（使用済み
+`jti` のみストレージに記録）。アクセストークンは `aud` を対象 MCP
+サーバに束縛（RFC 8707）。
 
 **エンドポイント:**
 
 - `GET /.well-known/oauth-authorization-server`（RFC 8414 メタデータ）
-- `GET /oauth/authorize` — パラメータ検証（`response_type=code`／PKCE `S256`／
-  RFC 8707 `resource`）＋ CIMD でクライアント解決・`redirect_uri` 照合 →
+- `GET /oauth/authorize` — パラメータ検証（`response_type=code`／PKCE
+  `S256`／RFC 8707 `resource`）＋ CIMD でクライアント解決・`redirect_uri` 照合 →
   **passkey ログイン＋同意** → 認可コードを `redirect_uri?code&state`
-  へ。検証済みリクエストは
-  短命の署名トークンに載せて同意画面へ渡すので、承認時に CIMD を再取得しない。
+  へ。検証済みリクエストは短命の署名トークンに載せて同意画面へ渡すので、承認時に
+  CIMD を再取得しない。
 - `POST /oauth/token`（`authorization_code`＋PKCE(S256) / `refresh_token`
   ローテーション＋再利用検知）
 
@@ -204,11 +207,11 @@ MCP クライアントの認可リクエスト例：
 `GET /oauth/authorize?response_type=code&client_id=<CIMD URL>&redirect_uri=<cb>&code_challenge=<S256>&code_challenge_method=S256&resource=https://mcp.example.com&scope=mcp&state=<s>`
 
 **RS 側（別ドメインの MCP サーバ）で実装が必要:**
-`/.well-known/oauth-protected-resource` （RFC 9728、`authorization_servers`
-にこの IdP を記載）と、401 時の `WWW-Authenticate`、 Bearer
+`/.well-known/oauth-protected-resource`（RFC 9728、`authorization_servers`
+にこの IdP を記載）と、401 時の `WWW-Authenticate`、Bearer
 トークン検証（下記）。
 
-RS（別ドメインの MCP サーバ）側の検証は既存の JWKS 配布を流用：
+RS 側の検証は既存の JWKS 配布を流用：
 
 ```ts
 import { createRemoteJWKSet, jwtVerify } from "jose";
@@ -224,52 +227,59 @@ const { payload } = await jwtVerify(bearer, JWKS, {
 
 ## 技術スタック
 
-- ランタイム: **Deno** (`Deno.bundle`, `Deno.openKv`)
-- ルーター:
+- **本番**: Cloudflare Workers。ストレージは D1、クライアント資産は Workers
+  Static Assets
+- **開発・テスト・ビルド**: Deno。ローカルのストレージは Deno KV
+- **ストレージ抽象**: `KvRepo`（`kv/`）。D1 と Deno KV
+  の両実装があり、`main/server/kv-backend.ts`
+  がランタイムに応じて選ぶ。compare-and-set
+  を持ち、認可コードの単回利用・リフレッシュトークンの再利用検知・DPoP
+  のリプレイ拒否・Push のレート制限がこれに依存する（Workers KV には CAS
+  が無く、成功を返し続けたまま保証だけが消えるので、D1 を使う）
+- **ルーター**:
   [`@remix-run/fetch-router`](https://github.com/remix-run/remix/tree/main/packages/fetch-router) +
   Frame ベースの shell ナビゲーション (`@remix-run/ui`)
-- セッション: `@remix-run/session` を `@kbn/session-storage-kv` 経由で `KvRepo`
-  に保存。DPoP セッションは `@kbn/dpop-session-middleware` が thumbprint
-  をキーに管理
-- UI: JSX SSR + [Tailwind v4](https://tailwindcss.com) +
+- **セッション**: `@remix-run/session` を `@kbn/session-storage-kv` 経由で
+  `KvRepo` に保存。DPoP セッションは `@kbn/dpop-session-middleware` が
+  thumbprint をキーに管理
+- **UI**: JSX SSR + [Tailwind v4](https://tailwindcss.com) +
   [daisyUI v5](https://daisyui.com)
 
-## Prerequisites
+## ローカル開発
 
-Install deno
+Deno が必要:
 
 ```sh
 curl -fsSL https://deno.land/install.sh | sh
-```
-
-via mise
-
-```sh
-curl https://mise.run | sh
+# または mise
 mise use -g deno
 ```
 
-## Environment variables
+```sh
+deno task dev    # クライアント資産をビルドして http://localhost:3000 で起動 (Deno KV)
+deno task test   # fmt + lint + check + test
+deno task build  # クライアント資産 (main/bundled/) だけ再ビルド
+```
 
-詳細は `main/server/config.ts`。
+ポートは `IDP_ORIGIN` の既定値 (`http://localhost:3000`)
+に合わせてある。ずれると、発行する JWT の `iss` が自分のオリジンと一致しない。
 
-- `RP_ID` (relying party id for WebAuthn, e.g. `localhost`)
-- `RP_NAME` (relying party display name, e.g. `My ID Provider`)
-- `IDP_ORIGIN` (this server's own origin, e.g. `http://localhost:8000`)
-- `AUTHORIZE_WHITELIST` (comma-separated RP **ホスト名**。指定ホストとその
-  **サブドメイン**を許可する（`/authorize`
-  redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
-  origin での指定も可（hostname に正規化）。 例:
-  `kbn.one,kuboon-tokyo.deno.net,localhost`）
-- `PUSH_CONTACT` (VAPID contact, e.g. `mailto:o@kbn.one`)
+Workers 上での挙動を手元で確かめるには:
 
-## Deploy (Cloudflare Workers Builds)
+```sh
+deno task build && deno task build:worker && npx cf dev
+```
 
-データは Deno KV から D1 (`id-kbn-one`) に移行済み。設定は `cf` CLI
-(`cloudflare.config.ts`)
-が持つので、**ダッシュボードで設定するのは接続とコマンド だけ**。
+`cf dev` は本番と同じバンドルを workerd で動かし、ローカルの D1 を使う。空の D1
+でも `kv` テーブルは最初のクエリの前に作られる。
 
-Workers → この Worker → Settings → Build:
+## デプロイ
+
+Cloudflare Workers Builds が main への push でビルド・デプロイする。設定は `cf`
+CLI が `cloudflare.config.ts`
+から読むので、ダッシュボードで設定するのはリポジトリの接続とコマンドだけ。
+
+Workers → id-kbn-one → Settings → Build:
 
 | 項目           | 値                       |
 | -------------- | ------------------------ |
@@ -277,98 +287,134 @@ Workers → この Worker → Settings → Build:
 | Deploy command | `npx cf deploy`          |
 | Root directory | `/`                      |
 
-設定ファイルは2つ:
+Deploy command は `npx cf deploy` でなければならない。`npx wrangler deploy` は
+`wrangler.config.ts`（バンドラ設定のみ）しか読まないので、バインディング無しでデプロイされる。
 
-- `cloudflare.config.ts` — Worker 名・D1 バインディング・cron・環境変数・カスタ
-  ムドメイン。`id.kbn.one` はデプロイ時に適用されるので DNS の手作業は不要
-  (ゾーン `kbn.one` が同じアカウントにあること)。workers.dev は切ってある: IdP
-  が別ホストでも応答すると `IDP_ORIGIN` (= 発行する JWT の `iss`) と食い
-  違うし、`RP_ID` が `kbn.one` なので workers.dev からパスキーは使えない
+設定ファイル:
+
+- `cloudflare.config.ts` — Worker 名、D1
+  バインディング、cron、環境変数、カスタムドメイン。`id.kbn.one` はデプロイ時に
+  DNS ごと適用される。workers.dev は無効にしてある（IdP が別ホストでも応答すると
+  `iss` と食い違う。どのみち `RP_ID` が `kbn.one` なので workers.dev
+  からパスキーは使えない）
 - `wrangler.config.ts` — `#env` alias と assets ディレクトリ。この Worker は
-  Vite プロジェクトではなく `cf` がバンドルを wrangler
-  に委ねるため、バンドラ向けの設 定だけこちらに入る
+  Vite プロジェクトではなく、`cf` がバンドルを wrangler
+  に委ねるため、バンドラ向けの設定だけこちらに入る
 
-ビルドコンテナに Deno は入っていないので、`scripts/cf-build.sh` がピン留めした
-Deno を取得してから、クライアント資産 (`main/bundled/`) と Worker バンドル
-(`main/worker/worker.js`) を作る。どちらも git 管理外 (`.cloudflare/`
-も生成物)。
-
-Worker バンドルは `deno bundle` が作る。このリポジトリの JSR
-指定子とワークスペー ス import map を解決できるのは Deno
-だけなので。ランタイム差分は `#env` alias 一 本に寄せてあり
-(`main/server/env.deno.ts` / `env.workers.ts`)、バンドルはそれを未
-解決のまま残して `wrangler.config.ts` の `alias` が供給する。そのため
-`env.workers.ts` は **`cloudflare:workers` と型以外を import
-してはいけない**。こ の1ファイルだけは Deno ではなく esbuild
-が解決するので、`@kbn/` からの値 import は JSR
-指定子で解決不能になる。バインディングをリポジトリに包むのは
-`main/server/kv-backend.ts` の仕事。
-
-`cloudflare:workers` は `main/server/deno.json` の import map で
-`cloudflare-workers.shim.ts` に向けてあり、`env.workers.ts` も `deno check` /
-`lint` / `fmt` の対象に入る。shim は Workers ビルドからは参照されない(esbuild
-が本物を解決する) が、Deno がバンドルするコードから `cloudflare:workers` を
-import してはいけない。
-
-ローカル確認:
+デプロイ前の確認:
 
 ```sh
 deno task build && deno task build:worker && npx cf deploy --dry-run
 ```
 
-`cloudflare.config.ts` の `RP_ID` (`kbn.one`) は変更しないこと。パスキーは作成時
-の RP ID に紐づくので、変えると既存のパスキーが全て使えなくなり、戻しても復旧し
-ない。IdP 自身のホスト (`id.kbn.one`) ではなく登録可能サフィックスである点に注
-意。
+### ビルドの仕組み
+
+ビルドコンテナには Deno が無いので、`scripts/cf-build.sh` がピン留めした Deno
+を取得し、クライアント資産 (`main/bundled/`) と Worker バンドル
+(`main/worker/worker.js`) を作る。どちらも生成物で、`.cloudflare/` も同様。
+
+Worker のバンドルは `deno bundle` が作る。このリポジトリの JSR
+指定子とワークスペースの import map を解決できるのは Deno だけなので。
+
+### ランタイム差分は `#env` に集約
+
+Deno と Workers で違う部分は `#env` alias
+の裏の2ファイルだけにある。`main/server/env.deno.ts` は Deno KV
+を使い、静的ファイルをディスクから配信する。`main/server/env.workers.ts` は D1
+を使い、静的ファイルは Static Assets に任せる。バンドルは `#env`
+を未解決のまま残し、`wrangler.config.ts` の alias が `env.workers.ts`
+を供給する。
+
+**`env.workers.ts` は `cloudflare:workers` と型以外を import してはいけない。**
+この1ファイルだけは Deno ではなく esbuild が解決するので、`@kbn/` からの値
+import は JSR 指定子に辿り着けず失敗する。バインディングをリポジトリに包むのは
+`main/server/kv-backend.ts` の仕事。
+
+`cloudflare:workers` は `main/server/deno.json` の import map で
+`cloudflare-workers.shim.ts` に向けてあるので、`env.workers.ts` も `deno check`
+/ `lint` / `fmt` の対象になる。shim は Workers ビルドからは参照されない（esbuild
+が本物を解決する）。逆に Deno がバンドルするコードから `cloudflare:workers` を
+import すると、shim の空オブジェクトが本番に入るので、してはいけない。
+
+### モジュールスコープで I/O しない
+
+Workers
+はデプロイ時にトップレベルスコープを実行して検証し、その時点ではバインディングが付いていない。そもそもリクエスト外の
+I/O も許されない。どちらに当たってもデプロイはエラー 10021 で拒否される。D1
+への接続 (`lazyD1`)、署名鍵、Push
+サービスはすべて初回使用時に解決している。モジュールスコープの `await`
+や、モジュールスコープからリポジトリ・署名鍵に触れるコードを足さないこと。
+
+環境変数をモジュールスコープで読むのは問題ない (`config.ts`)。Cloudflare
+が示すパターンで、検証時に未定義でも既定値に落ちるだけで例外にならず、そのアイソレートは捨てられる。
+
+### D1 のスキーマ
+
+`kv` テーブルは最初のクエリの前に Worker 自身が作る（`kv/d1.ts` の
+`lazyD1`）。スキーマは `IF NOT EXISTS`
+で冪等なので、本番でもプレビューでも新しいデータベースでも同じに動く。
+
+D1 には TTL が無いので、期限切れの行は cron (`scheduled`) で掃除する。読み取りは
+`expires_at`
+で既に除外しているので、掃除が遅れても容量を食うだけで正しさには影響しない。
+
+### `RP_ID` は変更しない
+
+`RP_ID` は `kbn.one` で、IdP 自身のホスト (`id.kbn.one`)
+ではなく登録可能サフィックス。パスキーは作成時の RP ID
+に紐づくので、変えると既存のパスキーが全て使えなくなり、戻しても復旧しない。
+
+## 環境変数
+
+本番の値は `cloudflare.config.ts` にある。読み取りは `main/server/config.ts`。
+
+- `RP_ID` — WebAuthn の RP ID（ローカルの既定は `localhost`）
+- `RP_NAME` — RP の表示名
+- `IDP_ORIGIN` — この IdP 自身のオリジン。発行する JWT の
+  `iss`（ローカルの既定は `http://localhost:3000`）
+- `AUTHORIZE_WHITELIST` — RP
+  の**ホスト名**のカンマ区切り。指定ホストとその**サブドメイン**を許可する（`/authorize`
+  の redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
+  origin での指定も可（hostname に正規化）
+- `PUSH_CONTACT` — VAPID の連絡先（例: `mailto:o@kbn.one`）
+
+署名鍵とパスキーの署名用シークレットは環境変数ではなくストレージ（`secret/signing_key`、`passkey_sign_secret`）にあり、初回使用時に生成される。
+
+## データ移行の記録
+
+2026-10 に Deno Deploy (Deno KV) から Cloudflare (D1) に移行した。ツールは
+`tools/migration/`、実行は GitHub Actions の `Migrate KV to D1`
+workflow（手動実行のみ）。
+
+- 移行元は読むだけで、インポートは冪等な upsert なので再実行できる
+- 短命な状態（`dpop-session`、`dpop_jti`、`oauth`、`push:ratelimit`）は移さない。古いリプレイ防止・単回利用マーカーを持ち込むと、新しいトークンを拒否してしまう
+- JSON で表せない値は報告して止まり、`--skip-unstorable`
+  で明示的に落とす。実際の移行で該当したのは、旧実装の
+  `passkey/challenge_signature/secret`（`Uint8Array`、現行コードは参照しない）1件だけ
+- エクスポートには署名鍵が含まれるので、workflow はアーティファクトを残さず、SQL
+  もディスクに書かない
 
 ## Project layout
 
 ```
 /
-├─ main/                          # ID provider server
-│  ├─ assets/                     # Tailwind/daisyui input CSS
-│  ├─ bundler/                    # Deno.bundle JS + Tailwind CSS build
-│  ├─ client/                     # Page clientEntries (.tsx) + SW
-│  └─ server/                     # fetch-router + JSX controllers
-├─ kv/                            # KvRepo abstraction (memory + Deno KV)
+├─ cloudflare.config.ts           # Cloudflare: Worker, bindings, cron, vars, domain
+├─ wrangler.config.ts             # the bundler half, which cf hands to wrangler
+├─ scripts/cf-build.sh            # Workers Builds build command
+├─ main/                          # the ID provider
+│  ├─ assets/                     # Tailwind/daisyUI input CSS
+│  ├─ bundler/                    # client JS + CSS build
+│  ├─ client/                     # page clientEntries (.tsx) + service worker
+│  └─ server/                     # fetch-router + JSX controllers; worker.ts is the Workers entry
+├─ kv/                            # KvRepo: D1, Deno KV, memory
 ├─ session-storage-kv/            # Remix SessionStorage adapter for KvRepo
 ├─ dpop-session-middleware/       # DPoP session middleware for fetch-router
-├─ dpop/                          # DPoP key + proof helpers
-└─ passkeys/                      # Passkeys / WebAuthn (hono + fetch-router)
+├─ dpop/                          # @kuboon/dpop: DPoP keys and proofs
+├─ passkeys/                      # @kuboon/passkeys: WebAuthn (Hono + fetch-router)
+└─ tools/migration/               # the Deno KV → D1 migration
 ```
 
-## Quick start — run the demo server
-
-The dev task bundles client JS / Tailwind+daisyui CSS, then starts `deno serve`
-against the workspace router.
-
-```bash
-# from repository root
-deno task dev
-```
-
-The demo server listens on http://localhost:8000. Open the browser to try
-registering and authenticating passkeys.
-
-## Development & checks
-
-```bash
-# format + lint + type-check + tests
-deno task test
-
-# rebuild bundled assets (CSS + JS) without serving
-deno task bundle
-```
-
-`pre-deploy` runs one-shot KV migrations (`main/server/migrate.ts`). It does
-**not** rebuild bundled assets — run `deno task build` separately before
-deploying so the deploy can read pre-built assets from `main/bundled/` (which is
-git-ignored).
-
-Notes:
-
-- `@kuboon/passkeys` ships both a Hono adapter (`hono-middleware`, kept for
-  back-compat) and a fetch-router adapter (`fetch-router-middleware`). The IdP
-  server uses the latter.
-- `@kuboon/dpop` exports `createDpopProof` / `verifyDpopProof` for DPoP- bound
-  access tokens.
+- `@kuboon/passkeys` は Hono 用 (`./hono`) と fetch-router 用 (`./remix`)
+  のアダプタを持つ。IdP は後者を使う
+- `@kuboon/dpop` はクライアント (`.`) とサーバ (`./server.ts`、`verifyDpopProof`
+  など) を export する
