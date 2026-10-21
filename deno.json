@@ -5,8 +5,7 @@
     "build": "deno task --cwd=main/bundler build",
     "build:worker": "deno bundle --platform browser --external \"#env\" --external \"cloudflare:workers\" --output main/worker/worker.js main/server/worker.ts",
     "dev": "deno task build && deno task --cwd=main/server serve",
-    "serve": "deno task --cwd=main/server serve",
-    "pre-deploy": "echo 'nothing to do'"
+    "serve": "deno task --cwd=main/server serve"
   },
   "exclude": [
     // Build output: the bundle leaves `#env` for wrangler's alias to resolve.
@@ -41,10 +40,6 @@
     "@remix-run/static-middleware": "npm:@remix-run/static-middleware@0.4.13"
   },
   "unstable": ["kv", "bundle"],
-  "deploy": {
-    "org": "kuboon-tokyo",
-    "app": "id-kbn-one"
-  },
   "permissions": {
     "default": {
       "env": [
