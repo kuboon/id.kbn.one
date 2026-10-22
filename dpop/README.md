@@ -6,8 +6,9 @@ verification), built on the Web Crypto API.
 
 - Zero runtime dependencies — base64url goes through the native
   `Uint8Array.prototype.toBase64` / `Uint8Array.fromBase64` methods
-- Uses the platform `crypto.subtle` — runs on Deno, Bun, Node ≥ 20, Cloudflare
-  Workers, and modern browsers
+- Uses the platform `crypto.subtle` — runs on Cloudflare Workers, Node 25+, Deno
+  2.5+, Bun 1.1.22+, Chrome 140+, Firefox 133+ and Safari 18.2+. Those minimums
+  come from the base64 methods above; on an older runtime, stay on 0.2.x
 - Supports `ES256` (ECDSA P-256) keys — the profile required by DPoP-capable
   OAuth 2.0 servers
 - Ships a browser key store backed by IndexedDB and an `InMemory` variant for
