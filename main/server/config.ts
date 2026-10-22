@@ -26,7 +26,7 @@ const pushContact = readEnv("PUSH_CONTACT")?.trim() ||
  * endpoint. Left unset (local dev, tests), reports are stored in D1 only.
  */
 const feedbackMcpUrl = readEnv("FEEDBACK_MCP_URL")?.trim();
-const feedbackMcpToken = readEnv("FEEDBACK_MCP_TOKEN")?.trim();
+const feedbackMcpToken = readEnv("HOME_PORTAL_MCP_TOKEN")?.trim();
 const feedbackMcpHomeId = readEnv("FEEDBACK_MCP_HOME_ID")?.trim();
 const feedbackHomePortal = feedbackMcpUrl && feedbackMcpToken &&
     feedbackMcpHomeId

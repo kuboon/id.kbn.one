@@ -72,7 +72,7 @@ export default defineConfig({
       // The agent's bearer token. A declared secret is required: a deploy
       // fails until it is set on the Worker, rather than shipping a Worker
       // that silently stops reporting.
-      FEEDBACK_MCP_TOKEN: bindings.secret(),
+      HOME_PORTAL_MCP_TOKEN: bindings.secret(),
 
       // Deno KV's replacement, already holding the migrated data. D1 rather
       // than Workers KV because the app needs compare-and-set: single-use

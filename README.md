@@ -237,9 +237,9 @@ D1 に保存するだけ。
 
 - `FEEDBACK_MCP_URL` — エージェントの MCP エンドポイント
 - `FEEDBACK_MCP_HOME_ID` — スレッドを立てる home
-- `FEEDBACK_MCP_TOKEN` — エージェントの Bearer トークン。**secret として Worker
-  に設定する**（ダッシュボードの Workers → id-kbn-one → Settings → Variables and
-  Secrets）。`bindings.secret()`
+- `HOME_PORTAL_MCP_TOKEN` — エージェントの Bearer トークン。**secret として
+  Worker に設定する**（ダッシュボードの Workers → id-kbn-one → Settings →
+  Variables and Secrets）。`bindings.secret()`
   で宣言してあるので、未設定のままではデプロイが失敗する。黙って報告が止まる
   Worker を出さないため
 
@@ -460,7 +460,7 @@ D1 には TTL が無いので、期限切れの行は cron (`scheduled`) で掃�
   の redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
   origin での指定も可（hostname に正規化）
 - `PUSH_CONTACT` — VAPID の連絡先（例: `mailto:o@kbn.one`）
-- `FEEDBACK_MCP_URL` / `FEEDBACK_MCP_HOME_ID` / `FEEDBACK_MCP_TOKEN` —
+- `FEEDBACK_MCP_URL` / `FEEDBACK_MCP_HOME_ID` / `HOME_PORTAL_MCP_TOKEN` —
   フィードバックの報告先（ホームポータルの MCP）。トークンは
   secret。3つ揃っていなければ D1 に保存するだけ
 
