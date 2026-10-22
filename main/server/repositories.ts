@@ -52,6 +52,12 @@ export const oauthConsumedRepo = createRepo<boolean>(["oauth", "consumed"]);
  */
 export const feedbackRepo = createRepo<StoredFeedback>(["feedback"]);
 
+/**
+ * Which home-portal thread holds each RP's feedback, keyed by RP host. Its own
+ * top-level prefix, so listing `feedback` never runs into it.
+ */
+export const feedbackThreadRepo = createRepo<string>(["feedback_thread"]);
+
 /** Per-user submission counters for feedback; they expire on their own. */
 export const feedbackRateLimitRepo = createRepo<number>([
   "feedback_ratelimit",

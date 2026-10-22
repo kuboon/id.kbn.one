@@ -5,7 +5,7 @@
  * Who sent it and from where come from the request itself: the user from the
  * DPoP session, the RP from the browser-set `Origin` header, which page
  * script cannot forge. The body only carries what the user wrote. Each report
- * is stored, then posted to the owner's home portal as its own thread.
+ * is stored, then posted to the owner's home portal, in its RP's thread.
  */
 
 import { type } from "arktype";
@@ -18,7 +18,11 @@ import { PushRateLimiter } from "../lib/push/rate-limit.ts";
 import { FeedbackService } from "../lib/feedback/service.ts";
 import { homePortalReporter } from "../lib/feedback/home-portal.ts";
 import { feedbackBodySchema } from "../lib/feedback/schemas.ts";
-import { feedbackRateLimitRepo, feedbackRepo } from "../repositories.ts";
+import {
+  feedbackRateLimitRepo,
+  feedbackRepo,
+  feedbackThreadRepo,
+} from "../repositories.ts";
 
 /** Per user: plenty for someone reporting real problems, not for a script. */
 const FEEDBACK_LIMIT = 5;
@@ -38,7 +42,7 @@ const feedbackService = new FeedbackService({
   ),
   // Unconfigured (local dev, tests) means stored in D1 and reported nowhere.
   notify: feedbackHomePortal
-    ? homePortalReporter(feedbackHomePortal)
+    ? homePortalReporter(feedbackHomePortal, feedbackThreadRepo)
     : () => Promise.resolve(),
 });
 
