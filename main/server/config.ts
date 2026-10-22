@@ -22,17 +22,20 @@ const pushContact = readEnv("PUSH_CONTACT")?.trim() ||
   "mailto:o@kbn.one";
 
 /**
- * User ids told by Web Push when an RP's user sends feedback. Empty means
- * reports are stored but nobody is notified.
+ * Where feedback from RP users is reported: the owner's home portal MCP
+ * endpoint. Left unset (local dev, tests), reports are stored in D1 only.
  */
-const feedbackNotifyUserIds = (readEnv("FEEDBACK_NOTIFY_USER_IDS") ?? "")
-  .split(",")
-  .map((id) => id.trim())
-  .filter((id) => id.length > 0);
+const feedbackMcpUrl = readEnv("FEEDBACK_MCP_URL")?.trim();
+const feedbackMcpToken = readEnv("FEEDBACK_MCP_TOKEN")?.trim();
+const feedbackMcpHomeId = readEnv("FEEDBACK_MCP_HOME_ID")?.trim();
+const feedbackHomePortal = feedbackMcpUrl && feedbackMcpToken &&
+    feedbackMcpHomeId
+  ? { url: feedbackMcpUrl, token: feedbackMcpToken, homeId: feedbackMcpHomeId }
+  : undefined;
 
 export {
   authorizeWhitelist,
-  feedbackNotifyUserIds,
+  feedbackHomePortal,
   idpOrigin,
   originAllowlist,
   pushContact,

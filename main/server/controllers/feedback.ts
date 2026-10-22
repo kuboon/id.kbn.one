@@ -4,23 +4,19 @@
  *
  * Who sent it and from where come from the request itself: the user from the
  * DPoP session, the RP from the browser-set `Origin` header, which page
- * script cannot forge. The body only carries what the user wrote.
+ * script cannot forge. The body only carries what the user wrote. Each report
+ * is stored, then posted to the owner's home portal as its own thread.
  */
 
 import { type } from "arktype";
 
 import type { CorsContext } from "../middlewares.ts";
-import { feedbackNotifyUserIds, idpOrigin } from "../config.ts";
+import { feedbackHomePortal } from "../config.ts";
 import { setNoStore } from "../middleware/auth.ts";
 import { User } from "../middleware/user.ts";
-import { callerIsIdp } from "../lib/rp/clients.ts";
-import { getPushService } from "../lib/push/service.ts";
 import { PushRateLimiter } from "../lib/push/rate-limit.ts";
-import {
-  FeedbackService,
-  notificationFor,
-  ownerNotifier,
-} from "../lib/feedback/service.ts";
+import { FeedbackService } from "../lib/feedback/service.ts";
+import { homePortalReporter } from "../lib/feedback/home-portal.ts";
 import { feedbackBodySchema } from "../lib/feedback/schemas.ts";
 import { feedbackRateLimitRepo, feedbackRepo } from "../repositories.ts";
 
@@ -28,8 +24,9 @@ import { feedbackRateLimitRepo, feedbackRepo } from "../repositories.ts";
 const FEEDBACK_LIMIT = 5;
 const FEEDBACK_WINDOW_MS = 60 * 60 * 1000;
 
-// Building this does no I/O — the repositories and the push service are all
-// reached on first use — so it is safe at module scope on Workers.
+// Building this does no I/O — the repositories reach D1 on first use and the
+// reporter only calls out when a report arrives — so it is safe at module
+// scope on Workers.
 const feedbackService = new FeedbackService({
   repo: feedbackRepo,
   // The push limiter is a plain fixed-window counter over any key; here the
@@ -39,18 +36,10 @@ const feedbackService = new FeedbackService({
     FEEDBACK_LIMIT,
     FEEDBACK_WINDOW_MS,
   ),
-  notify: ownerNotifier({
-    ownerIds: feedbackNotifyUserIds,
-    isIdpSubscription: (origin) => callerIsIdp(origin, idpOrigin),
-    listSubscriptions: async (userId) =>
-      await (await getPushService()).listSubscriptions(userId),
-    send: async (userId, subscriptionId, feedback) =>
-      await (await getPushService()).sendNotification(
-        userId,
-        subscriptionId,
-        notificationFor(feedback),
-      ),
-  }),
+  // Unconfigured (local dev, tests) means stored in D1 and reported nowhere.
+  notify: feedbackHomePortal
+    ? homePortalReporter(feedbackHomePortal)
+    : () => Promise.resolve(),
 });
 
 const errorResponse = (status: number, message: string): Response =>

@@ -179,8 +179,9 @@ URL）は別物で、通知自体に出すバッジ画像（Web Notifications AP
 ## フィードバック（バグ報告・要望）
 
 RP の画面から、サインイン中のエンドユーザーが IdP
-のオーナーにバグ報告や要望を送れる。届いたものは D1 に保存され、オーナーの端末に
-Web Push で通知される。RP 側に一覧や返信の仕組みは無い。
+のオーナーにバグ報告や要望を送れる。届いたものは D1
+に保存したうえで、オーナーのホームポータル (home.kbn.one)
+に**報告ごとのスレッド**として投稿される。RP 側に一覧や返信の仕組みは無い。
 
 RP のフロントエンドからは RP クライアントの `sendFeedback` を呼ぶ:
 
@@ -207,15 +208,31 @@ await rp.sendFeedback({ kind: "bug", message: "保存ボタンが反応しない
 
 ### オーナー側
 
-通知先は `FEEDBACK_NOTIFY_USER_IDS` のユーザーで、そのうち**IdP
-自身で登録した購読**だけに送る。RP の画面で登録した購読は、その RP の Service
-Worker が通知を出すので、別の RP についての報告が他の RP
-の名前で届いてしまうため。
+報告はホームポータルの MCP エンドポイントに送る。1 件ごとに `create_thread`
+でスレッドを立て、`post_message`
+で本文を投稿する。報告ごとに対応や議論をその場でできるようにするため。
 
-通知は端末ごとに 1 分 1 件の Push
-のレート制限を受けるので、立て続けに届くと一部は通知されない。保存はすべてされる。
+- タイトル: `[バグ報告] ga-cen.kbn.one: 本文の1行目（50 文字まで）`
+- 本文: ユーザーが書いた文を**行ごとに引用**し、その下に
+  RP・ページ・送信者・受付時刻・ID
+  を並べる。引用にしているのは、検証されていない RP
+  ユーザーの文だと読み手（人でもエージェントでも）に分かるようにするため
 
-一覧は D1 のコンソールで読む（新しい順）:
+ポータルへの投稿が失敗しても送信自体は成功させる（報告は D1
+に保存済みで、エラーにすると利用者が送り直すだけになる）。失敗はログに残る。設定が無い環境（ローカル開発・テスト）では
+D1 に保存するだけ。
+
+設定は `cloudflare.config.ts`:
+
+- `FEEDBACK_MCP_URL` — エージェントの MCP エンドポイント
+- `FEEDBACK_MCP_HOME_ID` — スレッドを立てる home
+- `FEEDBACK_MCP_TOKEN` — エージェントの Bearer トークン。**secret として Worker
+  に設定する**（ダッシュボードの Workers → id-kbn-one → Settings → Variables and
+  Secrets）。`bindings.secret()`
+  で宣言してあるので、未設定のままではデプロイが失敗する。黙って報告が止まる
+  Worker を出さないため
+
+D1 に残る控えは、D1 のコンソールで読める（新しい順）:
 
 ```sql
 SELECT json_extract(value, '$.kind') AS kind,
@@ -432,8 +449,9 @@ D1 には TTL が無いので、期限切れの行は cron (`scheduled`) で掃�
   の redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
   origin での指定も可（hostname に正規化）
 - `PUSH_CONTACT` — VAPID の連絡先（例: `mailto:o@kbn.one`）
-- `FEEDBACK_NOTIFY_USER_IDS` — フィードバックを通知するユーザー ID
-  のカンマ区切り。空なら保存だけして誰にも通知しない
+- `FEEDBACK_MCP_URL` / `FEEDBACK_MCP_HOME_ID` / `FEEDBACK_MCP_TOKEN` —
+  フィードバックの報告先（ホームポータルの MCP）。トークンは
+  secret。3つ揃っていなければ D1 に保存するだけ
 
 署名鍵とパスキーの署名用シークレットは環境変数ではなくストレージ（`secret/signing_key`、`passkey_sign_secret`）にあり、初回使用時に生成される。
 

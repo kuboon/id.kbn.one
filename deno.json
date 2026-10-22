@@ -48,7 +48,9 @@
         "IDP_ORIGIN",
         "AUTHORIZE_WHITELIST",
         "PUSH_CONTACT",
-        "FEEDBACK_NOTIFY_USER_IDS",
+        "FEEDBACK_MCP_URL",
+        "FEEDBACK_MCP_TOKEN",
+        "FEEDBACK_MCP_HOME_ID",
         "DENO_KV_ACCESS_TOKEN"
       ],
       "net": [

@@ -4,12 +4,7 @@ import { D1Repo } from "@kbn/kv/d1.ts";
 import { createSqliteD1 } from "../../../../kv/d1_sqlite_test_util.ts";
 
 import { PushRateLimiter } from "../push/rate-limit.ts";
-import {
-  FeedbackService,
-  notificationFor,
-  ownerNotifier,
-  type StoredFeedback,
-} from "./service.ts";
+import { FeedbackService, type StoredFeedback } from "./service.ts";
 
 const allow = { tryAcquire: () => Promise.resolve(true) };
 
@@ -33,7 +28,7 @@ const listAll = async (repo: D1Repo<StoredFeedback>) => {
   return out;
 };
 
-Deno.test("feedback: a report is stored as sent and the owners are told", async () => {
+Deno.test("feedback: a report is stored as sent and then reported", async () => {
   const db = createSqliteD1();
   try {
     const repo = new D1Repo<StoredFeedback>(db, ["feedback"]);
@@ -90,7 +85,7 @@ Deno.test("feedback: reports list oldest first", async () => {
   }
 });
 
-Deno.test("feedback: over the limit nothing is stored and nobody is told", async () => {
+Deno.test("feedback: over the limit nothing is stored or reported", async () => {
   const db = createSqliteD1();
   try {
     const repo = new D1Repo<StoredFeedback>(db, ["feedback"]);
@@ -124,7 +119,7 @@ Deno.test("feedback: over the limit nothing is stored and nobody is told", async
   }
 });
 
-Deno.test("feedback: a failed notification does not fail the report", async () => {
+Deno.test("feedback: a failed report onward does not fail the submission", async () => {
   // The report is already safe; an error here would only make the user
   // send it again.
   const db = createSqliteD1();
@@ -133,7 +128,7 @@ Deno.test("feedback: a failed notification does not fail the report", async () =
     const service = new FeedbackService({
       repo,
       limiter: allow,
-      notify: () => Promise.reject(new Error("push service down")),
+      notify: () => Promise.reject(new Error("portal down")),
     });
     const original = console.error;
     console.error = () => {};
@@ -147,72 +142,4 @@ Deno.test("feedback: a failed notification does not fail the report", async () =
   } finally {
     db.close();
   }
-});
-
-Deno.test("ownerNotifier: only the owners' subscriptions made on the IdP", async () => {
-  const IDP = "https://id.kbn.one";
-  const sent: string[] = [];
-  const notify = ownerNotifier({
-    ownerIds: ["owner-1", "owner-2"],
-    isIdpSubscription: (origin) => !origin || origin === IDP,
-    listSubscriptions: (userId) =>
-      Promise.resolve(
-        userId === "owner-1"
-          ? [
-            // Registered on the IdP's own /me: no Origin was recorded.
-            { id: "mac" },
-            { id: "iphone", origin: IDP },
-            // Registered on an RP's page: shown under that RP's name.
-            { id: "rp-app", origin: "https://ga-cen.kbn.one" },
-          ]
-          : [{ id: "dead" }, { id: "alive", origin: IDP }],
-      ),
-    send: (userId, subscriptionId) => {
-      if (subscriptionId === "dead") return Promise.reject(new Error("gone"));
-      sent.push(`${userId}/${subscriptionId}`);
-      return Promise.resolve();
-    },
-  });
-
-  await notify(input() as unknown as StoredFeedback);
-  // One dead device does not stop the rest.
-  assertEquals(sent.sort(), [
-    "owner-1/iphone",
-    "owner-1/mac",
-    "owner-2/alive",
-  ]);
-});
-
-Deno.test("ownerNotifier: with no owners configured, nothing is sent", async () => {
-  let listed = 0;
-  await ownerNotifier({
-    ownerIds: [],
-    isIdpSubscription: () => true,
-    listSubscriptions: () => {
-      listed++;
-      return Promise.resolve([]);
-    },
-    send: () => Promise.resolve(),
-  })(input() as unknown as StoredFeedback);
-  assertEquals(listed, 0);
-});
-
-Deno.test("notificationFor: names the RP and keeps the excerpt short", () => {
-  const long = "x".repeat(300);
-  const n = notificationFor({
-    ...input({ kind: "request", message: long }),
-    id: "1",
-    createdAt: 0,
-  });
-  assertEquals(n.title, "フィードバック: 要望");
-  assert(n.body.startsWith("ga-cen.kbn.one — "));
-  assert(n.body.endsWith("…"));
-  assert(n.body.length < 160);
-
-  const fromIdp = notificationFor({
-    ...input({ origin: undefined, message: "short" }),
-    id: "2",
-    createdAt: 0,
-  });
-  assertEquals(fromIdp.body, "IdP — short");
 });
