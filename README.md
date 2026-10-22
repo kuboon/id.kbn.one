@@ -176,6 +176,61 @@ URL）は別物で、通知自体に出すバッジ画像（Web Notifications AP
 [RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
 [RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523
 
+## フィードバック（バグ報告・要望）
+
+RP の画面から、サインイン中のエンドユーザーが IdP
+のオーナーにバグ報告や要望を送れる。届いたものは D1 に保存され、オーナーの端末に
+Web Push で通知される。RP 側に一覧や返信の仕組みは無い。
+
+RP のフロントエンドからは RP クライアントの `sendFeedback` を呼ぶ:
+
+```ts
+const rp = await createRpClient({ idpOrigin: "https://id.kbn.one" });
+await rp.sendFeedback({ kind: "bug", message: "保存ボタンが反応しない" });
+```
+
+`/push/*` と同じ CORS 層の `POST /feedback` で、DPoP
+セッションで認証する。本文は次の3つだけ:
+
+- `kind` — `"bug"` / `"request"` / `"other"`
+- `message` — 本文。4000 文字まで
+- `pageUrl` — 任意。送信時のページ (http(s) URL)。省略すると `sendFeedback` が
+  `location.href` を入れる
+
+**誰が・どこから送ったかは本文から取らない。** 送信者は DPoP
+セッションのユーザー、送信元 RP はブラウザが付ける `Origin` ヘッダ（ページの JS
+からは詐称できない）から IdP が記録する。CORS で通るのは `AUTHORIZE_WHITELIST`
+の RP だけ。
+
+応答は `201 { id }`。本文の不正は `400`、未サインインは `401`。**1
+ユーザーあたり 1 時間に 5 件**まで受け付け、超えると `429`。
+
+### オーナー側
+
+通知先は `FEEDBACK_NOTIFY_USER_IDS` のユーザーで、そのうち**IdP
+自身で登録した購読**だけに送る。RP の画面で登録した購読は、その RP の Service
+Worker が通知を出すので、別の RP についての報告が他の RP
+の名前で届いてしまうため。
+
+通知は端末ごとに 1 分 1 件の Push
+のレート制限を受けるので、立て続けに届くと一部は通知されない。保存はすべてされる。
+
+一覧は D1 のコンソールで読む（新しい順）:
+
+```sql
+SELECT json_extract(value, '$.kind') AS kind,
+       json_extract(value, '$.origin') AS origin,
+       datetime(json_extract(value, '$.createdAt') / 1000, 'unixepoch') AS at,
+       json_extract(value, '$.message') AS message
+FROM kv
+WHERE key >= 'sfeedback' || char(1) AND key < 'sfeedback' || char(2)
+ORDER BY key DESC
+LIMIT 20;
+```
+
+キーは `KvRepo` の符号化（型タグ `s` + 区切り `char(1)`）なので、範囲で
+`feedback` 配下だけを取る。期限は無く、消すまで残る。
+
 ## MCP 認可サーバ (OAuth 2.1)
 
 別ドメインの **remote MCP サーバ**（= OAuth リソースサーバ）の認証に、この IdP
@@ -377,6 +432,8 @@ D1 には TTL が無いので、期限切れの行は cron (`scheduled`) で掃�
   の redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
   origin での指定も可（hostname に正規化）
 - `PUSH_CONTACT` — VAPID の連絡先（例: `mailto:o@kbn.one`）
+- `FEEDBACK_NOTIFY_USER_IDS` — フィードバックを通知するユーザー ID
+  のカンマ区切り。空なら保存だけして誰にも通知しない
 
 署名鍵とパスキーの署名用シークレットは環境変数ではなくストレージ（`secret/signing_key`、`passkey_sign_secret`）にあり、初回使用時に生成される。
 

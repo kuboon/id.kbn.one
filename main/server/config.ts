@@ -21,8 +21,18 @@ const originAllowlist = buildOriginAllowlist(authorizeWhitelist);
 const pushContact = readEnv("PUSH_CONTACT")?.trim() ||
   "mailto:o@kbn.one";
 
+/**
+ * User ids told by Web Push when an RP's user sends feedback. Empty means
+ * reports are stored but nobody is notified.
+ */
+const feedbackNotifyUserIds = (readEnv("FEEDBACK_NOTIFY_USER_IDS") ?? "")
+  .split(",")
+  .map((id) => id.trim())
+  .filter((id) => id.length > 0);
+
 export {
   authorizeWhitelist,
+  feedbackNotifyUserIds,
   idpOrigin,
   originAllowlist,
   pushContact,

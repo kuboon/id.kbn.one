@@ -16,6 +16,7 @@ import {
 import { authorizeAction } from "./controllers/authorize.tsx";
 import { bindSessionAction } from "./controllers/bind-session.ts";
 import { credentialsController } from "./controllers/credentials.ts";
+import { submitFeedbackAction } from "./controllers/feedback.ts";
 import { homeAction } from "./controllers/home.tsx";
 import { jwksAction } from "./controllers/jwks.ts";
 import { meAction } from "./controllers/me.tsx";
@@ -92,6 +93,7 @@ router.map(routes.cors, {
   actions: {
     session: sessionAction,
     sessionLogout: sessionLogoutAction,
+    feedback: submitFeedbackAction,
   },
 });
 router.map(routes.cors.push, {

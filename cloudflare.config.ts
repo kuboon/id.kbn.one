@@ -63,6 +63,12 @@ export default defineConfig({
           "kuboon.workers.dev,localhost",
       ),
       PUSH_CONTACT: bindings.text("mailto:o@kbn.one"),
+      // Who hears about bug reports and requests from RP users (`kuboon-1`).
+      // Comma-separated user ids; only their subscriptions made on the IdP
+      // itself are used, so a report never arrives under an RP's name.
+      FEEDBACK_NOTIFY_USER_IDS: bindings.text(
+        "7499d00d-fcff-4630-91a0-c034893c8d08",
+      ),
 
       // Deno KV's replacement, already holding the migrated data. D1 rather
       // than Workers KV because the app needs compare-and-set: single-use

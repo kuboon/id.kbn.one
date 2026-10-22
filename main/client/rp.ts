@@ -16,6 +16,7 @@
  * if (!session) rp.signIn();        // navigates to /authorize
  *
  * await rp.registerPush({ serviceWorkerUrl: "/sw.js" });
+ * await rp.sendFeedback({ kind: "bug", message: "…" });
  * ```
  *
  * Sending notifications is server-initiated — the RP *server* calls
@@ -48,6 +49,14 @@ export interface RegisterPushOptions {
   metadata?: Record<string, unknown>;
 }
 
+export interface SendFeedbackOptions {
+  kind: "bug" | "request" | "other";
+  /** What the user wrote. Up to 4000 characters. */
+  message: string;
+  /** The page they were on. Defaults to `location.href`. */
+  pageUrl?: string;
+}
+
 export interface RpClient {
   /** RFC 7638 thumbprint of the RP's DPoP public key. */
   readonly thumbprint: string;
@@ -75,6 +84,13 @@ export interface RpClient {
    * notification permission (the helper requests permission if needed).
    */
   registerPush(opts?: RegisterPushOptions): Promise<{ id: string }>;
+
+  /**
+   * Send a bug report or request to the IdP's owners, as the signed-in user.
+   * The IdP records who sent it and from which RP on its own; neither is
+   * taken from here. At most 5 per user per hour — over that it throws.
+   */
+  sendFeedback(opts: SendFeedbackOptions): Promise<{ id: string }>;
 }
 
 const trimTrailingSlash = (value: string): string =>
@@ -194,6 +210,25 @@ export const createRpClient = async (
     return { id: data.subscription.id };
   };
 
+  const sendFeedback = async (
+    feedback: SendFeedbackOptions,
+  ): Promise<{ id: string }> => {
+    const response = await fetchDpop(idp("/feedback"), {
+      ...baseInit,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: feedback.kind,
+        message: feedback.message,
+        pageUrl: feedback.pageUrl ?? globalThis.location?.href,
+      }),
+    });
+    await expectOk(response, "POST /feedback");
+    const data = await response.json() as { id?: string };
+    if (!data?.id) throw new Error("IdP did not return a feedback id");
+    return { id: data.id };
+  };
+
   return {
     thumbprint,
     fetchDpop,
@@ -201,5 +236,6 @@ export const createRpClient = async (
     getSession,
     signOut,
     registerPush,
+    sendFeedback,
   };
 };
