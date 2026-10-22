@@ -233,15 +233,12 @@ ga-cen.kbn.one」に入る。その RP
 に保存済みで、エラーにすると利用者が送り直すだけになる）。失敗はログに残る。設定が無い環境（ローカル開発・テスト）では
 D1 に保存するだけ。
 
-設定は `cloudflare.config.ts`:
-
-- `FEEDBACK_MCP_URL` — エージェントの MCP エンドポイント
-- `FEEDBACK_MCP_HOME_ID` — スレッドを立てる home
-- `HOME_PORTAL_MCP_TOKEN` — エージェントの Bearer トークン。**secret として
-  Worker に設定する**（ダッシュボードの Workers → id-kbn-one → Settings →
-  Variables and Secrets）。`bindings.secret()`
-  で宣言してあるので、未設定のままではデプロイが失敗する。黙って報告が止まる
-  Worker を出さないため
+報告先のエンドポイントと home は `main/server/config.ts`
+に固定してある。設定するのはトークンだけで、`HOME_PORTAL_MCP_TOKEN` を **secret
+として Worker に設定する**（ダッシュボードの Workers → id-kbn-one → Settings →
+Variables and Secrets）。`cloudflare.config.ts` で `bindings.secret()`
+として宣言してあるので、未設定のままではデプロイが失敗する。黙って報告が止まる
+Worker を出さないため。
 
 D1 に残る控えは、D1 のコンソールで読める（新しい順）:
 
@@ -460,9 +457,9 @@ D1 には TTL が無いので、期限切れの行は cron (`scheduled`) で掃�
   の redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
   origin での指定も可（hostname に正規化）
 - `PUSH_CONTACT` — VAPID の連絡先（例: `mailto:o@kbn.one`）
-- `FEEDBACK_MCP_URL` / `FEEDBACK_MCP_HOME_ID` / `HOME_PORTAL_MCP_TOKEN` —
-  フィードバックの報告先（ホームポータルの MCP）。トークンは
-  secret。3つ揃っていなければ D1 に保存するだけ
+- `HOME_PORTAL_MCP_TOKEN` —
+  フィードバックの報告先（ホームポータルのエージェント）の Bearer
+  トークン。secret。無ければ D1 に保存するだけ
 
 署名鍵とパスキーの署名用シークレットは環境変数ではなくストレージ（`secret/signing_key`、`passkey_sign_secret`）にあり、初回使用時に生成される。
 
