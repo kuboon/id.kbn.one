@@ -11,6 +11,7 @@ import type { Session } from "@remix-run/session";
 import type { PasskeyCredential } from "@kuboon/passkeys/remix";
 
 import { createRepo } from "#server/kv-backend.ts";
+import type { StoredFeedback } from "./lib/feedback/service.ts";
 import type { UserProfile } from "./lib/profile.ts";
 import type {
   StoredPushSubscription,
@@ -44,6 +45,23 @@ export const pushRateLimitRepo = createRepo<number>(["push", "ratelimit"]);
  * expire with the token, so no cleanup is needed.
  */
 export const oauthConsumedRepo = createRepo<boolean>(["oauth", "consumed"]);
+
+/**
+ * Bug reports and requests from RP users, keyed by a monotonic ULID so a
+ * listing comes back oldest first. Kept until deleted by hand.
+ */
+export const feedbackRepo = createRepo<StoredFeedback>(["feedback"]);
+
+/**
+ * Which home-portal thread holds each RP's feedback, keyed by RP host. Its own
+ * top-level prefix, so listing `feedback` never runs into it.
+ */
+export const feedbackThreadRepo = createRepo<string>(["feedback_thread"]);
+
+/** Per-user submission counters for feedback; they expire on their own. */
+export const feedbackRateLimitRepo = createRepo<number>([
+  "feedback_ratelimit",
+]);
 
 /** Per-user display settings, currently just the nickname. */
 export const userProfileRepo = createRepo<UserProfile>(["user", "profile"]);

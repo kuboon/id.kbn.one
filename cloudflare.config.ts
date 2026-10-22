@@ -63,6 +63,11 @@ export default defineConfig({
           "kuboon.workers.dev,localhost",
       ),
       PUSH_CONTACT: bindings.text("mailto:o@kbn.one"),
+      // Bearer token for the home portal agent that feedback is reported
+      // through (endpoint and home are fixed in `main/server/config.ts`). A
+      // declared secret is required: a deploy fails until it is set on the
+      // Worker, rather than shipping a Worker that silently stops reporting.
+      HOME_PORTAL_MCP_TOKEN: bindings.secret(),
 
       // Deno KV's replacement, already holding the migrated data. D1 rather
       // than Workers KV because the app needs compare-and-set: single-use

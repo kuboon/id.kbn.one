@@ -50,6 +50,10 @@ export const routes = route({
     session: get("/session"),
     sessionLogout: post("/session/logout"),
 
+    // A bug report or request from a signed-in user on an RP's page. Stored
+    // and announced to the IdP's owners; never shown back to RPs.
+    feedback: post("/feedback"),
+
     // All push endpoints are CORS-enabled so RP frontends on different
     // origins can read the VAPID public key and manage subscriptions for
     // the signed-in user. Actually sending notifications is always

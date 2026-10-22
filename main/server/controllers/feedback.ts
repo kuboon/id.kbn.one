@@ -1,0 +1,107 @@
+/**
+ * POST /feedback — a bug report or request from a signed-in user, sent from
+ * an RP's page through the `cors:` layer.
+ *
+ * Who sent it and from where come from the request itself: the user from the
+ * DPoP session, the RP from the browser-set `Origin` header, which page
+ * script cannot forge. The body only carries what the user wrote. Each report
+ * is stored, then posted to the owner's home portal, in its RP's thread.
+ */
+
+import { type } from "arktype";
+
+import type { CorsContext } from "../middlewares.ts";
+import { feedbackHomePortal } from "../config.ts";
+import { setNoStore } from "../middleware/auth.ts";
+import { User } from "../middleware/user.ts";
+import { PushRateLimiter } from "../lib/push/rate-limit.ts";
+import { FeedbackService } from "../lib/feedback/service.ts";
+import { homePortalReporter } from "../lib/feedback/home-portal.ts";
+import { feedbackBodySchema } from "../lib/feedback/schemas.ts";
+import {
+  feedbackRateLimitRepo,
+  feedbackRepo,
+  feedbackThreadRepo,
+} from "../repositories.ts";
+
+/** Per user: plenty for someone reporting real problems, not for a script. */
+const FEEDBACK_LIMIT = 5;
+const FEEDBACK_WINDOW_MS = 60 * 60 * 1000;
+
+// Building this does no I/O — the repositories reach D1 on first use and the
+// reporter only calls out when a report arrives — so it is safe at module
+// scope on Workers.
+const feedbackService = new FeedbackService({
+  repo: feedbackRepo,
+  // The push limiter is a plain fixed-window counter over any key; here the
+  // key is the sender's user id.
+  limiter: new PushRateLimiter(
+    feedbackRateLimitRepo,
+    FEEDBACK_LIMIT,
+    FEEDBACK_WINDOW_MS,
+  ),
+  // Unconfigured (local dev, tests) means stored in D1 and reported nowhere.
+  notify: feedbackHomePortal
+    ? homePortalReporter(feedbackHomePortal, feedbackThreadRepo)
+    : () => Promise.resolve(),
+});
+
+const errorResponse = (status: number, message: string): Response =>
+  Response.json({ message }, { status });
+
+const requestOrigin = (request: Request): string | undefined => {
+  const raw = request.headers.get("origin");
+  if (!raw) return undefined;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return undefined;
+  }
+};
+
+const isHttpUrl = (value: string): boolean => {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+
+export const submitFeedbackAction = async (
+  context: CorsContext,
+): Promise<Response> => {
+  const { id: userId } = context.get(User);
+
+  let raw: unknown;
+  try {
+    raw = await context.request.json();
+  } catch {
+    return errorResponse(400, "Invalid JSON body");
+  }
+  const body = feedbackBodySchema(raw);
+  if (body instanceof type.errors) return errorResponse(400, body.summary);
+
+  const message = body.message.trim();
+  if (!message) return errorResponse(400, "message must not be blank");
+  if (body.pageUrl !== undefined && !isHttpUrl(body.pageUrl)) {
+    return errorResponse(400, "pageUrl must be an http(s) URL");
+  }
+
+  const result = await feedbackService.submit({
+    kind: body.kind,
+    message,
+    userId,
+    origin: requestOrigin(context.request),
+    pageUrl: body.pageUrl,
+  });
+  if (!result.ok) {
+    return setNoStore(errorResponse(
+      429,
+      `Too many reports; at most ${FEEDBACK_LIMIT} per hour`,
+    ));
+  }
+  return setNoStore(
+    Response.json({ id: result.feedback.id }, { status: 201 }),
+  );
+};

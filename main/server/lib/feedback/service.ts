@@ -1,0 +1,86 @@
+/**
+ * Bug reports and requests sent by end users from an RP's page.
+ *
+ * Reports arrive over the `cors:` layer, so the IdP knows who sent one (the
+ * DPoP-bound user) and from which RP (the browser-set `Origin`) — neither is
+ * taken from the request body. Each is stored in D1 first, then reported to
+ * the owner's home portal (`home-portal.ts`). The stored copy is what survives
+ * if the portal is unreachable.
+ *
+ * @module
+ */
+
+import type { KvRepo } from "@kbn/kv/types.ts";
+
+export const FEEDBACK_KINDS = ["bug", "request", "other"] as const;
+export type FeedbackKind = typeof FEEDBACK_KINDS[number];
+
+export interface StoredFeedback {
+  id: string;
+  kind: FeedbackKind;
+  message: string;
+  /** The signed-in user who sent it, from the DPoP session. */
+  userId: string;
+  /** The RP page's origin, from the browser-set `Origin` header. */
+  origin?: string;
+  /** The page the user was on, as the RP reported it. Informational only. */
+  pageUrl?: string;
+  createdAt: number;
+}
+
+export interface FeedbackInput {
+  kind: FeedbackKind;
+  message: string;
+  userId: string;
+  origin?: string;
+  pageUrl?: string;
+}
+
+export type SubmitResult =
+  | { ok: true; feedback: StoredFeedback }
+  | { ok: false; reason: "rate_limited" };
+
+export interface FeedbackDeps {
+  repo: KvRepo<StoredFeedback>;
+  /** Counts a submission against the sender; false once they are over. */
+  limiter: { tryAcquire(key: string): Promise<boolean> };
+  /** Reports it onward. Failures are logged, never surfaced to the sender. */
+  notify: (feedback: StoredFeedback) => Promise<void>;
+  now?: () => number;
+}
+
+export class FeedbackService {
+  constructor(private readonly deps: FeedbackDeps) {}
+
+  async submit(input: FeedbackInput): Promise<SubmitResult> {
+    // Any signed-in user of any whitelisted RP can call this, so it is
+    // bounded per user before anything is written.
+    if (!await this.deps.limiter.tryAcquire(input.userId)) {
+      return { ok: false, reason: "rate_limited" };
+    }
+
+    const id = this.deps.repo.genKey();
+    const feedback: StoredFeedback = {
+      id,
+      kind: input.kind,
+      message: input.message,
+      userId: input.userId,
+      createdAt: (this.deps.now ?? Date.now)(),
+      ...(input.origin ? { origin: input.origin } : {}),
+      ...(input.pageUrl ? { pageUrl: input.pageUrl } : {}),
+    };
+    const stored = await this.deps.repo.entry(id).update(() => feedback);
+    // A fresh monotonic ULID cannot collide, so a lost write means storage
+    // itself failed; the sender should hear about that, unlike a failed report.
+    if (!stored.ok) throw new Error("Failed to store feedback");
+
+    try {
+      await this.deps.notify(feedback);
+    } catch (error) {
+      // The report is safe in storage; a portal hiccup must not turn a
+      // successful submission into an error the user retries.
+      console.error("feedback stored but reporting it failed", error);
+    }
+    return { ok: true, feedback };
+  }
+}

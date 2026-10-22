@@ -176,6 +176,86 @@ URL）は別物で、通知自体に出すバッジ画像（Web Notifications AP
 [RFC 7521]: https://www.rfc-editor.org/rfc/rfc7521
 [RFC 7523]: https://www.rfc-editor.org/rfc/rfc7523
 
+## フィードバック（バグ報告・要望）
+
+RP の画面から、サインイン中のエンドユーザーが IdP
+のオーナーにバグ報告や要望を送れる。届いたものは D1
+に保存したうえで、オーナーのホームポータル (home.kbn.one) の **RP
+ごとのスレッド**に投稿される。RP 側に一覧や返信の仕組みは無い。
+
+RP のフロントエンドからは RP クライアントの `sendFeedback` を呼ぶ:
+
+```ts
+const rp = await createRpClient({ idpOrigin: "https://id.kbn.one" });
+await rp.sendFeedback({ kind: "bug", message: "保存ボタンが反応しない" });
+```
+
+`/push/*` と同じ CORS 層の `POST /feedback` で、DPoP
+セッションで認証する。本文は次の3つだけ:
+
+- `kind` — `"bug"` / `"request"` / `"other"`
+- `message` — 本文。4000 文字まで
+- `pageUrl` — 任意。送信時のページ (http(s) URL)。省略すると `sendFeedback` が
+  `location.href` を入れる
+
+**誰が・どこから送ったかは本文から取らない。** 送信者は DPoP
+セッションのユーザー、送信元 RP はブラウザが付ける `Origin` ヘッダ（ページの JS
+からは詐称できない）から IdP が記録する。CORS で通るのは `AUTHORIZE_WHITELIST`
+の RP だけ。
+
+応答は `201 { id }`。本文の不正は `400`、未サインインは `401`。**1
+ユーザーあたり 1 時間に 5 件**まで受け付け、超えると `429`。
+
+### オーナー側
+
+報告はホームポータルの MCP エンドポイントに送る。**スレッドは RP
+のホストごとに1つ**で、`ga-cen.kbn.one` からの報告は全部「フィードバック:
+ga-cen.kbn.one」に入る。その RP
+の最初の報告でスレッドを作り（`create_thread`）、以降はそこに投稿する（`post_message`）。単位はホストで、登録可能ドメインではない（`*.kbn.one`
+の RP が全部1つにまとまってしまうため）。
+
+- どのホストがどのスレッドかは D1 (`feedback_thread`)
+  に覚えておく。タイトルでは探さないので、スレッド名を変えても新しいスレッドは立たない
+- スレッドを消すと、ポータルが「thread not
+  found」と返すので、次の報告で作り直す。**作り直すのはこのときだけ**で、ポータルが落ちている・レート制限中などでは作り直さない（重複スレッドを作らないため）
+- 各投稿は `[バグ報告] 本文の1行目`
+  で始まり、ユーザーが書いた文を**行ごとに引用**し、その下に
+  RP・ページ・送信者・受付時刻・ID
+  を並べる。引用にしているのは、検証されていない RP
+  ユーザーの文だと読み手（人でもエージェントでも）に分かるようにするため
+
+ポータルは同時に来た書き込みの片方を `rate limited` で拒否する（実測:
+2件同時に送ると1件が拒否され、0.5 秒後には通る）。そのときは 1
+秒待って再試行し、3 回で諦める。報告が重なったときだけ、送信者の応答が 1〜2
+秒遅れる。
+
+ポータルへの投稿が最終的に失敗しても送信自体は成功させる（報告は D1
+に保存済みで、エラーにすると利用者が送り直すだけになる）。失敗はログに残る。設定が無い環境（ローカル開発・テスト）では
+D1 に保存するだけ。
+
+報告先のエンドポイントと home は `main/server/config.ts`
+に固定してある。設定するのはトークンだけで、`HOME_PORTAL_MCP_TOKEN` を **secret
+として Worker に設定する**（ダッシュボードの Workers → id-kbn-one → Settings →
+Variables and Secrets）。`cloudflare.config.ts` で `bindings.secret()`
+として宣言してあるので、未設定のままではデプロイが失敗する。黙って報告が止まる
+Worker を出さないため。
+
+D1 に残る控えは、D1 のコンソールで読める（新しい順）:
+
+```sql
+SELECT json_extract(value, '$.kind') AS kind,
+       json_extract(value, '$.origin') AS origin,
+       datetime(json_extract(value, '$.createdAt') / 1000, 'unixepoch') AS at,
+       json_extract(value, '$.message') AS message
+FROM kv
+WHERE key >= 'sfeedback' || char(1) AND key < 'sfeedback' || char(2)
+ORDER BY key DESC
+LIMIT 20;
+```
+
+キーは `KvRepo` の符号化（型タグ `s` + 区切り `char(1)`）なので、範囲で
+`feedback` 配下だけを取る。期限は無く、消すまで残る。
+
 ## MCP 認可サーバ (OAuth 2.1)
 
 別ドメインの **remote MCP サーバ**（= OAuth リソースサーバ）の認証に、この IdP
@@ -377,6 +457,9 @@ D1 には TTL が無いので、期限切れの行は cron (`scheduled`) で掃�
   の redirect_uri・CORS・`/rp/notifications` 共通）。scheme/port は無視。full
   origin での指定も可（hostname に正規化）
 - `PUSH_CONTACT` — VAPID の連絡先（例: `mailto:o@kbn.one`）
+- `HOME_PORTAL_MCP_TOKEN` —
+  フィードバックの報告先（ホームポータルのエージェント）の Bearer
+  トークン。secret。無ければ D1 に保存するだけ
 
 署名鍵とパスキーの署名用シークレットは環境変数ではなくストレージ（`secret/signing_key`、`passkey_sign_secret`）にあり、初回使用時に生成される。
 
