@@ -1,25 +1,31 @@
 name: Publish @kuboon/dpop
 
+# Publishing follows the version in dpop/deno.json: bump it and merge, and the
+# release workflow publishes it and tags the commit `dpop@<version>`. A version
+# that already has its tag is skipped, so any other push here is a no-op.
 on:
   push:
-    tags:
-      - "dpop-v*"
+    branches: [main]
+    paths:
+      - "dpop/**"
+      - ".github/workflows/publish_dpop.yaml"
   workflow_dispatch:
 
 jobs:
-  publish:
+  test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-    defaults:
-      run:
-        working-directory: dpop
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: denoland/setup-deno@v2
-
       - run: deno task test
 
-      - name: Publish to JSR
-        run: deno publish
+  release:
+    needs: test
+    permissions:
+      contents: write
+      id-token: write
+    uses: kuboon/workflows/.github/workflows/release-jsr.yml@main
+    with:
+      directory: dpop
