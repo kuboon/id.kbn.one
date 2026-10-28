@@ -9,7 +9,7 @@
  * @module
  */
 
-import { sweepExpired } from "@kbn/kv/d1.ts";
+import { sweepExpired } from "@kuboon/kv/d1.ts";
 
 import { d1Database } from "#server/kv-backend.ts";
 import router from "#server/router.ts";

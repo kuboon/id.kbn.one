@@ -10,7 +10,7 @@
 import type { Middleware } from "@remix-run/fetch-router";
 import { staticFiles } from "@remix-run/static-middleware";
 
-import type { D1Like } from "@kbn/kv/d1.ts";
+import type { D1Like } from "@kuboon/kv/d1.ts";
 
 export const readEnv = (name: string): string | undefined => Deno.env.get(name);
 

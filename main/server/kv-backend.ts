@@ -4,6 +4,8 @@
  * The choice of backend is made once, here, rather than in each repository:
  * Deno KV when running under Deno, Cloudflare D1 when running as a Worker.
  * Both implement {@link KvRepo}, so nothing downstream knows which it has.
+ * The D1 implementation is `@kuboon/kv`'s; the local `kv/` package keeps
+ * the same interface and the Deno KV side.
  *
  * This lives on our side of the `#env` seam rather than inside it, because
  * the seam is resolved by esbuild during the Workers build and cannot follow
@@ -14,7 +16,7 @@
  * @module
  */
 
-import { D1Repo, lazyD1 } from "@kbn/kv/d1.ts";
+import { D1KvRepo, lazyD1 } from "@kuboon/kv/d1.ts";
 import { DenoKvRepo } from "@kbn/kv/denoKv.ts";
 import type { KvKey, KvOptions, KvRepo } from "@kbn/kv/types.ts";
 
@@ -33,7 +35,7 @@ export const createRepo = <TVal>(
   options: KvOptions = {},
 ): KvRepo<TVal> =>
   hasD1
-    ? new D1Repo<TVal>(d1, prefix, options)
+    ? new D1KvRepo<TVal>(d1, prefix, options)
     : new DenoKvRepo<TVal>(prefix, options);
 
 /** The same handle, for the cron sweep. `undefined` where there is no D1. */
