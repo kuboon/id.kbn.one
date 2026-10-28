@@ -1,5 +1,11 @@
 {
   "nodeModulesDir": "auto",
+  "minimumDependencyAge": {
+    "age": "P1D",
+    "exclude": [
+      "jsr:@kuboon/*"
+    ]
+  },
   "tasks": {
     "test": "deno fmt && deno lint && deno check && deno test -P",
     "build": "deno task --cwd=main/bundler build",
@@ -27,6 +33,7 @@
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/cli": "jsr:@std/cli@^1.0.32",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
+    "@kuboon/kv": "jsr:@kuboon/kv@^0.3.0",
     "arktype": "npm:arktype@^2.2.3",
     "daisyui": "npm:daisyui@^5.7.16",
     "tailwindcss": "npm:tailwindcss@^4.3.3",
@@ -39,7 +46,10 @@
     "@remix-run/session": "npm:@remix-run/session@^0.4.2",
     "@remix-run/static-middleware": "npm:@remix-run/static-middleware@0.4.13"
   },
-  "unstable": ["kv", "bundle"],
+  "unstable": [
+    "kv",
+    "bundle"
+  ],
   "permissions": {
     "default": {
       "env": [
@@ -56,8 +66,12 @@
         "kvdp.localhost:80",
         "updates.push.services.mozilla.com"
       ],
-      "read": ["."],
-      "write": ["./_data"]
+      "read": [
+        "."
+      ],
+      "write": [
+        "./_data"
+      ]
     }
   },
   "lint": {

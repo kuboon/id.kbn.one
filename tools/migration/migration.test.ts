@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 
-import { D1_KV_SCHEMA, D1Repo } from "@kbn/kv/d1.ts";
-import { createSqliteD1 } from "../../kv/d1_sqlite_test_util.ts";
+import { D1_KV_SCHEMA, D1KvRepo } from "@kuboon/kv/d1.ts";
+import { createSqliteD1 } from "@kuboon/kv/d1Sqlite.ts";
 
 import {
   decodeKeyParts,
@@ -90,7 +90,7 @@ Deno.test("codec: ephemeral prefixes are the short-lived ones only", () => {
 
 Deno.test("import: a value D1 cannot hold is refused, naming the key", () => {
   const key = encodeKeyParts(["credential", "cred-1"]);
-  // D1Repo stores JSON, so these would read back as the wrong type. Writing the
+  // D1KvRepo stores JSON, so these would read back as the wrong type. Writing the
   // encoded form verbatim would hand the app `{$kvmig:"u8",…}` instead.
   for (const value of [new Uint8Array([1, 2]), 42n, new Date()]) {
     const error = assertThrows(
@@ -213,21 +213,21 @@ Deno.test(
       assertEquals(imported, 7);
 
       // --- read back through the app's own repo ---
-      const secrets = new D1Repo<typeof jwkPair>(db, ["secret"]);
+      const secrets = new D1KvRepo<typeof jwkPair>(db, ["secret"]);
       assertEquals(await secrets.entry("signing_key").get(), jwkPair);
 
-      const creds = new D1Repo<typeof credential>(db, ["credential"]);
+      const creds = new D1KvRepo<typeof credential>(db, ["credential"]);
       assertEquals(await creds.entry("cred-1").get(), credential);
 
       // A single-part key with no sub-key still resolves.
-      const signSecret = new D1Repo<string>(db, []);
+      const signSecret = new D1KvRepo<string>(db, []);
       assertEquals(
         await signSecret.entry("passkey_sign_secret").get(),
         "sign-secret-b64",
       );
 
       // Index listings work, which is how credentials are found per user.
-      const index = new D1Repo<{ id: string }>(db, [
+      const index = new D1KvRepo<{ id: string }>(db, [
         "user_credentials",
         "alice",
       ]);
@@ -235,7 +235,7 @@ Deno.test(
       for await (const e of index) indexKeys.push(e.key);
       assertEquals(indexKeys, ["cred-1"]);
 
-      const subs = new D1Repo<{
+      const subs = new D1KvRepo<{
         endpoint: string;
         metadata?: { lastError?: string; failures: number };
       }>(db, ["push", "subscription"]);
@@ -246,9 +246,9 @@ Deno.test(
       });
 
       // Ephemeral state did not come across.
-      const sessions = new D1Repo<unknown>(db, ["dpop-session"]);
+      const sessions = new D1KvRepo<unknown>(db, ["dpop-session"]);
       assertEquals(await sessions.entry("thumb").get(), null);
-      const consumed = new D1Repo<boolean>(db, ["oauth", "consumed"]);
+      const consumed = new D1KvRepo<boolean>(db, ["oauth", "consumed"]);
       assertEquals(await consumed.entry("jti-1").get(), null);
       // ...so a fresh token with a reused jti is still accepted once.
       assertEquals((await consumed.entry("jti-1").update(() => true)).ok, true);

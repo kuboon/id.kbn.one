@@ -30,7 +30,7 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 
-import { D1_KV_SCHEMA, encodeKey } from "@kbn/kv/d1.ts";
+import { D1_KV_SCHEMA, encodeKey } from "@kuboon/kv/d1.ts";
 
 import { createD1HttpClient, type D1HttpClient } from "./d1-http.ts";
 import {
@@ -54,7 +54,7 @@ const describe = (value: unknown): string => {
 };
 
 /**
- * `D1Repo` stores values as JSON, so anything JSON cannot carry would arrive
+ * `D1KvRepo` stores values as JSON, so anything JSON cannot carry would arrive
  * changed — a `Uint8Array` as `{}`, an array hole as `null`. Reject it here,
  * naming the key and the path, instead of writing a row that reads back wrong.
  *
@@ -264,7 +264,7 @@ const main = async () => {
   for (const [prefix, n] of [...kept].sort()) console.log(`  ${prefix}: ${n}`);
 
   if (unstorable.size > 0) {
-    // D1Repo stores JSON, so the app itself can no longer write these shapes:
+    // D1KvRepo stores JSON, so the app itself can no longer write these shapes:
     // they are leftovers from an earlier implementation. Shapes only — never
     // the values, which include key material.
     const total = [...unstorable.values()].reduce((n, u) => n + u.count, 0);

@@ -310,9 +310,9 @@ const { payload } = await jwtVerify(bearer, JWKS, {
 - **本番**: Cloudflare Workers。ストレージは D1、クライアント資産は Workers
   Static Assets
 - **開発・テスト・ビルド**: Deno。ローカルのストレージは Deno KV
-- **ストレージ抽象**: `KvRepo`（`kv/`）。D1 と Deno KV
-  の両実装があり、`main/server/kv-backend.ts`
-  がランタイムに応じて選ぶ。compare-and-set
+- **ストレージ抽象**: `KvRepo`（`kv/`）。D1 実装は
+  [`@kuboon/kv/d1.ts`](https://jsr.io/@kuboon/kv)、Deno KV 実装は `kv/` にあり、
+  `main/server/kv-backend.ts` がランタイムに応じて選ぶ。compare-and-set
   を持ち、認可コードの単回利用・リフレッシュトークンの再利用検知・DPoP
   のリプレイ拒否・Push のレート制限がこれに依存する（Workers KV には CAS
   が無く、成功を返し続けたまま保証だけが消えるので、D1 を使う）
@@ -430,7 +430,7 @@ I/O も許されない。どちらに当たってもデプロイはエラー 100
 
 ### D1 のスキーマ
 
-`kv` テーブルは最初のクエリの前に Worker 自身が作る（`kv/d1.ts` の
+`kv` テーブルは最初のクエリの前に Worker 自身が作る（`@kuboon/kv/d1.ts` の
 `lazyD1`）。スキーマは `IF NOT EXISTS`
 で冪等なので、本番でもプレビューでも新しいデータベースでも同じに動く。
 

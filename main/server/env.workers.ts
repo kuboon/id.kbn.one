@@ -21,7 +21,7 @@ import { env } from "cloudflare:workers";
 
 import type { Middleware } from "@remix-run/fetch-router";
 
-import type { D1Like } from "@kbn/kv/d1.ts";
+import type { D1Like } from "@kuboon/kv/d1.ts";
 
 export const readEnv = (name: string): string | undefined => {
   const value = (env as unknown as Record<string, unknown>)[name];

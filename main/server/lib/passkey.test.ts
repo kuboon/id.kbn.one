@@ -11,8 +11,8 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { PasskeyCredential } from "@kuboon/passkeys/remix";
 
-import { D1_KV_SCHEMA, D1Repo } from "@kbn/kv/d1.ts";
-import { createSqliteD1 } from "../../../kv/d1_sqlite_test_util.ts";
+import { D1_KV_SCHEMA, D1KvRepo } from "@kuboon/kv/d1.ts";
+import { createSqliteD1 } from "@kuboon/kv/d1Sqlite.ts";
 
 import { KvPasskeyRepository, type PasskeyStores } from "./passkey.ts";
 import { JtiStore } from "../repository/jti-store.ts";
@@ -36,10 +36,10 @@ const setup = () => {
     if (statement.trim()) db.prepare(statement + ";").bind().run();
   }
   const stores: PasskeyStores = {
-    credentials: new D1Repo<PasskeyCredential>(db, ["credential"]),
+    credentials: new D1KvRepo<PasskeyCredential>(db, ["credential"]),
     userCredentials: (userId) =>
-      new D1Repo<PasskeyCredential>(db, ["user_credentials", userId]),
-    signSecret: new D1Repo<string>(db, []),
+      new D1KvRepo<PasskeyCredential>(db, ["user_credentials", userId]),
+    signSecret: new D1KvRepo<string>(db, []),
   };
   return { db, repo: new KvPasskeyRepository(stores), stores };
 };
@@ -212,7 +212,7 @@ Deno.test("jti store on D1: a jti is accepted once", async () => {
       if (statement.trim()) db.prepare(statement + ";").bind().run();
     }
     const store = new JtiStore(
-      new D1Repo<boolean>(db, ["dpop_jti"], { expireIn: 1000 * 60 * 10 }),
+      new D1KvRepo<boolean>(db, ["dpop_jti"], { expireIn: 1000 * 60 * 10 }),
     );
     assert(await store.checkReplay("j1"), "a fresh jti must be accepted");
     assert(!await store.checkReplay("j1"), "a replay must be rejected");

@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 
-import { D1Repo } from "@kbn/kv/d1.ts";
-import { createSqliteD1 } from "../../../../kv/d1_sqlite_test_util.ts";
+import { D1KvRepo } from "@kuboon/kv/d1.ts";
+import { createSqliteD1 } from "@kuboon/kv/d1Sqlite.ts";
 
 import { PushRateLimiter } from "../push/rate-limit.ts";
 import { FeedbackService, type StoredFeedback } from "./service.ts";
@@ -19,7 +19,7 @@ const input = (
   ...over,
 });
 
-const listAll = async (repo: D1Repo<StoredFeedback>) => {
+const listAll = async (repo: D1KvRepo<StoredFeedback>) => {
   const out: StoredFeedback[] = [];
   for await (const e of repo) {
     const v = await e.get();
@@ -31,7 +31,7 @@ const listAll = async (repo: D1Repo<StoredFeedback>) => {
 Deno.test("feedback: a report is stored as sent and then reported", async () => {
   const db = createSqliteD1();
   try {
-    const repo = new D1Repo<StoredFeedback>(db, ["feedback"]);
+    const repo = new D1KvRepo<StoredFeedback>(db, ["feedback"]);
     const told: StoredFeedback[] = [];
     const service = new FeedbackService({
       repo,
@@ -66,7 +66,7 @@ Deno.test("feedback: reports list oldest first", async () => {
   // see. Monotonic ULIDs keep that chronological.
   const db = createSqliteD1();
   try {
-    const repo = new D1Repo<StoredFeedback>(db, ["feedback"]);
+    const repo = new D1KvRepo<StoredFeedback>(db, ["feedback"]);
     const service = new FeedbackService({
       repo,
       limiter: allow,
@@ -88,13 +88,13 @@ Deno.test("feedback: reports list oldest first", async () => {
 Deno.test("feedback: over the limit nothing is stored or reported", async () => {
   const db = createSqliteD1();
   try {
-    const repo = new D1Repo<StoredFeedback>(db, ["feedback"]);
+    const repo = new D1KvRepo<StoredFeedback>(db, ["feedback"]);
     let told = 0;
     const service = new FeedbackService({
       repo,
       // The real limiter at the controller's settings, over a real engine.
       limiter: new PushRateLimiter(
-        new D1Repo<number>(db, ["feedback_ratelimit"]),
+        new D1KvRepo<number>(db, ["feedback_ratelimit"]),
         5,
         60 * 60 * 1000,
         () => 0,
@@ -124,7 +124,7 @@ Deno.test("feedback: a failed report onward does not fail the submission", async
   // send it again.
   const db = createSqliteD1();
   try {
-    const repo = new D1Repo<StoredFeedback>(db, ["feedback"]);
+    const repo = new D1KvRepo<StoredFeedback>(db, ["feedback"]);
     const service = new FeedbackService({
       repo,
       limiter: allow,
