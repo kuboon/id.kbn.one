@@ -6,6 +6,8 @@ export const routes = route({
   home: get("/"),
   me: get("/me"),
   authorize: get("/authorize"),
+  // The reference for RP developers.
+  docs: get("/docs"),
 
   // Public JWKS for verifiers (RFC 7517). No DPoP, no auth.
   jwks: get("/.well-known/jwks.json"),

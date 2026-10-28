@@ -20,7 +20,7 @@
  * ```
  *
  * Sending notifications is server-initiated — the RP *server* calls
- * `POST /rp/notifications` (see README "RPサーバ起点の通知"), not this client.
+ * `POST /rp/notifications` (see `/docs#push` on the IdP), not this client.
  */
 
 import { init as initDpop } from "@kuboon/dpop";
