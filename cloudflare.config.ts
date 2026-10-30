@@ -30,13 +30,16 @@ export default defineConfig({
     // — names `id.kbn.one`, and a passkey cannot be used from a workers.dev
     // host anyway, because `RP_ID` is `kbn.one`.
     workersDev: false,
-    // Preview URLs live on workers.dev too, one per uploaded version, so they
-    // go with it. Stated rather than left to the default: when the Worker was
-    // last changed in the dashboard, `cf deploy` compares this file with the
-    // dashboard settings, and a setting this file leaves out reads as one it
-    // turns off. Workers Builds then stops at the "Would you like to
-    // continue?" prompt instead of deploying.
-    previewUrls: false,
+    // On, to match the dashboard. When the Worker was last changed in the
+    // dashboard, `cf deploy` compares this file with the dashboard settings and
+    // asks before turning anything off; Workers Builds cannot answer, so the
+    // deploy stops there. Left out, this setting reads as off (the Worker has
+    // a custom domain), which is exactly such a change.
+    //
+    // Preview URLs are per-version hosts on workers.dev, which the paragraph
+    // above keeps off for the IdP itself. Switching them off is a separate
+    // change, safe to make once a deploy from here has gone through.
+    previewUrls: true,
 
     observability: {
       enabled: true,
