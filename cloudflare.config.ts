@@ -30,6 +30,13 @@ export default defineConfig({
     // — names `id.kbn.one`, and a passkey cannot be used from a workers.dev
     // host anyway, because `RP_ID` is `kbn.one`.
     workersDev: false,
+    // Preview URLs live on workers.dev too, one per uploaded version, so they
+    // go with it. Stated rather than left to the default: when the Worker was
+    // last changed in the dashboard, `cf deploy` compares this file with the
+    // dashboard settings, and a setting this file leaves out reads as one it
+    // turns off. Workers Builds then stops at the "Would you like to
+    // continue?" prompt instead of deploying.
+    previewUrls: false,
 
     observability: {
       enabled: true,
