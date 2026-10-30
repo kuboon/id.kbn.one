@@ -9,7 +9,7 @@
 
 import { bindings, defineConfig, triggers } from "cf/config";
 
-export default defineConfig({
+export default defineConfig((ctx) => ({
   worker: {
     name: "id-kbn-one",
     compatibilityDate: "2026-10-19",
@@ -47,7 +47,9 @@ export default defineConfig({
 
     // D1 has no TTL of its own. Reads already treat an expired row as absent,
     // so this only reclaims storage and a missed run costs nothing but space.
-    triggers: [
+    // Production only: a Preview (the build Workers Builds runs for a PR
+    // branch) cannot carry triggers, and one sweep of the shared D1 is enough.
+    triggers: ctx.isPreview ? [] : [
       triggers.scheduled({
         schedule: "23 4 * * *",
       }),
@@ -90,4 +92,4 @@ export default defineConfig({
       }),
     },
   },
-});
+}));
