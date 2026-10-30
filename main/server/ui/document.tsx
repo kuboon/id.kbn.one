@@ -53,6 +53,13 @@ export function Document(handle: Handle<DocumentProps>) {
             </a>
           </div>
           <nav class="navbar-end gap-2">
+            <a
+              class="btn btn-ghost btn-sm"
+              href={routes.docs.href()}
+              rmx-target="content"
+            >
+              Docs
+            </a>
             <div class="dropdown dropdown-end">
               <div
                 tabindex={0}

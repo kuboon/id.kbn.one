@@ -16,6 +16,7 @@ import {
 import { authorizeAction } from "./controllers/authorize.tsx";
 import { bindSessionAction } from "./controllers/bind-session.ts";
 import { credentialsController } from "./controllers/credentials.ts";
+import { docsAction } from "./controllers/docs.tsx";
 import { submitFeedbackAction } from "./controllers/feedback.ts";
 import { homeAction } from "./controllers/home.tsx";
 import { jwksAction } from "./controllers/jwks.ts";
@@ -44,6 +45,7 @@ const router = createRouter({ middleware });
 router.get(routes.home, homeAction);
 router.get(routes.me, meAction);
 router.get(routes.authorize, authorizeAction);
+router.get(routes.docs, docsAction);
 router.get(routes.jwks, jwksAction);
 
 // OAuth AS — public endpoints (root middleware only).
