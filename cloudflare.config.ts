@@ -9,7 +9,7 @@
 
 import { bindings, defineConfig, triggers } from "cf/config";
 
-export default defineConfig({
+export default defineConfig((ctx) => ({
   worker: {
     name: "id-kbn-one",
     compatibilityDate: "2026-10-19",
@@ -30,6 +30,16 @@ export default defineConfig({
     // — names `id.kbn.one`, and a passkey cannot be used from a workers.dev
     // host anyway, because `RP_ID` is `kbn.one`.
     workersDev: false,
+    // On, to match the dashboard. When the Worker was last changed in the
+    // dashboard, `cf deploy` compares this file with the dashboard settings and
+    // asks before turning anything off; Workers Builds cannot answer, so the
+    // deploy stops there. Left out, this setting reads as off (the Worker has
+    // a custom domain), which is exactly such a change.
+    //
+    // Preview URLs are per-version hosts on workers.dev, which the paragraph
+    // above keeps off for the IdP itself. Switching them off is a separate
+    // change, safe to make once a deploy from here has gone through.
+    previewUrls: true,
 
     observability: {
       enabled: true,
@@ -37,7 +47,9 @@ export default defineConfig({
 
     // D1 has no TTL of its own. Reads already treat an expired row as absent,
     // so this only reclaims storage and a missed run costs nothing but space.
-    triggers: [
+    // Production only: a Preview (the build Workers Builds runs for a PR
+    // branch) cannot carry triggers, and one sweep of the shared D1 is enough.
+    triggers: ctx.isPreview ? [] : [
       triggers.scheduled({
         schedule: "23 4 * * *",
       }),
@@ -80,4 +92,4 @@ export default defineConfig({
       }),
     },
   },
-});
+}));
