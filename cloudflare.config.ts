@@ -86,8 +86,12 @@ export default defineConfig((ctx) => ({
       // OAuth codes, refresh-token reuse detection, DPoP replay rejection and
       // push rate limiting all rest on it, and Workers KV would keep returning
       // success while those guarantees quietly vanished.
+      //
+      // By id alone (the database is named `id-kbn-one`). The dashboard holds
+      // the binding without a name, and `cf deploy` runs strict: while the
+      // Worker was last changed in the dashboard, any difference from it,
+      // even an added name, aborts the deploy.
       DB: bindings.d1({
-        name: "id-kbn-one",
         id: "1ad1c197-5119-4392-bf55-e863fe70334e",
       }),
     },

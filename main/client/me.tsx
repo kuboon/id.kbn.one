@@ -25,6 +25,7 @@ import {
 } from "@remix-run/ui";
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
+import { confirmDialog } from "./lib/confirm-dialog.ts";
 import {
   createPushManager,
   type PushManager,
@@ -287,9 +288,11 @@ export const Me = clientEntry(
 
     const deleteCredential = async (id: string) => {
       if (!fetchDpop) return;
-      if (!confirm("このパスキーを削除しますか？この操作は取り消せません。")) {
-        return;
-      }
+      const ok = await confirmDialog(
+        "このパスキーを削除しますか？この操作は取り消せません。",
+        { confirmLabel: "削除", danger: true },
+      );
+      if (!ok) return;
       try {
         setStatus("パスキーを削除しています…");
         const r = await fetchDpop(
@@ -379,11 +382,11 @@ export const Me = clientEntry(
 
     const deleteAccount = async () => {
       if (!account || busy.deleteAccount || !fetchDpop) return;
-      if (
-        !confirm(
-          "アカウントを削除するとすべてのパスキーが消えます。この操作は取り消せません。続行しますか？",
-        )
-      ) return;
+      const ok = await confirmDialog(
+        "アカウントを削除するとすべてのパスキーが消えます。この操作は取り消せません。続行しますか？",
+        { confirmLabel: "アカウントを削除", danger: true },
+      );
+      if (!ok) return;
       busy.deleteAccount = true;
       handle.update();
       try {
