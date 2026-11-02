@@ -7,6 +7,7 @@ import type {
   PushSubscriptionItem,
 } from "./types.ts";
 import { collectPushMetadata } from "./device.ts";
+import { confirmDialog } from "../confirm-dialog.ts";
 
 const extractErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -206,7 +207,11 @@ export function createPushManager(deps: PushManagerDeps): PushManager {
 
   const remove = async (id: string): Promise<void> => {
     if (!id) return;
-    if (!confirm("このデバイスの通知登録を解除しますか？")) return;
+    const ok = await confirmDialog("このデバイスの通知登録を解除しますか？", {
+      confirmLabel: "解除",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const r = await fetchDpop(
         `/push/subscriptions/${encodeURIComponent(id)}`,
