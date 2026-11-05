@@ -78,6 +78,38 @@ Deno.test("resolveCimdClient: private/loopback host is rejected (SSRF)", async (
   }
 });
 
+Deno.test("resolveCimdClient: asks for redirects back rather than an error", async () => {
+  // Workers throws on `redirect: "error"` before sending anything, which made
+  // every client unresolvable there while Deno accepted it.
+  let init: RequestInit | undefined;
+  await resolveCimdClient(
+    CLIENT_ID,
+    ((_input: string | URL | Request, i?: RequestInit) => {
+      init = i;
+      return Promise.resolve(Response.json({
+        client_id: CLIENT_ID,
+        redirect_uris: ["https://client.example.com/cb"],
+      }));
+    }) as typeof fetch,
+  );
+  assertEquals(init?.redirect, "manual");
+});
+
+Deno.test("resolveCimdClient: a redirect is not followed", async () => {
+  await assertRejects(
+    () =>
+      resolveCimdClient(
+        CLIENT_ID,
+        (() =>
+          Promise.resolve(
+            Response.redirect("https://elsewhere.example/metadata.json", 302),
+          )) as typeof fetch,
+      ),
+    CimdError,
+    "must not redirect",
+  );
+});
+
 Deno.test("resolveCimdClient: non-2xx fetch is rejected", async () => {
   await assertRejects(
     () => resolveCimdClient(CLIENT_ID, fetchReturning({}, 404)),

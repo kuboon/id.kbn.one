@@ -76,12 +76,23 @@ export const resolveCimdClient = async (
   let response: Response;
   try {
     response = await fetchImpl(clientId, {
-      redirect: "error",
+      // Not "error": Workers rejects that value outright ("does not make
+      // sense at the edge"), which failed every CIMD fetch there. "manual"
+      // hands the redirect back instead, and it is refused below — a document
+      // served from somewhere else is not the one `client_id` names.
+      redirect: "manual",
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(5000),
     });
   } catch {
     throw new CimdError("failed to fetch client metadata");
+  }
+  if (
+    response.type === "opaqueredirect" ||
+    (response.status >= 300 && response.status < 400)
+  ) {
+    await response.body?.cancel();
+    throw new CimdError("client metadata must not redirect");
   }
   if (!response.ok) {
     throw new CimdError(`client metadata fetch returned ${response.status}`);
