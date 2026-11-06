@@ -44,10 +44,16 @@ const corsMiddleware = cors({
  * preflights — which never match a method-specific route and therefore
  * skip route-scoped middleware — still get a proper 204 with CORS
  * headers.
+ *
+ * It wraps `errorHandler`, not the other way round. It adds its headers to
+ * the response `next()` returns, so an error thrown past it — the
+ * `AuthRequiredError` a `cors:` route raises for a signed-out user — would
+ * come back without them, and the browser would hide that 401 from the RP as
+ * a network error.
  */
 export const middleware = [
-  errorHandler,
   corsMiddleware,
+  errorHandler,
   // Serving the built assets is the runtime's job where it has one: on
   // Workers, Static Assets answers before the router is reached.
   ...staticMiddleware(),
