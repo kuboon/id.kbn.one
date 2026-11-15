@@ -50,7 +50,20 @@ export const Authorize = clientEntry(
     let passkeySupport: PasskeySupport | null = null;
     const busy = { signin: false, register: false };
     let registerMode = false;
-    const REGISTER_INPUT_ID = "register-username";
+    const REGISTER_INPUT_ID = "register-nickname";
+    // New accounts get a server-generated UUID as userId; the nickname is
+    // only a label, saved after the passkey is registered.
+    const saveNickname = async (nickname: string) => {
+      try {
+        await fetchDpop?.("/account", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ nickname }),
+        });
+      } catch {
+        // The account exists; the nickname can be set later on /me.
+      }
+    };
     let fetchDpop: typeof fetch | null = null;
     let passkeyClient: ReturnType<typeof createClient> | null = null;
 
@@ -128,22 +141,19 @@ export const Authorize = clientEntry(
       }
     };
 
-    const createAccount = async (rawUserId: string) => {
+    const createAccount = async (rawNickname: string) => {
       if (busy.signin || busy.register || !passkeyClient) return;
       if (isPasskeyBlocked(passkeySupport)) {
         showPasskeyGuide();
         return;
       }
-      const userId = rawUserId.trim();
-      if (!userId) {
-        setStatus("ユーザー名を入力してください。", "info");
-        return;
-      }
+      const nickname = rawNickname.trim().slice(0, 64);
       busy.register = true;
       handle.update();
       try {
         setStatus("セキュリティキーの操作を待機しています…");
-        await passkeyClient.register({ userId });
+        await passkeyClient.register({ displayName: nickname || undefined });
+        if (nickname) await saveNickname(nickname);
         await bindAndRedirect();
       } catch (error) {
         handleSigninError(error, "アカウントの作成に失敗しました");
@@ -241,8 +251,8 @@ export const Authorize = clientEntry(
                       <input
                         id={REGISTER_INPUT_ID}
                         type="text"
-                        placeholder="ユーザー名"
-                        autocomplete="username"
+                        placeholder="ニックネーム（任意）"
+                        autocomplete="nickname"
                         class="input input-bordered w-full"
                         disabled={busy.register}
                       />

@@ -45,7 +45,11 @@ export interface CreateClientOptions {
 }
 
 export interface RegisterParams {
-  userId: string;
+  /**
+   * The name a password manager shows for the new passkey. A new account's user id is a UUID the
+   * server picks, so this is what makes the passkey recognisable.
+   */
+  displayName?: string;
 }
 
 export interface DeleteParams {
@@ -124,7 +128,7 @@ export const createClient = (options: CreateClientOptions = {}) => {
         buildUrl(mountPath, "/register/options"),
         {
           body: JSON.stringify({
-            userId: params?.userId,
+            displayName: params?.displayName,
           }),
         },
       );

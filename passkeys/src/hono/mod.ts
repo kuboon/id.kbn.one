@@ -6,7 +6,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { type } from "arktype";
 import { sValidator } from "@hono/standard-validator";
 
-import { createPasskeysCore } from "../core/mod.ts";
+import { createPasskeysCore, UserIdTakenError } from "../core/mod.ts";
 
 const jsonError = (status: ContentfulStatusCode, message: string) =>
   new HTTPException(status, { message });
@@ -39,18 +39,26 @@ export const createPasskeysRouter = (
     })
     .post(
       "/register/options",
-      sValidator("json", type({ "userId?": "string" })),
+      sValidator("json", type({ "displayName?": "string" })),
       async (c) => {
         const sessionUserId = getUserId(c);
-        const { userId: newUserId } = c.req.valid("json");
-        if (!sessionUserId && !newUserId) {
-          throw jsonError(400, "userId is required");
-        }
-        const userName = sessionUserId || newUserId!;
+        const { displayName } = c.req.valid("json");
+        // A new account's id is always ours to pick (see the remix adapter).
+        const userName = sessionUserId ?? crypto.randomUUID();
         const requestUrl = getRequestUrl(c);
 
         const { optionsResult, sessionToken } = await core
-          .registrationOptionsForUser({ userName, requestUrl });
+          .registrationOptionsForUser({
+            userName,
+            requestUrl,
+            signedInAs: sessionUserId,
+            displayName: displayName?.trim().slice(0, 64) || undefined,
+          }).catch((err) => {
+            if (err instanceof UserIdTakenError) {
+              throw jsonError(409, "userId is already taken");
+            }
+            throw err;
+          });
         return c.json({ options: optionsResult, sessionToken });
       },
     )
@@ -67,6 +75,12 @@ export const createPasskeysRouter = (
           sessionToken,
           requestUrl: getRequestUrl(c),
           userAgent: c.req.header("user-agent"),
+          signedInAs: getUserId(c),
+        }).catch((err) => {
+          if (err instanceof UserIdTakenError) {
+            throw jsonError(409, "userId is already taken");
+          }
+          throw err;
         });
         if (!result || !result.credential) {
           throw jsonError(400, "Registration could not be verified");
