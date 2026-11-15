@@ -21,6 +21,7 @@ import {
   isPasskeyBlocked,
   type PasskeySupport,
   passkeySupportNotice,
+  showGuideIfWebAuthnMissing,
   showPasskeyGuide,
 } from "./lib/passkey-support.ts";
 
@@ -122,6 +123,7 @@ export const Authorize = clientEntry(
         await passkeyClient.authenticate();
         await bindAndRedirect();
       } catch (error) {
+        if (showGuideIfWebAuthnMissing()) passkeySupport = "unsupported";
         handleSigninError(error, "サインインに失敗しました");
         busy.signin = false;
         handle.update();
@@ -146,6 +148,7 @@ export const Authorize = clientEntry(
         await passkeyClient.register({ userId });
         await bindAndRedirect();
       } catch (error) {
+        if (showGuideIfWebAuthnMissing()) passkeySupport = "unsupported";
         handleSigninError(error, "アカウントの作成に失敗しました");
         busy.register = false;
         handle.update();
