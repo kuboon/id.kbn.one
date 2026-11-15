@@ -26,6 +26,7 @@ import {
 import { createClient } from "@kuboon/passkeys";
 import { init as initDpop } from "@kuboon/dpop";
 import { confirmDialog } from "./lib/confirm-dialog.ts";
+import { showGuideIfWebAuthnMissing } from "./lib/passkey-support.ts";
 import {
   createPushManager,
   type PushManager,
@@ -329,6 +330,7 @@ export const Me = clientEntry(
         );
         await reloadAccount();
       } catch (e) {
+        showGuideIfWebAuthnMissing();
         let message = "パスキーの追加に失敗しました。";
         let kind: AlertKind = "error";
         if (e instanceof DOMException) {

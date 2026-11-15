@@ -24,6 +24,21 @@ export const isPasskeyBlocked = (
 ): boolean => support === "unsupported" || support === "in-app-blocked";
 
 /**
+ * For a ceremony that just failed: when the cause is that this browser has no
+ * WebAuthn at all (SimpleWebAuthn's "WebAuthn is not supported in this
+ * browser"), open the guide and return true. That is the case
+ * `detectPasskeyStatus()` missed — an in-app browser it does not recognise —
+ * and the remedy is the same: open the page in a real browser. The caller
+ * should then treat passkeys as blocked, so the next attempt goes straight to
+ * the guide.
+ */
+export const showGuideIfWebAuthnMissing = (): boolean => {
+  if (typeof globalThis.PublicKeyCredential === "function") return false;
+  showPasskeyGuide();
+  return true;
+};
+
+/**
  * The notice to show for a support level that is not plain `"full"`, or
  * `null` when there is nothing to warn about. Callers own the `"full"` copy,
  * since what to say next differs per page.

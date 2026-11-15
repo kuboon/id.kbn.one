@@ -20,6 +20,7 @@ import {
   isPasskeyBlocked,
   type PasskeySupport,
   passkeySupportNotice,
+  showGuideIfWebAuthnMissing,
   showPasskeyGuide,
 } from "./lib/passkey-support.ts";
 
@@ -119,6 +120,7 @@ export const Index = clientEntry(
         setStatus("サインインに成功しました。", "success");
         await goToDashboard();
       } catch (error) {
+        if (showGuideIfWebAuthnMissing()) passkeySupport = "unsupported";
         const message = error instanceof Error ? error.message : String(error);
         setStatus(
           message
@@ -133,6 +135,10 @@ export const Index = clientEntry(
 
     const createAccount = async (rawUserId: string) => {
       if (busy.register || !passkeyClient) return;
+      if (isPasskeyBlocked(passkeySupport)) {
+        showPasskeyGuide();
+        return;
+      }
       const userId = rawUserId.trim();
       if (!userId) {
         setStatus("ユーザー名を入力してください。", "info");
@@ -146,6 +152,7 @@ export const Index = clientEntry(
         setStatus("アカウントを作成しました。", "success");
         await goToDashboard();
       } catch (error) {
+        if (showGuideIfWebAuthnMissing()) passkeySupport = "unsupported";
         let message = "パスキーの設定に失敗しました。";
         let kind: AlertKind = "error";
         if (error instanceof DOMException) {
