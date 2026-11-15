@@ -26,7 +26,7 @@ const client = hc<PasskeyAppType>("http://localhost", {
 });
 Deno.test("PasskeyAppType RPC - register/options endpoint", async () => {
   const res = await client.register.options.$post({
-    json: { userId: "test-user-123" },
+    json: { displayName: "たろう" },
   });
 
   assertEquals(res.status, 200);
@@ -35,7 +35,40 @@ Deno.test("PasskeyAppType RPC - register/options endpoint", async () => {
     // response now includes options and session token
     assertEquals(typeof data.options !== "undefined", true);
     assertEquals(typeof data.sessionToken === "string", true);
+    // The passkey is labelled with the display name; the user id is a fresh UUID.
+    assertEquals(data.options.user.name, "たろう");
+    const id = new TextDecoder().decode(
+      Uint8Array.fromBase64(data.options.user.id, { alphabet: "base64url" }),
+    );
+    assertEquals(/^[0-9a-f-]{36}$/.test(id), true);
   }
+});
+
+Deno.test("register/options ignores a client-chosen userId", async () => {
+  await storage.addCredential({
+    id: "cred-alice",
+    userId: "alice",
+    nickname: "",
+    publicKey: "",
+    counter: 0,
+    deviceType: "singleDevice",
+    backedUp: false,
+    createdAt: 0,
+    updatedAt: 0,
+  });
+  const res = await appFetch(
+    new Request("http://localhost/register/options", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: "alice" }),
+    }),
+  );
+  assertEquals(res.status, 200);
+  const data = await res.json();
+  const id = new TextDecoder().decode(
+    Uint8Array.fromBase64(data.options.user.id, { alphabet: "base64url" }),
+  );
+  assertEquals(id === "alice", false);
 });
 
 Deno.test("PasskeyAppType RPC - authenticate/options endpoint", async () => {

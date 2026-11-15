@@ -22,6 +22,19 @@ const encodeBase64Url = (input: ArrayBuffer | Uint8Array) =>
 const decodeBase64Url = (input: string) =>
   Uint8Array.fromBase64(input, { alphabet: "base64url" });
 
+/**
+ * Registering a passkey under a user id that already has passkeys, without being signed in as
+ * that user. Allowing it would let anyone who knows (or guesses) a user id add their own key to
+ * that account and sign in as its owner. A signed-in user adds keys to their own account only.
+ */
+export class UserIdTakenError extends Error {
+  readonly status = 409;
+  constructor(readonly userId: string) {
+    super("userId is already taken");
+    this.name = "UserIdTakenError";
+  }
+}
+
 export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
   const {
     rpName,
@@ -46,20 +59,32 @@ export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
   );
 
   return {
-    async registrationOptionsForUser({ userName, requestUrl }: {
-      userName: string;
-      requestUrl: URL;
-    }) {
+    /**
+     * @param signedInAs the user the request is signed in as, if any. Registering under an
+     * existing user id is allowed only for that user ({@link UserIdTakenError} otherwise).
+     */
+    async registrationOptionsForUser(
+      { userName, requestUrl, signedInAs, displayName }: {
+        userName: string;
+        requestUrl: URL;
+        signedInAs?: string;
+        /** What the authenticator shows for the passkey; the user id when absent. */
+        displayName?: string;
+      },
+    ) {
       const existingCredentials = await storage.getCredentialsByUserId(
         userName,
       );
+      if (existingCredentials.length > 0 && signedInAs !== userName) {
+        throw new UserIdTakenError(userName);
+      }
       const userID = new TextEncoder().encode(userName);
       const optionsInput: GenerateRegistrationOptionsOpts = {
         rpName,
         rpID: requestUrl.hostname,
         userID,
-        userName,
-        userDisplayName: userName,
+        userName: displayName || userName,
+        userDisplayName: displayName || userName,
         excludeCredentials: existingCredentials.map((credential) => ({
           id: credential.id,
           transports: credential.transports,
@@ -82,12 +107,17 @@ export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
       return { optionsResult, sessionToken };
     },
 
+    /**
+     * @param signedInAs as for {@link registrationOptionsForUser}, checked again here: two people
+     * can both get options for the same new user id before either has registered.
+     */
     async verifyRegistration(
-      { body, sessionToken, requestUrl: _requestUrl, userAgent }: {
+      { body, sessionToken, requestUrl: _requestUrl, userAgent, signedInAs }: {
         body: unknown;
         sessionToken: string;
         requestUrl: URL;
         userAgent?: string;
+        signedInAs?: string;
       },
     ) {
       const session = await verifyToken(sessionToken);
@@ -110,6 +140,9 @@ export function createPasskeysCore(options: PasskeyMiddlewareOptions) {
       );
 
       const existingCredentials = await storage.getCredentialsByUserId(userId);
+      if (existingCredentials.length > 0 && signedInAs !== userId) {
+        throw new UserIdTakenError(userId);
+      }
       const transports = registrationCredential.transports;
 
       const nickname = generateCredentialNickname({

@@ -20,7 +20,7 @@ import type { RequestContext, RequestHandler } from "@remix-run/fetch-router";
 type AnyRequestContext = RequestContext<any, any>;
 import { type } from "arktype";
 
-import { createPasskeysCore } from "../core/mod.ts";
+import { createPasskeysCore, UserIdTakenError } from "../core/mod.ts";
 import type { PasskeyRepository } from "../core/types.ts";
 
 export interface PasskeysActionsOptions {
@@ -36,7 +36,10 @@ export interface PasskeysActionsOptions {
   ) => Promise<void> | void;
 }
 
-const registerOptionsBody = type({ "userId?": "string" });
+const registerOptionsBody = type({ "displayName?": "string" });
+
+/** Longest passkey display name taken from a request; longer ones are cut. */
+const MAX_DISPLAY_NAME = 64;
 const registerVerifyBody = type({
   credential: "object",
   sessionToken: "string",
@@ -119,23 +122,48 @@ export function createPasskeysActions(
       );
       if (parsed instanceof Response) return parsed;
       const sessionUserId = getUserId(context);
-      const userName = sessionUserId || parsed.userId;
-      if (!userName) return jsonError(400, "userId is required");
+      // A new account's id is always ours to pick: a client-chosen one could be someone else's
+      // (or a name someone else wants). Signed in, it is the account's own id.
+      const userName = sessionUserId ?? crypto.randomUUID();
+      const displayName =
+        parsed.displayName?.trim().slice(0, MAX_DISPLAY_NAME) ||
+        undefined;
       const requestUrl = getRequestUrl(context.request);
-      const { optionsResult, sessionToken } = await core
-        .registrationOptionsForUser({ userName, requestUrl });
-      return ok({ options: optionsResult, sessionToken });
+      try {
+        const { optionsResult, sessionToken } = await core
+          .registrationOptionsForUser({
+            userName,
+            requestUrl,
+            signedInAs: sessionUserId,
+            displayName,
+          });
+        return ok({ options: optionsResult, sessionToken });
+      } catch (err) {
+        if (err instanceof UserIdTakenError) {
+          return jsonError(409, "userId is already taken");
+        }
+        throw err;
+      }
     },
 
     async registerVerify(context) {
       const parsed = await validateReqBody(context.request, registerVerifyBody);
       if (parsed instanceof Response) return parsed;
-      const result = await core.verifyRegistration({
-        body: parsed.credential,
-        sessionToken: parsed.sessionToken,
-        requestUrl: getRequestUrl(context.request),
-        userAgent: context.request.headers.get("user-agent") ?? undefined,
-      });
+      let result;
+      try {
+        result = await core.verifyRegistration({
+          body: parsed.credential,
+          sessionToken: parsed.sessionToken,
+          requestUrl: getRequestUrl(context.request),
+          userAgent: context.request.headers.get("user-agent") ?? undefined,
+          signedInAs: getUserId(context),
+        });
+      } catch (err) {
+        if (err instanceof UserIdTakenError) {
+          return jsonError(409, "userId is already taken");
+        }
+        throw err;
+      }
       if (!result.verified || !result.credential) {
         return jsonError(400, "Registration could not be verified");
       }
