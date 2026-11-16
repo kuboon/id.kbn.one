@@ -12,7 +12,7 @@ const CLIENT_ENTRIES = [
   "me.tsx",
   "authorize.tsx",
   "oauth-authorize.tsx",
-  "sw.js",
+  "sw.ts",
   "rp.ts",
 ] as const;
 

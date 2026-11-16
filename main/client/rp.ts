@@ -24,6 +24,7 @@
  */
 
 import { init as initDpop } from "@kuboon/dpop";
+import { subscribePush } from "@remix-kbn/web-push/client";
 
 export interface SessionResult {
   /** Stable user id assigned by the IdP. */
@@ -171,34 +172,19 @@ export const createRpClient = async (
     const { publicKey } = await vapidResp.json() as { publicKey?: string };
     if (!publicKey) throw new Error("IdP returned no VAPID public key");
 
-    const swUrl = pushOpts.serviceWorkerUrl ?? "/sw.js";
-    let registration = await navigator.serviceWorker.getRegistration();
-    if (!registration) {
-      registration = await navigator.serviceWorker.register(swUrl);
-    }
-    registration = await navigator.serviceWorker.ready;
-
-    if (Notification.permission === "default") {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        throw new Error("Notification permission was not granted");
-      }
-    } else if (Notification.permission !== "granted") {
-      throw new Error("Notification permission was not granted");
-    }
-
-    const subscription = await registration.pushManager.getSubscription() ??
-      await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: publicKey,
-      });
+    // Asks for permission, registers the service worker, and replaces a
+    // subscription made with another VAPID key.
+    const subscription = await subscribePush({
+      applicationServerKey: publicKey,
+      serviceWorkerUrl: pushOpts.serviceWorkerUrl ?? "/sw.js",
+    });
 
     const response = await fetchDpop(idp("/push/subscriptions"), {
       ...baseInit,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        subscription: subscription.toJSON(),
+        subscription,
         metadata: pushOpts.metadata,
       }),
     });

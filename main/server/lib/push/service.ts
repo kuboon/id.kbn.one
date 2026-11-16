@@ -1,10 +1,10 @@
 import { pushContact } from "../../config.ts";
 import {
-  ApplicationServer,
-  PushMessageError,
-  type PushSubscription as WebPushSubscription,
-  Urgency,
-} from "@negrel/webpush";
+  createPushSender,
+  type PushSender,
+  type PushSubscriptionData,
+  type PushUrgency,
+} from "@remix-kbn/web-push/server";
 import type { PushSubscriptionPayload } from "./schemas.ts";
 import {
   pushRateLimitRepo,
@@ -48,7 +48,7 @@ export interface StoredPushSubscription {
   userId: string;
   endpoint: string;
   expirationTime: number | null | undefined;
-  keys: WebPushSubscription["keys"];
+  keys: PushSubscriptionData["keys"];
   createdAt: number;
   updatedAt: number;
   metadata: PushSubscriptionMetadata;
@@ -69,7 +69,7 @@ export interface PushNotificationPayload {
   tag?: string;
   requireInteraction?: boolean;
   data?: Record<string, unknown>;
-  urgency?: Urgency;
+  urgency?: PushUrgency;
   ttl?: number;
   topic?: string;
 }
@@ -83,33 +83,25 @@ export interface PushNotificationResult {
   throttled?: boolean;
 }
 
-interface PushServiceErrorInfo {
-  status: number;
-  statusText: string;
-  reason?: string;
-  detail?: string;
-  message: string;
-}
-
 export class PushService {
   private constructor(
     private readonly subscriptionRepo: typeof pushSubscriptionRepo,
     private readonly userIndexRepoForUser: typeof pushUserIndexRepoForUser,
-    private readonly applicationServer: ApplicationServer,
+    private readonly sender: PushSender,
     private readonly vapidPublicKey: string,
     private readonly rateLimiter: PushRateLimiter,
   ) {}
 
   static async create(): Promise<PushService> {
     const { keyPair, publicKey } = await getSigningKey();
-    const applicationServer = await ApplicationServer.new({
-      contactInformation: pushContact,
+    const sender = await createPushSender({
       vapidKeys: keyPair,
+      contact: pushContact,
     });
     return new PushService(
       pushSubscriptionRepo,
       pushUserIndexRepoForUser,
-      applicationServer,
+      sender,
       publicKey,
       new PushRateLimiter(pushRateLimitRepo),
     );
@@ -266,63 +258,6 @@ export class PushService {
     return updated;
   }
 
-  private async extractPushServiceError(
-    error: PushMessageError,
-  ): Promise<PushServiceErrorInfo> {
-    const { response } = error;
-    const status = response.status;
-    const statusText = response.statusText;
-    let reason: string | undefined;
-    let detail: string | undefined;
-
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      try {
-        const body = await response.clone().json();
-        if (body && typeof body === "object") {
-          const record = body as Record<string, unknown>;
-          const maybeReason = record.reason;
-          if (typeof maybeReason === "string" && maybeReason.trim()) {
-            reason = maybeReason.trim();
-          }
-          const detailKeys = ["message", "detail", "error", "description"];
-          for (const key of detailKeys) {
-            const value = record[key];
-            if (typeof value === "string" && value.trim()) {
-              detail = value.trim();
-              break;
-            }
-          }
-        }
-      } catch {
-        // ignore JSON parse errors and fallback to text body
-      }
-    }
-
-    if (!detail) {
-      try {
-        const text = await response.clone().text();
-        if (text.trim()) {
-          detail = text.trim();
-        }
-      } catch {
-        // ignore body read errors
-      }
-    }
-
-    const base = `Push service responded with ${status} ${statusText}` +
-      (reason ? ` (${reason})` : "");
-    const message = detail ? `${base}: ${detail}` : base;
-
-    return {
-      status,
-      statusText,
-      reason,
-      detail,
-      message,
-    };
-  }
-
   private async getSubscription(
     userId: string,
     id: string,
@@ -350,112 +285,52 @@ export class PushService {
       return { subscription, throttled: true };
     }
 
-    const subscriber = this.applicationServer.subscribe({
-      endpoint: subscription.endpoint,
-      keys: subscription.keys,
-    });
-
-    const messagePayload = {
-      title: payload.title,
-      body: payload.body,
-      url: payload.url,
-      icon: payload.icon,
-      badge: payload.badge,
-      badgeCount: payload.badgeCount,
-      tag: payload.tag,
-      requireInteraction: payload.requireInteraction ?? false,
-      data: {
-        ...payload.data,
+    // Encryption, VAPID, reading the push service's answer and retrying without
+    // a rejected Topic header are @remix-kbn/web-push's; recording the outcome
+    // on the stored subscription, and the messages users see, are ours.
+    const result = await this.sender.send(
+      { endpoint: subscription.endpoint, keys: subscription.keys },
+      {
+        title: payload.title,
+        body: payload.body,
         url: payload.url,
-        subscriptionId: id,
+        icon: payload.icon,
+        badge: payload.badge,
+        badgeCount: payload.badgeCount,
+        tag: payload.tag,
+        requireInteraction: payload.requireInteraction,
+        data: { ...payload.data, subscriptionId: id },
       },
-      timestamp: new Date().toISOString(),
-    };
+      {
+        urgency: payload.urgency ?? "normal",
+        ttl: payload.ttl ?? 2419200,
+        topic: payload.topic,
+      },
+    );
 
     const warnings: string[] = [];
-    let lastError: PushMessageError | null = null;
-    let lastErrorInfo: PushServiceErrorInfo | null = null;
+    if (result.topicDropped) {
+      warnings.push(
+        "プッシュサービスに Topic ヘッダーを拒否されたため、省略して送信しました。",
+      );
+    }
     let subscriptionRecord = subscription;
-    let topicRejected = false;
 
-    const topicsToTry = payload.topic !== undefined
-      ? [payload.topic, undefined]
-      : [undefined];
-
-    for (const candidateTopic of topicsToTry) {
-      try {
-        await subscriber.pushTextMessage(JSON.stringify(messagePayload), {
-          urgency: payload.urgency ?? Urgency.Normal,
-          ttl: payload.ttl ?? 2419200,
-          topic: candidateTopic,
-        });
-        if (topicRejected && candidateTopic === undefined) {
-          warnings.push(
-            "プッシュサービスに Topic ヘッダーを拒否されたため、省略して送信しました。",
-          );
-        }
-        lastError = null;
-        lastErrorInfo = null;
-        break;
-      } catch (error) {
-        if (!(error instanceof PushMessageError)) {
-          throw error;
-        }
-
-        const info = await this.extractPushServiceError(error);
-        lastError = error;
-        lastErrorInfo = info;
-
-        if (error.isGone()) {
-          const updated = await this.recordSendError(
-            subscriptionRecord,
-            info.message,
-          );
-          subscriptionRecord = updated;
-          await this.deleteSubscription(userId, id);
-          return {
-            subscription: updated,
-            removed: true,
-            warnings,
-          };
-        }
-
-        if (info.reason === "VapidPkHashMismatch") {
-          const updated = await this.recordSendError(
-            subscriptionRecord,
-            info.message,
-          );
-          subscriptionRecord = updated;
+    if (!result.ok) {
+      subscriptionRecord = await this.recordSendError(
+        subscriptionRecord,
+        result.error.message,
+      );
+      if (result.gone) {
+        if (result.gone === "vapid-key-mismatch") {
           warnings.push(
             "VAPID キーが変更されたため通知登録を削除しました。もう一度通知を有効化してください。",
           );
-          await this.deleteSubscription(userId, id);
-          return {
-            subscription: updated,
-            removed: true,
-            warnings,
-          };
         }
-
-        const canRetryWithoutTopic = payload.topic !== undefined &&
-          candidateTopic !== undefined &&
-          info.reason === "BadWebPushTopic";
-        if (canRetryWithoutTopic) {
-          topicRejected = true;
-          continue;
-        }
-
-        break;
+        await this.deleteSubscription(userId, id);
+        return { subscription: subscriptionRecord, removed: true, warnings };
       }
-    }
-
-    if (lastError) {
-      const message = lastErrorInfo?.message ?? lastError.toString();
-      subscriptionRecord = await this.recordSendError(
-        subscriptionRecord,
-        message,
-      );
-      throw new Error(message);
+      throw new Error(result.error.message);
     }
 
     const now = Date.now();
@@ -496,7 +371,7 @@ export class PushService {
         "通知が届きました。スマートフォンでも受け取れることを確認できます。",
       url: "/me",
       tag: "push-test",
-      urgency: Urgency.Low,
+      urgency: "low",
     });
   }
 }
