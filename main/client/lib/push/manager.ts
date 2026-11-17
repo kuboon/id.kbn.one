@@ -1,4 +1,5 @@
 import { detectPushStatus } from "@kuboon/browser-how-to/push";
+import { subscribePush } from "@remix-kbn/web-push/client";
 import { showPushGuide } from "@kuboon/browser-how-to/push/ui";
 
 import type {
@@ -172,18 +173,18 @@ export function createPushManager(deps: PushManagerDeps): PushManager {
           "通知が許可されていません。ブラウザーの設定をご確認ください。",
         );
       }
-      const registration = await ensureRegistration();
-      const existing = await registration.pushManager.getSubscription();
-      const subscription = existing ??
-        await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: await fetchVapidKey(),
-        });
+      // Registers /sw.js, and replaces a subscription made with an older VAPID
+      // key instead of re-sending one the push service would refuse.
+      const subscription = await subscribePush({
+        applicationServerKey: await fetchVapidKey(),
+        serviceWorkerUrl: "/sw.js",
+      });
+      state.registration = await navigator.serviceWorker.ready;
       const r = await fetchDpop("/push/subscriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subscription: subscription.toJSON(),
+          subscription,
           metadata: collectPushMetadata(),
         }),
       });

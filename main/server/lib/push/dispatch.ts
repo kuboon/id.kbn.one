@@ -4,7 +4,7 @@
  * (`POST /rp/notifications`).
  */
 
-import { Urgency } from "@negrel/webpush";
+import type { PushUrgency } from "@remix-kbn/web-push/server";
 
 import type { PushNotificationPayload } from "./service.ts";
 import type { PushNotificationContent } from "./schemas.ts";
@@ -30,33 +30,7 @@ export const PUSH_SEND_CONCURRENCY = 10;
  * Run `fn` over `items` with at most `limit` in flight at a time, preserving
  * input order in the returned settled results.
  */
-export const mapWithConcurrency = async <T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<PromiseSettledResult<R>[]> => {
-  const results = new Array<PromiseSettledResult<R>>(items.length);
-  let cursor = 0;
-  const worker = async () => {
-    while (cursor < items.length) {
-      const index = cursor++;
-      try {
-        results[index] = {
-          status: "fulfilled",
-          value: await fn(items[index], index),
-        };
-      } catch (reason) {
-        results[index] = { status: "rejected", reason };
-      }
-    }
-  };
-  const workers = Array.from(
-    { length: Math.min(limit, items.length) },
-    () => worker(),
-  );
-  await Promise.all(workers);
-  return results;
-};
+export { mapWithConcurrency } from "@remix-kbn/web-push/server";
 
 /** Map the validated request content onto the push service payload shape. */
 export const toServicePayload = (
@@ -73,7 +47,7 @@ export const toServicePayload = (
   data: content.data && typeof content.data === "object"
     ? content.data as Record<string, unknown>
     : undefined,
-  urgency: content.urgency as Urgency | undefined,
+  urgency: content.urgency as PushUrgency | undefined,
   ttl: content.ttl,
   topic: content.topic,
 });
